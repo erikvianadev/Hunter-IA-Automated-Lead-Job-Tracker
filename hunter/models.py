@@ -1,11 +1,19 @@
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from .choices import JobApplicationStatus
 
 
-class Tag(models.Model):
+class BaseModel(models.Model):
+    created_at = models.DateTimeField(_('created at'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('updated at'), auto_now=True)
+
+    class Meta:
+        abstract = True
+
+
+class Tag(BaseModel):
     name = models.CharField(_('name'), max_length=120, unique=True)
 
     class Meta:
@@ -16,13 +24,13 @@ class Tag(models.Model):
         verbose_name = _('tag')
         verbose_name_plural = _('tags')
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
 
-class Job(models.Model):
+class Job(BaseModel):
     owner = models.ForeignKey(
-        User,
+        get_user_model(),
         on_delete=models.CASCADE,
         related_name='jobs',
         verbose_name=_('owner'),
@@ -40,7 +48,6 @@ class Job(models.Model):
         blank=True,
     )
     date_posted = models.DateField(_('date posted'), null=True, blank=True)
-    created_at = models.DateTimeField(_('created at'), auto_now_add=True)
     tags = models.ManyToManyField(
         Tag,
         verbose_name=_('tags'),
@@ -56,13 +63,13 @@ class Job(models.Model):
         verbose_name = _('job')
         verbose_name_plural = _('jobs')
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'{self.title} @ {self.company_name}'
 
 
-class Lead(models.Model):
+class Lead(BaseModel):
     owner = models.ForeignKey(
-        User,
+        get_user_model(),
         on_delete=models.CASCADE,
         related_name='leads',
         verbose_name=_('owner'),
@@ -71,7 +78,6 @@ class Lead(models.Model):
     company = models.CharField(_('company'), max_length=255)
     email = models.EmailField(_('email'), blank=True, null=True)
     linkedin_url = models.URLField(_('linkedin url'), blank=True, null=True)
-    created_at = models.DateTimeField(_('created at'), auto_now_add=True)
 
     class Meta:
         ordering = ['-created_at', 'name']
@@ -81,13 +87,13 @@ class Lead(models.Model):
         verbose_name = _('lead')
         verbose_name_plural = _('leads')
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'{self.name} — {self.company}'
 
 
-class JobApplication(models.Model):
+class JobApplication(BaseModel):
     owner = models.ForeignKey(
-        User,
+        get_user_model(),
         on_delete=models.CASCADE,
         related_name='job_applications',
         verbose_name=_('owner'),
@@ -106,16 +112,18 @@ class JobApplication(models.Model):
     )
     notes = models.TextField(_('notes'), blank=True)
     applied_at = models.DateTimeField(_('applied at'), null=True, blank=True)
-    created_at = models.DateTimeField(_('created at'), auto_now_add=True)
 
     class Meta:
         ordering = ['-created_at']
         indexes = [
-            models.Index(fields=['owner', 'created_at'], name='application_owner_created_at_idx'),
+            models.Index(fields=['owner', 'created_at'], name='app_owner_created_idx'),
             models.Index(fields=['job'], name='application_job_idx'),
+        ]
+        constraints = [
+            models.UniqueConstraint(fields=['owner', 'job'], name='unique_owner_job'),
         ]
         verbose_name = _('job application')
         verbose_name_plural = _('job applications')
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'{self.job} — {self.get_status_display()}'
