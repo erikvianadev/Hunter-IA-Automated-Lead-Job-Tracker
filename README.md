@@ -1,5 +1,7 @@
 # 🏹 Hunter-IA | Automated Lead & Job Tracker
 
+**Link do Projeto:** [Acessar API no Render](https://hunter-ia-automated-lead-job-tracker.onrender.com/hunter/api/jobs/)
+
 [![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)](https://www.python.org/)
 [![Django](https://img.shields.io/badge/django-%23092e20.svg?style=for-the-badge&logo=django&logoColor=white)](https://www.djangoproject.com/)
 [![DjangoREST](https://img.shields.io/badge/DJANGO-REST-ff1709?style=for-the-badge&logo=django&logoColor=white&color=ff1709)](https://www.django-rest-framework.org/)
@@ -20,6 +22,10 @@ O **Hunter-IA** é uma solução de backend robusta projetada para centralizar e
 | **Banco de Dados** | SQLite (Desenvolvimento) |
 | **Configuração** | Python-environ (12-Factor App) |
 
+---
+## 🌍 Deploy
+O projeto está hospedado e rodando no Render:
+👉 [https://hunter-ia-automated-lead-job-tracker.onrender.com/hunter/api/jobs/](https://hunter-ia-automated-lead-job-tracker.onrender.com/hunter/api/jobs/)
 ---
 
 ## 🚀 Como Configurar o Projeto
