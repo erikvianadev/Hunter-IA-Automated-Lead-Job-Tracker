@@ -1,80 +1,77 @@
-# 🏹 Hunter-IA: Automated Lead & Job Tracker
+# 🏹 Hunter-IA | Automated Lead & Job Tracker
 
-O **Hunter-IA** é uma API robusta desenvolvida para desenvolvedores e profissionais que desejam organizar sua busca por oportunidades de forma inteligente. O sistema permite o rastreio de vagas (Jobs), gerenciamento de contatos estratégicos (Leads) e organização por tags, tudo protegido por autenticação moderna.
+[![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)](https://www.python.org/)
+[![Django](https://img.shields.io/badge/django-%23092e20.svg?style=for-the-badge&logo=django&logoColor=white)](https://www.djangoproject.com/)
+[![DjangoREST](https://img.shields.io/badge/DJANGO-REST-ff1709?style=for-the-badge&logo=django&logoColor=white&color=ff1709)](https://www.django-rest-framework.org/)
+[![JWT](https://img.shields.io/badge/JWT-black?style=for-the-badge&logo=JSON%20web%20tokens)](https://jwt.io/)
 
----
-
-## 🚀 Tecnologias Utilizadas
-
-* **Python 3.x**
-* **Django & Django REST Framework** (Core do projeto)
-* **Simple JWT** (Autenticação segura via Tokens)
-* **Django Filter** (Busca e filtragem avançada)
-* **SQLite** (Banco de dados leve e eficiente)
-* **Python-environ** (Segurança de variáveis de ambiente)
+O **Hunter-IA** é uma solução de backend robusta projetada para centralizar e inteligenciar a busca por oportunidades no mercado de tecnologia. Com uma arquitetura focada em segurança e performance, o sistema permite o gerenciamento completo de vagas, contatos estratégicos (Leads) e tecnologias (Tags).
 
 ---
 
-## 🛠️ Como Configurar o Projeto
+## 🛠️ Stack Tecnológica
 
-1. **Clone o repositório:**
-   ```bash
-   git clone [https://github.com/erikvianadev/Hunter-IA-Automated-Lead-Job-Tracker.git](https://github.com/erikvianadev/Hunter-IA-Automated-Lead-Job-Tracker.git)
-   cd Hunter-IA-Automated-Lead-Job-Tracker
-Crie e ative seu ambiente virtual:
+| Camada | Tecnologia |
+| :--- | :--- |
+| **Linguagem** | Python 3.x |
+| **Framework Web** | Django 5.x |
+| **API Engine** | Django REST Framework |
+| **Segurança** | Simple JWT (OAuth2 Flow) |
+| **Banco de Dados** | SQLite (Desenvolvimento) |
+| **Configuração** | Python-environ (12-Factor App) |
 
-Bash
+---
+
+## 🚀 Como Configurar o Projeto
+
+### 1. Preparando o Ambiente
+```bash
+# Clone o repositório
+git clone [https://github.com/erikvianadev/Hunter-IA-Automated-Lead-Job-Tracker.git](https://github.com/erikvianadev/Hunter-IA-Automated-Lead-Job-Tracker.git)
+cd Hunter-IA-Automated-Lead-Job-Tracker
+
+# Crie e ative o ambiente virtual
 python -m venv venv
-# No Windows:
+# Windows:
 .\venv\Scripts\activate
-Instale as dependências:
-
+# Linux/Mac:
+source venv/bin/activate
+2. Instalação e Variáveis
 Bash
+# Instale as dependências
 pip install -r requirements.txt
-Configure as variáveis de ambiente:
-Crie um arquivo .env na raiz do projeto e adicione:
 
-Snippet de código
-DJANGO_DEBUG=True
-DJANGO_SECRET_KEY=sua_chave_secreta
-ALLOWED_HOSTS=127.0.0.1,localhost
-Rode as migrações e inicie o servidor:
+# Crie o arquivo de configuração
+touch .env
+Nota: Adicione as seguintes chaves no seu .env:
+DJANGO_DEBUG=True, DJANGO_SECRET_KEY=sua_chave, ALLOWED_HOSTS=127.0.0.1,localhost
 
+3. Execução
 Bash
 python manage.py migrate
 python manage.py runserver
-🔑 Autenticação
-A API utiliza JWT (JSON Web Token). Para acessar os endpoints:
+🔑 Guia de Autenticação
+A API utiliza o fluxo de Bearer Token. Siga os passos abaixo para testar no Insomnia/Postman:
 
-Obtenha o token em /api/token/ enviando seu usuário e senha.
+Obter Acesso: Realize um POST em /api/token/ com username e password.
 
-Use o access_token no Header das requisições:
-Authorization: Bearer <seu_token>
+Autorizar: Copie o access_token retornado.
 
-📌 Endpoints Principais
-POST /api/token/: Geração de Token.
+Header: Em suas requisições, adicione o campo:
+Authorization: Bearer <seu_token_aqui>
 
-GET /hunter/api/jobs/: Listagem de vagas (Requer autenticação).
+📌 Endpoints Estratégicos
+🔐 Autenticação
+POST /api/token/ - Gera tokens de acesso e refresh.
 
-POST /hunter/api/leads/: Cadastro de novos contatos/recrutadores.
+POST /api/token/refresh/ - Renova o token de acesso.
 
-GET /hunter/api/tags/: Gerenciamento de tecnologias.
+🏹 Hunter Core
+GET /hunter/api/jobs/ - Lista vagas com suporte a filtros e paginação.
 
-Desenvolvido por Erik Viana 🚀
+POST /hunter/api/leads/ - Registra contatos estratégicos (Recrutadores/Managers).
 
+GET /hunter/api/tags/ - Gerencia stack de tecnologias associadas.
 
----
-
-### 💡 Como salvar e subir:
-1.  Crie o arquivo chamado `README.md` na pasta principal do projeto.
-2.  Cole o texto acima.
-3.  No terminal:
-    ```bash
-    git add README.md
-    git commit -m "docs: add comprehensive README"
-    git push origin main
-    ```
-
-**Dica:** Depois de dar o push, abra seu GitHub no navegador. Você vai ver como a cara do projeto mudou completamente! 
-
-**Tudo pronto para o commit final do README?** Se quiser mudar algum detalhe na descrição, é só falar! 🐍🏹🔥
+👤 Autor
+Desenvolvido com ☕ e 🐍 por Erik Viana.
