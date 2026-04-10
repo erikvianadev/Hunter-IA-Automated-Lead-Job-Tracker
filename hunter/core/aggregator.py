@@ -19,8 +19,14 @@ class JobAggregator:
 
         for scraper in self.scrapers:
             try:
+                print("Running scraper:", scraper.__class__.__name__)
+
                 jobs = scraper.scrape(query, location)
+
+                print("Found jobs:", len(jobs))
+
                 results.extend(jobs)
+
             except Exception as e:
                 print(f"Scraper error: {scraper.__class__.__name__}: {e}")
 
