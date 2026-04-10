@@ -11,4 +11,5 @@ router.register(r'applications', views.JobApplicationViewSet, basename='jobappli
 
 urlpatterns = [
     path('api/', include(router.urls)),
+    path('api/', include('hunter.api.urls')),
 ]
