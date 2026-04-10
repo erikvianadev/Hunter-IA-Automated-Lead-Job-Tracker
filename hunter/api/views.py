@@ -1,6 +1,8 @@
 import logging
 
 from django.contrib.auth import get_user_model
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -14,6 +16,7 @@ logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
+@method_decorator(csrf_exempt, name='dispatch')
 class ScrapeJobsView(APIView):
     """
     POST /hunter/api/scrape/
