@@ -1,69 +1,43 @@
 """
-Indeed job scraper – undetected_chromedriver + infinite scroll.
+Indeed scraper implemented with plain HTTP requests and BeautifulSoup.
 
-Indeed aggressively blocks plain HTTP clients and headless Selenium via
-Cloudflare and JS-based bot-detection.  This implementation uses
-``undetected_chromedriver`` (which patches Chrome to avoid automation
-fingerprinting) combined with an infinite-scroll strategy: instead of
-building ``?start=N`` URLs, the page is scrolled down repeatedly and new
-job cards are collected as they load dynamically.
+This version keeps the existing scraper architecture intact by relying on the
+BaseScraper workflow:
+  - `_build_search_url` generates paginated search URLs
+  - `_parse_jobs` extracts job cards from HTML
+  - `_normalize` maps each raw card into `JobResult.create(...)`
+  - `_get_next_page_url` advances pagination without any browser automation
 
-URL pattern (initial page only):
-    https://www.indeed.com/jobs?q=<query>&l=<location>
-
-Usage
------
-::
-
-    from hunter.scrapers import IndeedScraper
-
-    with IndeedScraper(headless=True) as scraper:
-        jobs = scraper.scrape("Python Developer", location="Remote", max_pages=5)
-
-    for job in jobs:
-        print(job["title"], "–", job["company"])
-
-Django integration
-------------------
-Each ``JobResult`` dict contains ``title``, ``company``, ``location``,
-``description``, ``link``, and ``source="indeed"``.
-``max_pages`` is repurposed as the maximum number of scroll iterations.
+It is safe for server environments such as Render because it does not require
+Chrome or any browser process.
 """
 
-import logging
+from __future__ import annotations
+
 import json
+import logging
 import random
-from pathlib import Path
 import re
-import time
+from pathlib import Path
 from typing import Any, Iterable, List, Optional
-from urllib.parse import quote_plus
+from urllib.parse import parse_qs, quote_plus, urlparse
 
 from bs4 import BeautifulSoup, Tag
-from selenium.common.exceptions import TimeoutException, WebDriverException
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.chrome.options import Options
-from selenium import webdriver
-from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.webdriver import WebDriver
-
 
 from hunter.models.dto import JobResult
 from .base import BaseScraper
-from .utils import absolute_url, extract_text
+from .utils import absolute_url, build_headers, extract_text, random_delay
 
 logger = logging.getLogger(__name__)
 
+_RESULTS_PER_PAGE = 10
+_MAX_SAFE_PAGES = 3
+_REQUEST_TIMEOUT_SECONDS = 10
 _INITIAL_DATA_RE = re.compile(r"window\._initialData\s*=\s*", re.DOTALL)
-
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
-
-_RESULTS_PER_PAGE = 10  # kept for _build_search_url offset math
+_JSON_SCRIPT_SELECTORS = [
+    "script[type='application/json']",
+    "script#__NEXT_DATA__",
+]
 
 _USER_AGENTS: List[str] = [
     (
@@ -87,7 +61,6 @@ _USER_AGENTS: List[str] = [
     ),
 ]
 
-# CSS selectors for job cards, ordered from most to least reliable.
 _CARD_SELECTORS: List[str] = [
     "div.job_seen_beacon",
     "div[data-jk]",
@@ -97,11 +70,7 @@ _CARD_SELECTORS: List[str] = [
     "[data-jk]",
 ]
 
-# Primary selector used by WebDriverWait (fast, reliable).
-_WAIT_SELECTOR: str = "div.job_seen_beacon, div[data-jk], a[data-jk]"
-
-# Keywords in the page <title> that indicate a block or challenge page.
-_BLOCK_TITLE_KEYWORDS: tuple = (
+_BLOCK_TITLE_KEYWORDS = (
     "sign in",
     "log in",
     "login",
@@ -116,39 +85,16 @@ _BLOCK_TITLE_KEYWORDS: tuple = (
     "verify",
 )
 
-# URL fragments that indicate an auth redirect or challenge redirect.
-_BLOCK_URL_PATTERNS: tuple = (
-    "/account/login",
-    "/account/signin",
-    "auth.indeed.com",
-    "challenge",
-    "/login",
+_BLOCK_TEXT_PATTERNS = (
+    "verify you are a human",
+    "press and hold",
+    "captcha",
+    "access denied",
+    "security check",
 )
 
 
 class IndeedScraper(BaseScraper):
-    """
-    Indeed job scraper powered by ``undetected_chromedriver`` and infinite scroll.
-
-    Instead of navigating paginated ``?start=N`` URLs, this scraper loads the
-    first search-results page and scrolls down to trigger dynamic loading until
-    no new job cards appear or ``max_pages`` scroll rounds are exhausted.
-
-    Parameters
-    ----------
-    headless : bool
-        Run Chrome without a visible window (default: ``True``).
-    fetch_descriptions : bool
-        When ``True``, visit each job's page to extract the full description.
-        Significantly slower. Default: ``False``.
-    debug : bool
-        When ``True``, save the final page HTML to ``debug_indeed.html`` in
-        the working directory for inspection. Default: ``False``.
-    **kwargs
-        Forwarded to :class:`BaseScraper` (``timeout``, ``min_delay``,
-        ``max_delay``, ``max_retries``).
-    """
-
     base_url = "https://www.indeed.com"
 
     def __init__(
@@ -162,11 +108,33 @@ class IndeedScraper(BaseScraper):
         self.headless = headless
         self.fetch_descriptions = fetch_descriptions
         self.debug = debug
-        self._driver: Optional[WebDriver] = None
-
-    # ------------------------------------------------------------------
-    # Public API – fully overrides BaseScraper.scrape()
-    # ------------------------------------------------------------------
+        self.timeout = min(self.timeout, _REQUEST_TIMEOUT_SECONDS)
+        self.min_delay = max(1.0, self.min_delay)
+        self.max_delay = min(max(self.max_delay, self.min_delay), 2.5)
+        self._last_query = ""
+        self._last_location = ""
+        self._last_page_had_results = True
+        self._last_response_text = ""
+        self._current_page_number = 1
+        self._request_count = 0
+        self._blocked_detected = False
+        self._session.headers.update(
+            build_headers(
+                {
+                    "Referer": self.base_url + "/",
+                    "Origin": self.base_url,
+                    "Cache-Control": "no-cache",
+                    "Pragma": "no-cache",
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+                    "Accept-Language": "en-US,en;q=0.9",
+                    "Upgrade-Insecure-Requests": "1",
+                    "Sec-Fetch-Dest": "document",
+                    "Sec-Fetch-Mode": "navigate",
+                    "Sec-Fetch-Site": "same-origin",
+                    "Sec-Fetch-User": "?1",
+                }
+            )
+        )
 
     def scrape(
         self,
@@ -174,320 +142,153 @@ class IndeedScraper(BaseScraper):
         location: str = "",
         max_pages: int = 5,
     ) -> List[JobResult]:
-        """
-        Scrape Indeed and return a normalised list of job dicts.
-
-        ``max_pages`` controls the maximum number of scroll iterations rather
-        than the number of paginated URLs.  Each scroll round may surface
-        ~10 new cards, so ``max_pages=5`` yields up to ~50 results.
-
-        Parameters
-        ----------
-        query     : Search keywords, e.g. ``"Python Developer"``.
-        location  : Location filter, e.g. ``"Remote"`` or ``"New York"``.
-        max_pages : Maximum scroll rounds (default 5).
-
-        Returns
-        -------
-        List[JobResult]
-            Each dict: ``title``, ``company``, ``location``, ``description``,
-            ``link``, ``source="indeed"``.
-        """
-        logger.info(
-            "IndeedScraper.scrape started  query=%r  location=%r  max_scrolls=%d",
-            query,
-            location,
-            max_pages,
-        )
-
-        self._setup_driver()
-        
-        url = self._build_search_url(query, location, page=1)
-        results = self._scrape_page(url, max_scrolls=max_pages)
-        
-        logger.info(
-            "IndeedScraper.scrape finished  total_results=%d",
-            len(results),
-        )
-        return results
-
-    def close(self) -> None:
-        """Quit the Chrome driver and release the HTTP session."""
-        self._teardown_driver()
-        super().close()
-
-    # ------------------------------------------------------------------
-    # Driver lifecycle
-    # ------------------------------------------------------------------
-
-    def _setup_driver(self):
-        if self._driver:
-            return
-
-        options = Options()
-
-        options.add_argument("--headless=new")
-        options.add_argument("--no-sandbox")
-        options.add_argument("--disable-dev-shm-usage")
-        options.add_argument("--disable-gpu")
-        options.add_argument("--window-size=1920,1080")
-
-        options.binary_location = "/usr/bin/google-chrome"
-        
-        service = Service(ChromeDriverManager().install())
-
-        self._driver = webdriver.Chrome(
-            service=service,
-            options=options
-        )
-
-    def _teardown_driver(self) -> None:
-        """
-        Gracefully quit the Chrome driver and nullify the reference.
-
-        Guaranteed to complete even if ``quit()`` raises an exception, ensuring
-        the browser process is not left orphaned.
-        """
-        if self._driver is not None:
-            try:
-                self._driver.quit()
-            except Exception as exc:  # noqa: BLE001
-                logger.debug("Error quitting Chrome driver: %s", exc)
-            finally:
-                self._driver = None
-            logger.debug("Chrome driver closed.")
-
-    # ------------------------------------------------------------------
-    # Page scraping with infinite scroll
-    # ------------------------------------------------------------------
-
-    def _scrape_page(self, url: str, max_scrolls: int) -> List[JobResult]:
-        assert self._driver is not None
-
-        # abrir homepage primeiro
-        self._driver.get("https://www.indeed.com/")
-        time.sleep(random.uniform(3, 5))
-
-        # mover mouse (simula humano)
-        from selenium.webdriver import ActionChains
-        actions = ActionChains(self._driver)
-        actions.move_by_offset(300, 300).perform()
-        time.sleep(random.uniform(1, 2))
-
-        # agora sim pesquisar
-        self._driver.get(url)
-        time.sleep(random.uniform(3, 5))
-
-        # AGUARDAR JOB CARDS
-        try:
-            WebDriverWait(self._driver, self.timeout).until(
-                EC.presence_of_element_located(
-                    (By.CSS_SELECTOR, _WAIT_SELECTOR)
-                )
-            )
-        except TimeoutException:
-            logger.warning("Indeed carregou mas nenhum job card encontrado.")
-            if self.debug:
-                self._save_debug_html()
-            return []
-
-        logger.debug("Initial job cards found – starting scroll loop.")
-        self._do_scroll_loading(max_scrolls)
-
-        # DEBUG HTML
-        if self.debug:
-            self._save_debug_html()
-
-        # PARSE HTML
-        soup = BeautifulSoup(self._driver.page_source, "html.parser")
-        raw_cards = self._parse_jobs(soup)
-        logger.debug("Raw cards found: %d", len(raw_cards))
-
-        results: List[JobResult] = []
-
-        for raw in raw_cards:
-            try:
-                job = self._parse_job(raw)
-
-                if job.link and job.title:
-                    results.append(job)
-
-            except Exception as exc:
-                logger.warning("Failed to parse job card: %s", exc)
-
-        logger.info(
-            "_scrape_page: %d valid jobs collected after %d scroll rounds.",
-            len(results),
-            max_scrolls,
-        )
-
-        if results:
-            return results
-
-        fallback_results = self._extract_jobs_from_bootstrap_data(self._driver.page_source)
-        if fallback_results:
+        safe_max_pages = max(1, min(max_pages, _MAX_SAFE_PAGES))
+        if safe_max_pages != max_pages:
             logger.info(
-                "_scrape_page: recovered %d jobs from embedded Indeed bootstrap data.",
-                len(fallback_results),
-            )
-            return fallback_results
-
-        return results
-    def _do_scroll_loading(self, max_scrolls: int) -> None:
-        assert self._driver is not None
-
-        last_height = self._driver.execute_script(
-            "return document.body.scrollHeight"
-        )
-
-        for _ in range(max_scrolls):
-
-            # scroll humano
-            for _ in range(random.randint(2, 5)):
-                self._driver.execute_script(
-                    f"window.scrollBy(0, {random.randint(300, 900)});"
-                )
-                time.sleep(random.uniform(0.6, 1.4))
-
-            # pausa humana
-            time.sleep(random.uniform(2, 4))
-
-            new_height = self._driver.execute_script(
-                "return document.body.scrollHeight"
+                "IndeedScraper limiting max_pages from %d to %d for safer execution.",
+                max_pages,
+                safe_max_pages,
             )
 
-            if new_height == last_height:
-                break
+        self._blocked_detected = False
+        self._request_count = 0
+        self._prime_session()
+        return super().scrape(query, location, safe_max_pages)
 
-            last_height = new_height
-
-    # ------------------------------------------------------------------
-    # Block / challenge detection
-    # ------------------------------------------------------------------
-
-    def _is_blocked(self) -> bool:
-        """
-        Return ``True`` when the current page is a bot-challenge, login wall,
-        or error page.
-
-        Checks both the document ``<title>`` and the current URL against
-        well-known patterns produced by Cloudflare, Indeed's WAF, and generic
-        auth redirects.
-        """
-        assert self._driver is not None
-        title = self._driver.title.lower()
-        current_url = self._driver.current_url.lower()
-
-        if any(kw in title for kw in _BLOCK_TITLE_KEYWORDS):
-            logger.warning(
-                "Block detected via page title: %r", self._driver.title
-            )
-            return True
-
-        if any(pattern in current_url for pattern in _BLOCK_URL_PATTERNS):
-            logger.warning(
-                "Block detected via URL redirect: %s", self._driver.current_url
-            )
-            return True
-
-        if "captcha" in self._driver.page_source.lower():
-            return True
-        return False
-
-    # ------------------------------------------------------------------
-    # Debug helper
-    # ------------------------------------------------------------------
-
-    def _save_debug_html(self) -> None:
-        """Write the current page source to ``debug_indeed.html``."""
-        assert self._driver is not None
-        try:
-            path = Path("debug_indeed.html")
-            path.write_text(self._driver.page_source, encoding="utf-8")
-            logger.info("Debug HTML saved → %s", path.resolve())
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Could not save debug HTML: %s", exc)
-
-    # ------------------------------------------------------------------
-    # BaseScraper abstract interface
-    # ------------------------------------------------------------------
+    def _fetch_page(self, url: str) -> Optional[BeautifulSoup]:
+        self._prepare_request(url)
+        return super()._fetch_page(url)
 
     def _build_search_url(self, query: str, location: str, page: int) -> str:
-        """
-        Construct an Indeed search URL.
+        self._last_query = query
+        self._last_location = location
 
-        The scroll strategy always starts at page 1 so ``offset`` is always 0.
-        The ``page`` parameter is preserved to satisfy the abstract interface
-        and to allow fallback to offset-based pagination if needed.
-
-        Examples
-        --------
-        >>> s._build_search_url("Python", "Remote", 1)
-        'https://www.indeed.com/jobs?q=Python&l=Remote'
-        """
-        offset = (page - 1) * _RESULTS_PER_PAGE
-        q = quote_plus(query.strip())
-        url = f"{self.base_url}/jobs?q={q}"
-        if location:
+        offset = max(page - 1, 0) * _RESULTS_PER_PAGE
+        url = f"{self.base_url}/jobs?q={quote_plus(query.strip())}"
+        if location.strip():
             url += f"&l={quote_plus(location.strip())}"
         if offset:
             url += f"&start={offset}"
         return url
 
-    def _parse_jobs(self, soup: BeautifulSoup) -> List[Tag]:
-        """
-        Extract job card tags from *soup* using ``_CARD_SELECTORS`` in order.
+    def _prime_session(self) -> None:
+        try:
+            home = self._session.get(
+                self.base_url + "/",
+                timeout=self.timeout,
+                allow_redirects=True,
+            )
+            if not home.encoding:
+                home.encoding = home.apparent_encoding or "utf-8"
+            logger.info("Indeed session primed with status %s", home.status_code)
+        except Exception as exc:
+            logger.debug("Could not prime Indeed session: %s", exc)
 
-        Returns the first selector result that is non-empty, so the most
-        reliable selector wins.
-        """
+    def _parse_jobs(self, soup: BeautifulSoup) -> List[Tag]:
+        self._last_response_text = str(soup)
+
         for selector in _CARD_SELECTORS:
-            cards: List[Tag] = soup.select(selector)
+            cards = self._dedupe_cards(
+                [card for card in soup.select(selector) if isinstance(card, Tag)]
+            )
             if cards:
-                logger.debug(
-                    "_parse_jobs: %d cards matched selector %r",
+                self._last_page_had_results = True
+                logger.info(
+                    "Indeed page %d: %d jobs parsed via selector %r.",
+                    self._current_page_number,
                     len(cards),
                     selector,
                 )
                 return cards
 
-        logger.warning("_parse_jobs: no job cards found with any known selector.")
+        synthetic_cards = self._build_synthetic_cards_from_bootstrap_data(
+            self._last_response_text,
+            soup=soup,
+        )
+        self._last_page_had_results = bool(synthetic_cards)
+        if synthetic_cards:
+            logger.info(
+                "Indeed page %d: using bootstrap fallback with %d jobs.",
+                self._current_page_number,
+                len(synthetic_cards),
+            )
+            return synthetic_cards
+
+        if self._is_blocked(soup):
+            self._blocked_detected = True
+            self._last_page_had_results = False
+            logger.warning(
+                "Indeed block detected on page %d. Title=%r",
+                self._current_page_number,
+                extract_text(soup.title),
+            )
+            if self.debug:
+                self._save_debug_html(self._last_response_text)
+            return []
+
+        logger.warning("Indeed page %d: no job cards found.", self._current_page_number)
+        if self.debug:
+            self._save_debug_html(self._last_response_text)
         return []
 
-    def _parse_job(self, raw: Tag) -> JobResult:
-        """Delegate to :meth:`_normalize` and stamp ``source="indeed"``."""
-        job = self._normalize(raw)
-        return JobResult.create(
-            title=job.title,
-            company=job.company,
-            location=job.location,
-            description=job.description,
-            link=job.link,
-            source="indeed",
-        )
-
     def _normalize(self, raw: Tag) -> JobResult:
+        if raw.get("data-synthetic") == "1":
+            job = JobResult.create(
+                title=raw.get("data-title", ""),
+                company=raw.get("data-company", ""),
+                location=raw.get("data-location", ""),
+                description=raw.get("data-description", ""),
+                link=raw.get("data-link", ""),
+                source="indeed",
+            )
+            if self.fetch_descriptions and job.link and not job.description:
+                job.description = self._fetch_full_description(job.link)
+            return job
+
+        link = self._extract_link(raw)
+        description = self._extract_description(raw)
+        if self.fetch_descriptions and link and not description:
+            description = self._fetch_full_description(link)
+
         return JobResult.create(
             title=self._extract_title(raw),
             company=self._extract_company(raw),
             location=self._extract_location(raw),
-            description=self._extract_description(raw),
-            link=self._extract_link(raw),
+            description=description,
+            link=link,
+            source="indeed",
         )
 
     def _get_next_page_url(
-        self, soup: BeautifulSoup, current_page: int
+        self,
+        soup: BeautifulSoup,
+        current_page: int,
     ) -> Optional[str]:
-        """
-        Not used – infinite scroll replaces URL-based pagination.
+        if self._blocked_detected or self._is_blocked(soup) or not self._last_page_had_results:
+            logger.info(
+                "Indeed pagination stopping after page %d due to block or empty results.",
+                current_page,
+            )
+            return None
 
-        Exists only to satisfy the :class:`BaseScraper` abstract interface.
-        """
-        return None
+        next_link = (
+            soup.select_one("a[data-testid='pagination-page-next']")
+            or soup.select_one("a[aria-label*='Next Page']")
+            or soup.select_one("a[aria-label*='Next']")
+        )
+        if isinstance(next_link, Tag):
+            href = next_link.get("href")
+            if isinstance(href, str) and href.strip():
+                return absolute_url(self.base_url, href)
 
-    # ------------------------------------------------------------------
-    # Field extractors with fallbacks
-    # ------------------------------------------------------------------
+        if not self._last_query.strip():
+            return None
+
+        return self._build_search_url(
+            self._last_query,
+            self._last_location,
+            current_page + 1,
+        )
 
     def _extract_title(self, card: Tag) -> str:
         candidates = [
@@ -498,12 +299,12 @@ class IndeedScraper(BaseScraper):
             card.find("h2"),
         ]
         for tag in candidates:
-            if tag:
-                # Indeed often nests the visible text in a child <span title="…">.
-                inner = tag.find("span", attrs={"title": True})
-                text = extract_text(inner if inner else tag)
-                if text:
-                    return text
+            if not isinstance(tag, Tag):
+                continue
+            inner = tag.find("span", attrs={"title": True})
+            text = extract_text(inner if isinstance(inner, Tag) else tag)
+            if text:
+                return text
         return ""
 
     def _extract_company(self, card: Tag) -> str:
@@ -533,19 +334,16 @@ class IndeedScraper(BaseScraper):
         return ""
 
     def _extract_link(self, card: Tag) -> str:
-        # ``data-jk`` is Indeed's stable job key – most reliable source for link.
         job_key = card.get("data-jk")
-        if job_key:
+        if isinstance(job_key, str) and job_key.strip():
             return absolute_url(self.base_url, f"/viewjob?jk={job_key}")
 
-        # Check nested elements carrying the job key.
         inner = card.find(attrs={"data-jk": True})
-        if inner:
-            job_key = inner.get("data-jk")
-            if job_key:
-                return absolute_url(self.base_url, f"/viewjob?jk={job_key}")
+        if isinstance(inner, Tag):
+            inner_job_key = inner.get("data-jk")
+            if isinstance(inner_job_key, str) and inner_job_key.strip():
+                return absolute_url(self.base_url, f"/viewjob?jk={inner_job_key}")
 
-        # Fall through to href-based anchors.
         anchor_candidates = [
             card.find("a", class_=lambda c: c and "jcs-JobTitle" in (c or "")),
             card.find("a", href=lambda h: h and "/viewjob" in (h or "")),
@@ -553,106 +351,181 @@ class IndeedScraper(BaseScraper):
             card.find("a", href=True),
         ]
         for anchor in anchor_candidates:
-            if anchor and anchor.get("href"):
-                return absolute_url(self.base_url, str(anchor["href"]))
+            if not isinstance(anchor, Tag):
+                continue
+            href = anchor.get("href")
+            if isinstance(href, str) and href.strip():
+                return absolute_url(self.base_url, href)
 
         return ""
 
     def _extract_description(self, card: Tag) -> str:
-        # Try the historical snippet selectors first (may match on older Indeed layouts)
         candidates = [
             card.find("div", class_=lambda c: c and "job-snippet" in (c or "")),
             card.find("div", attrs={"data-testid": "job-snippet"}),
             card.find("ul", class_=lambda c: c and "jobCardShelfContainer" in (c or "")),
             card.find("div", class_=lambda c: c and "snippet" in (c or "").lower()),
         ]
-
         for tag in candidates:
             text = extract_text(tag)
             if text:
                 return text
 
-        # Fallback: use the metadata/benefits list present on current Indeed cards
-        # (e.g. "Health insurance · 401(k) · Paid time off")
         meta = card.find("ul", class_=lambda c: c and "metadataContainer" in (c or ""))
-        if meta:
+        if isinstance(meta, Tag):
             items = [extract_text(li) for li in meta.find_all("li") if extract_text(li)]
             if items:
-                return " · ".join(items)
+                return " | ".join(items)
 
-        # Final fallback: fetch the individual job page when enabled
-        if not self.fetch_descriptions:
+        return ""
+
+    def _fetch_response(self, url: str):
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                response = self._session.get(
+                    url,
+                    timeout=self.timeout,
+                    allow_redirects=True,
+                )
+
+                if not response.encoding:
+                    response.encoding = response.apparent_encoding or "utf-8"
+
+                if response.status_code == 403:
+                    logger.warning(
+                        "Indeed returned HTTP 403 on attempt %d/%d for %s",
+                        attempt,
+                        self.max_retries,
+                        url,
+                    )
+                    return response
+
+                response.raise_for_status()
+                return response
+
+            except Exception as exc:
+                logger.warning(
+                    "Indeed request error on attempt %d/%d for %s: %s",
+                    attempt,
+                    self.max_retries,
+                    url,
+                    exc,
+                )
+
+                if attempt < self.max_retries:
+                    random_delay(self.min_delay, self.max_delay)
+
+        return None
+
+    def _fetch_full_description(self, url: str) -> str:
+        self._prepare_request(url)
+        response = self._fetch_response(url)
+        if response is None:
             return ""
 
-        link = self._extract_link(card)
-        if not link:
+        soup = BeautifulSoup(response.text, "html.parser")
+        if self._is_blocked(soup):
+            logger.warning("Indeed blocked full-description fetch for %s", url)
             return ""
 
-        return self._fetch_full_description(link) or ""
+        desc_tag = soup.find("div", id="jobDescriptionText") or soup.find(
+            "div",
+            class_=lambda c: c and "jobsearch-jobDescriptionText" in (c or ""),
+        )
+        return extract_text(desc_tag)
+
+    def _is_blocked(self, soup: BeautifulSoup) -> bool:
+        title = extract_text(soup.title).lower()
+        page_text = soup.get_text(" ", strip=True).lower()
+
+        if any(keyword in title for keyword in _BLOCK_TITLE_KEYWORDS):
+            return True
+
+        return any(pattern in page_text for pattern in _BLOCK_TEXT_PATTERNS)
+
+    def _save_debug_html(self, page_source: str) -> None:
+        try:
+            path = Path("debug_indeed.html")
+            path.write_text(page_source, encoding="utf-8")
+            logger.info("Debug HTML saved to %s", path.resolve())
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Could not save debug HTML: %s", exc)
 
     def _extract_jobs_from_bootstrap_data(self, page_source: str) -> List[JobResult]:
-        """
-        Parse the ``window._initialData`` payload that Indeed embeds on the
-        search results page and recover jobs when the rendered DOM is sparse.
-        """
+        jobs = self._extract_job_dicts_from_embedded_data(page_source)
+        normalized_jobs: List[JobResult] = []
+        seen_links: set[str] = set()
+
+        for job_data in jobs:
+            normalized = self._normalize_job_data(job_data)
+            if not normalized.is_valid() or normalized.link in seen_links:
+                continue
+            seen_links.add(normalized.link)
+            normalized_jobs.append(normalized)
+
+        return normalized_jobs
+
+    def _build_synthetic_cards_from_bootstrap_data(
+        self,
+        page_source: str,
+        soup: Optional[BeautifulSoup] = None,
+    ) -> List[Tag]:
+        jobs = self._extract_job_dicts_from_embedded_data(page_source, soup=soup)
+        normalized_jobs: List[JobResult] = []
+        seen_links: set[str] = set()
+
+        for job_data in jobs:
+            normalized = self._normalize_job_data(job_data)
+            if not normalized.is_valid() or normalized.link in seen_links:
+                continue
+            seen_links.add(normalized.link)
+            normalized_jobs.append(normalized)
+
+        return [self._job_result_to_tag(job) for job in normalized_jobs]
+
+    def _extract_job_dicts_from_embedded_data(
+        self,
+        page_source: str,
+        soup: Optional[BeautifulSoup] = None,
+    ) -> List[dict[str, Any]]:
+        payloads: List[Any] = []
+
         match = _INITIAL_DATA_RE.search(page_source)
-        if not match:
-            logger.debug("No Indeed bootstrap payload found in page source.")
-            return []
+        if match:
+            decoder = json.JSONDecoder()
+            try:
+                payload, _ = decoder.raw_decode(page_source[match.end():])
+                payloads.append(payload)
+            except json.JSONDecodeError as exc:
+                logger.debug("Could not decode window._initialData: %s", exc)
 
-        decoder = json.JSONDecoder()
-        payload_start = match.end()
+        search_soup = soup or BeautifulSoup(page_source, "html.parser")
+        for selector in _JSON_SCRIPT_SELECTORS:
+            for script in search_soup.select(selector):
+                script_text = script.string or script.get_text()
+                if not script_text or "title" not in script_text:
+                    continue
+                try:
+                    payloads.append(json.loads(script_text))
+                except json.JSONDecodeError:
+                    continue
 
-        try:
-            payload, _ = decoder.raw_decode(page_source[payload_start:])
-        except json.JSONDecodeError as exc:
-            logger.warning("Failed to decode Indeed bootstrap payload: %s", exc)
-            return []
-
-        jobs: List[JobResult] = []
-        seen_links = set()
-
-        # função recursiva que varre o JSON inteiro
-        def walk(node):
-            if isinstance(node, dict):
-
-                # detecta estrutura de job
-                if any(k in node for k in ("title", "jobTitle")) and any(
-                    k in node for k in ("jobUrl", "link", "url")
-                ):
-                    job = JobResult.create(
-                        title=node.get("title") or node.get("jobTitle"),
-                        company=node.get("company")
-                        or node.get("companyName"),
-                        location=node.get("formattedLocation")
-                        or node.get("location"),
-                        description=node.get("snippet")
-                        or node.get("description"),
-                        link=node.get("jobUrl")
-                        or node.get("link")
-                        or node.get("url"),
-                        source="indeed",
-                    )
-
-                    if job.is_valid() and job.link not in seen_links:
-                        seen_links.add(job.link)
-                        jobs.append(job)
-
-                # continua descendo
-                for v in node.values():
-                    walk(v)
-
-            elif isinstance(node, list):
-                for item in node:
-                    walk(item)
-
-        walk(payload)
-
+        jobs: List[dict[str, Any]] = []
+        seen_keys: set[str] = set()
+        for payload in payloads:
+            for entry in self._iter_bootstrap_job_entries(payload):
+                key = self._job_identity(entry)
+                if key in seen_keys:
+                    continue
+                seen_keys.add(key)
+                jobs.append(entry)
         return jobs
-    
 
     def _iter_bootstrap_job_entries(self, obj: Any) -> Iterable[dict[str, Any]]:
         if isinstance(obj, dict):
+            if self._looks_like_job_dict(obj):
+                yield obj
+
             results = obj.get("results")
             if isinstance(results, list):
                 for entry in results:
@@ -669,16 +542,33 @@ class IndeedScraper(BaseScraper):
             for item in obj:
                 yield from self._iter_bootstrap_job_entries(item)
 
+    def _looks_like_job_dict(self, obj: dict[str, Any]) -> bool:
+        has_title = any(obj.get(key) for key in ("title", "jobTitle", "displayTitle"))
+        has_link = any(
+            obj.get(key)
+            for key in ("jobUrl", "link", "url", "viewJobLink", "key", "jobkey")
+        )
+        return has_title and has_link
+
+    def _job_identity(self, job_data: dict[str, Any]) -> str:
+        for key in ("key", "jobkey", "jobUrl", "viewJobLink", "link", "url", "title"):
+            value = job_data.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        return str(id(job_data))
+
     def _normalize_job_data(self, job_data: dict[str, Any]) -> JobResult:
         title = str(job_data.get("title") or job_data.get("displayTitle") or "").strip()
         company = str(
             job_data.get("sourceEmployerName")
             or job_data.get("company")
+            or job_data.get("companyName")
             or job_data.get("truncatedCompany")
             or ""
         ).strip()
         location = str(
             job_data.get("formattedLocation")
+            or job_data.get("location")
             or job_data.get("jobLocationCity")
             or ""
         ).strip()
@@ -697,6 +587,7 @@ class IndeedScraper(BaseScraper):
             location=location,
             description=description,
             link=link,
+            source="indeed",
         )
 
     def _extract_description_from_job_data(self, job_data: dict[str, Any]) -> str:
@@ -712,24 +603,29 @@ class IndeedScraper(BaseScraper):
             text = str(description.get("text") or "").strip()
             if text:
                 return text
+        elif isinstance(description, str):
+            clean = description.strip()
+            if clean:
+                return clean
 
-        benefits = []
+        benefits: List[str] = []
         for item in self._iter_job_taxonomy_attributes(job_data):
             label = str(item.get("label") or "").strip()
             if label:
                 benefits.append(label)
 
-        return " · ".join(benefits)
+        return " | ".join(benefits)
 
-    def _iter_job_taxonomy_attributes(self, job_data: dict[str, Any]) -> Iterable[dict[str, Any]]:
+    def _iter_job_taxonomy_attributes(
+        self,
+        job_data: dict[str, Any],
+    ) -> Iterable[dict[str, Any]]:
         taxonomy_attributes = job_data.get("taxonomyAttributes")
         if not isinstance(taxonomy_attributes, list):
             return []
 
         for group in taxonomy_attributes:
             if not isinstance(group, dict):
-                continue
-            if group.get("label") != "benefits":
                 continue
             attributes = group.get("attributes")
             if not isinstance(attributes, list):
@@ -739,7 +635,7 @@ class IndeedScraper(BaseScraper):
                     yield item
 
     def _extract_link_from_job_data(self, job_data: dict[str, Any]) -> str:
-        for key in ("viewJobLink", "link"):
+        for key in ("jobUrl", "viewJobLink", "link", "url"):
             value = job_data.get(key)
             if isinstance(value, str) and value.strip():
                 return absolute_url(self.base_url, value)
@@ -750,36 +646,69 @@ class IndeedScraper(BaseScraper):
 
         return ""
 
-    def _fetch_full_description(self, url: str) -> str:
-        """
-        Navigate to the job's individual page and extract the description text.
+    def _job_result_to_tag(self, job: JobResult) -> Tag:
+        soup = BeautifulSoup("", "html.parser")
+        tag = soup.new_tag("article")
+        tag["data-synthetic"] = "1"
+        tag["data-title"] = job.title
+        tag["data-company"] = job.company
+        tag["data-location"] = job.location
+        tag["data-description"] = job.description
+        tag["data-link"] = job.link
+        return tag
 
-        Only triggered when ``fetch_descriptions=True``.  Reuses the running
-        driver so no extra HTTP session is required.
-        """
-        assert self._driver is not None
-        logger.debug("Fetching full description from %s", url)
+    def _prepare_request(self, url: str) -> None:
+        if self._request_count > 0:
+            random_delay(self.min_delay, self.max_delay)
 
-        try:
-            self._driver.get(url)
-            time.sleep(random.uniform(2, 4))  # brief pause to mimic human reading
-            WebDriverWait(self._driver, self.timeout).until(
-                EC.presence_of_element_located(
-                    (
-                        By.CSS_SELECTOR,
-                        "#jobDescriptionText, .jobsearch-jobDescriptionText",
-                    )
-                )
+        self._request_count += 1
+        self._current_page_number = self._page_number_from_url(url)
+        self._session.headers.update(
+            build_headers(
+                {
+                    "User-Agent": random.choice(_USER_AGENTS),
+                    "Referer": self.base_url + "/",
+                    "Origin": self.base_url,
+                    "Cache-Control": "no-cache",
+                    "Pragma": "no-cache",
+                }
             )
-        except (TimeoutException, WebDriverException) as exc:
-            logger.warning(
-                "Could not load description page %s: %s", url, exc
-            )
-            return ""
-
-        soup = BeautifulSoup(self._driver.page_source, "html.parser")
-        desc_tag = soup.find("div", id="jobDescriptionText") or soup.find(
-            "div",
-            class_=lambda c: c and "jobsearch-jobDescriptionText" in (c or ""),
         )
-        return extract_text(desc_tag)
+
+    def _page_number_from_url(self, url: str) -> int:
+        parsed = urlparse(url)
+        start_value = parse_qs(parsed.query).get("start", ["0"])[0]
+        try:
+            start = int(start_value)
+        except (TypeError, ValueError):
+            start = 0
+        return (start // _RESULTS_PER_PAGE) + 1
+
+    def _dedupe_cards(self, cards: List[Tag]) -> List[Tag]:
+        deduped: List[Tag] = []
+        seen: set[str] = set()
+
+        for card in cards:
+            identity = self._extract_card_identity(card)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            deduped.append(card)
+
+        return deduped
+
+    def _extract_card_identity(self, card: Tag) -> str:
+        for key in ("data-link", "data-jk"):
+            value = card.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+
+        link = self._extract_link(card)
+        if link:
+            return link
+
+        title = card.get("data-title")
+        if isinstance(title, str) and title.strip():
+            return title.strip()
+
+        return str(id(card))
