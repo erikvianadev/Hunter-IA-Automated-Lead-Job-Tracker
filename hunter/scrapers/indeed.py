@@ -31,11 +31,12 @@ Each ``JobResult`` dict contains ``title``, ``company``, ``location``,
 """
 
 import logging
-from os import link
+import json
 import random
 from pathlib import Path
+import re
 import time
-from typing import List, Optional
+from typing import Any, Iterable, List, Optional
 from urllib.parse import quote_plus
 
 import undetected_chromedriver as uc
@@ -49,6 +50,8 @@ from .base import BaseScraper, JobResult
 from .utils import absolute_url, extract_text
 
 logger = logging.getLogger(__name__)
+
+_INITIAL_DATA_RE = re.compile(r"window\._initialData\s*=\s*", re.DOTALL)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -337,6 +340,17 @@ class IndeedScraper(BaseScraper):
             max_scrolls,
         )
 
+        if results:
+            return results
+
+        fallback_results = self._extract_jobs_from_bootstrap_data(self._driver.page_source)
+        if fallback_results:
+            logger.info(
+                "_scrape_page: recovered %d jobs from embedded Indeed bootstrap data.",
+                len(fallback_results),
+            )
+            return fallback_results
+
         return results
     def _do_scroll_loading(self, max_scrolls: int) -> None:
         assert self._driver is not None
@@ -593,6 +607,143 @@ class IndeedScraper(BaseScraper):
             return ""
 
         return self._fetch_full_description(link) or ""
+
+    def _extract_jobs_from_bootstrap_data(self, page_source: str) -> List[JobResult]:
+        """
+        Parse the ``window._initialData`` payload that Indeed embeds on the
+        search results page and recover jobs when the rendered DOM is sparse.
+        """
+        match = _INITIAL_DATA_RE.search(page_source)
+        if not match:
+            logger.debug("No Indeed bootstrap payload found in page source.")
+            return []
+
+        decoder = json.JSONDecoder()
+        payload_start = match.end()
+
+        try:
+            payload, _ = decoder.raw_decode(page_source[payload_start:])
+        except json.JSONDecodeError as exc:
+            logger.warning("Failed to decode Indeed bootstrap payload: %s", exc)
+            return []
+
+        jobs: List[JobResult] = []
+        seen_links: set[str] = set()
+
+        for job_data in self._iter_bootstrap_job_entries(payload):
+            if not isinstance(job_data, dict):
+                continue
+
+            job = self._normalize_job_data(job_data)
+            if not job.is_valid():
+                continue
+
+            if job["link"] in seen_links:
+                continue
+
+            seen_links.add(job["link"])
+            jobs.append(JobResult(job, source="indeed"))
+
+        return jobs
+
+    def _iter_bootstrap_job_entries(self, obj: Any) -> Iterable[dict[str, Any]]:
+        if isinstance(obj, dict):
+            results = obj.get("results")
+            if isinstance(results, list):
+                for entry in results:
+                    if not isinstance(entry, dict):
+                        continue
+                    job_data = entry.get("job")
+                    if isinstance(job_data, dict):
+                        yield job_data
+
+            for value in obj.values():
+                yield from self._iter_bootstrap_job_entries(value)
+
+        elif isinstance(obj, list):
+            for item in obj:
+                yield from self._iter_bootstrap_job_entries(item)
+
+    def _normalize_job_data(self, job_data: dict[str, Any]) -> JobResult:
+        title = str(job_data.get("title") or job_data.get("displayTitle") or "").strip()
+        company = str(
+            job_data.get("sourceEmployerName")
+            or job_data.get("company")
+            or job_data.get("truncatedCompany")
+            or ""
+        ).strip()
+        location = str(
+            job_data.get("formattedLocation")
+            or job_data.get("jobLocationCity")
+            or ""
+        ).strip()
+
+        if not location:
+            remote_model = job_data.get("remoteWorkModel")
+            if isinstance(remote_model, dict):
+                location = str(remote_model.get("text") or "").strip()
+
+        description = self._extract_description_from_job_data(job_data)
+        link = self._extract_link_from_job_data(job_data)
+
+        return JobResult.create(
+            title=title,
+            company=company,
+            location=location,
+            description=description,
+            link=link,
+        )
+
+    def _extract_description_from_job_data(self, job_data: dict[str, Any]) -> str:
+        snippet = job_data.get("snippet")
+        if isinstance(snippet, str) and snippet.strip():
+            snippet_soup = BeautifulSoup(snippet, "html.parser")
+            text = extract_text(snippet_soup)
+            if text:
+                return text
+
+        description = job_data.get("description")
+        if isinstance(description, dict):
+            text = str(description.get("text") or "").strip()
+            if text:
+                return text
+
+        benefits = []
+        for item in self._iter_job_taxonomy_attributes(job_data):
+            label = str(item.get("label") or "").strip()
+            if label:
+                benefits.append(label)
+
+        return " · ".join(benefits)
+
+    def _iter_job_taxonomy_attributes(self, job_data: dict[str, Any]) -> Iterable[dict[str, Any]]:
+        taxonomy_attributes = job_data.get("taxonomyAttributes")
+        if not isinstance(taxonomy_attributes, list):
+            return []
+
+        for group in taxonomy_attributes:
+            if not isinstance(group, dict):
+                continue
+            if group.get("label") != "benefits":
+                continue
+            attributes = group.get("attributes")
+            if not isinstance(attributes, list):
+                continue
+            for item in attributes:
+                if isinstance(item, dict):
+                    yield item
+
+    def _extract_link_from_job_data(self, job_data: dict[str, Any]) -> str:
+        for key in ("viewJobLink", "link"):
+            value = job_data.get(key)
+            if isinstance(value, str) and value.strip():
+                return absolute_url(self.base_url, value)
+
+        job_key = str(job_data.get("key") or job_data.get("jobkey") or "").strip()
+        if job_key:
+            return absolute_url(self.base_url, f"/viewjob?jk={job_key}")
+
+        return ""
 
     def _fetch_full_description(self, url: str) -> str:
         """

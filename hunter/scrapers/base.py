@@ -55,6 +55,7 @@ class JobResult(dict):
     """
 
     REQUIRED_KEYS = {"title", "company", "location", "description", "link"}
+    REQUIRED_NON_EMPTY_KEYS = {"title", "company", "link"}
 
     @classmethod
     def create(
@@ -74,6 +75,19 @@ class JobResult(dict):
             link=link.strip(),
         )
         return obj
+
+    def is_valid(self) -> bool:
+        """
+        Return ``True`` when the normalized payload contains the minimum data
+        needed to represent a job listing safely in the app.
+
+        ``description`` and ``location`` are allowed to be blank because some
+        sites omit them from the search results page.
+        """
+        if not self.REQUIRED_KEYS.issubset(self.keys()):
+            return False
+
+        return all(bool(sanitize_text(str(self.get(key, "")))) for key in self.REQUIRED_NON_EMPTY_KEYS)
 
    
 
