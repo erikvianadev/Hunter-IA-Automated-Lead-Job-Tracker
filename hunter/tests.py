@@ -38,14 +38,14 @@ class IndeedScraperExtractionTests(SimpleTestCase):
         self.assertGreater(len(raw_cards), 0)
 
         first_job = self.scraper._normalize(raw_cards[0])
-        self.assertEqual(first_job["title"], "Research Scientist")
-        self.assertEqual(first_job["company"], "Humana")
-        self.assertEqual(first_job["location"], "Remote")
-        self.assertIn("viewjob?jk=", first_job["link"])
+        self.assertEqual(first_job.title, "Research Scientist")
+        self.assertEqual(first_job.company, "Humana")
+        self.assertEqual(first_job.location, "Remote")
+        self.assertIn("viewjob?jk=", first_job.link)
 
     def test_extract_jobs_from_bootstrap_payload(self) -> None:
         jobs = self.scraper._extract_jobs_from_bootstrap_data(self.page_source)
 
         self.assertGreater(len(jobs), 0)
         self.assertTrue(all(job.is_valid() for job in jobs))
-        self.assertTrue(any(job["title"] == "Research Scientist" for job in jobs))
+        self.assertTrue(any(job.title == "Research Scientist" for job in jobs))

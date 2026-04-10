@@ -46,7 +46,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
-from .base import BaseScraper, JobResult
+from hunter.models.dto import JobResult
+from .base import BaseScraper
 from .utils import absolute_url, extract_text
 
 logger = logging.getLogger(__name__)
@@ -332,10 +333,8 @@ class IndeedScraper(BaseScraper):
             try:
                 job = self._parse_job(raw)
 
-                if job.is_valid():
+                if job.link and job.title:
                     results.append(job)
-                else:
-                    logger.debug("Skipping incomplete job entry: %s", dict(job))
 
             except Exception as exc:
                 logger.warning("Failed to parse job card: %s", exc)
@@ -482,21 +481,22 @@ class IndeedScraper(BaseScraper):
     def _parse_job(self, raw: Tag) -> JobResult:
         """Delegate to :meth:`_normalize` and stamp ``source="indeed"``."""
         job = self._normalize(raw)
-        return JobResult(job, source="indeed")
+        return JobResult.create(
+            title=job.title,
+            company=job.company,
+            location=job.location,
+            description=job.description,
+            link=job.link,
+            source="indeed",
+        )
 
     def _normalize(self, raw: Tag) -> JobResult:
-        title = self._extract_title(raw)
-        company = self._extract_company(raw)
-        location = self._extract_location(raw)
-        description = self._extract_description(raw)
-        link = self._extract_link(raw)
-
         return JobResult.create(
-            title=title,
-            company=company,
-            location=location,
-            description=description,
-            link=link,
+            title=self._extract_title(raw),
+            company=self._extract_company(raw),
+            location=self._extract_location(raw),
+            description=self._extract_description(raw),
+            link=self._extract_link(raw),
         )
 
     def _get_next_page_url(
@@ -634,23 +634,46 @@ class IndeedScraper(BaseScraper):
             return []
 
         jobs: List[JobResult] = []
-        seen_links: set[str] = set()
+        seen_links = set()
 
-        for job_data in self._iter_bootstrap_job_entries(payload):
-            if not isinstance(job_data, dict):
-                continue
+        # função recursiva que varre o JSON inteiro
+        def walk(node):
+            if isinstance(node, dict):
 
-            job = self._normalize_job_data(job_data)
-            if not job.is_valid():
-                continue
+                # detecta estrutura de job
+                if any(k in node for k in ("title", "jobTitle")) and any(
+                    k in node for k in ("jobUrl", "link", "url")
+                ):
+                    job = JobResult.create(
+                        title=node.get("title") or node.get("jobTitle"),
+                        company=node.get("company")
+                        or node.get("companyName"),
+                        location=node.get("formattedLocation")
+                        or node.get("location"),
+                        description=node.get("snippet")
+                        or node.get("description"),
+                        link=node.get("jobUrl")
+                        or node.get("link")
+                        or node.get("url"),
+                        source="indeed",
+                    )
 
-            if job["link"] in seen_links:
-                continue
+                    if job.is_valid() and job.link not in seen_links:
+                        seen_links.add(job.link)
+                        jobs.append(job)
 
-            seen_links.add(job["link"])
-            jobs.append(JobResult(job, source="indeed"))
+                # continua descendo
+                for v in node.values():
+                    walk(v)
+
+            elif isinstance(node, list):
+                for item in node:
+                    walk(item)
+
+        walk(payload)
 
         return jobs
+    
 
     def _iter_bootstrap_job_entries(self, obj: Any) -> Iterable[dict[str, Any]]:
         if isinstance(obj, dict):

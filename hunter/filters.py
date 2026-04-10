@@ -1,6 +1,6 @@
 import django_filters
 
-from .models import Job, JobApplication, Tag
+from .models.models import Job, JobApplication, Tag
 
 
 class JobFilter(django_filters.FilterSet):

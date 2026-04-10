@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Job, JobApplication, Lead, Tag
+from .models.models import Job, JobApplication, Lead, Tag
 
 
 class TagSerializer(serializers.ModelSerializer):

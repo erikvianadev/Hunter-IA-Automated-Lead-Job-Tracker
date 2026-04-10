@@ -3,7 +3,7 @@ from rest_framework import filters, viewsets
 from rest_framework.permissions import IsAuthenticated
 
 from .filters import JobApplicationFilter, JobFilter
-from .models import Job, JobApplication, Lead, Tag
+from .models.models import Job, JobApplication, Lead, Tag
 from .pagination import HunterPagination
 from .serializers import (
     JobApplicationSerializer,
