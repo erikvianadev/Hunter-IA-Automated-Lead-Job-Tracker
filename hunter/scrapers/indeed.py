@@ -195,14 +195,10 @@ class IndeedScraper(BaseScraper):
         )
 
         self._setup_driver()
-        results: List[JobResult] = []
-
-        try:
-            url = self._build_search_url(query, location, page=1)
-            results = self._scrape_page(url, max_scrolls=max_pages)
-        finally:
-            self._teardown_driver()
-
+        
+        url = self._build_search_url(query, location, page=1)
+        results = self._scrape_page(url, max_scrolls=max_pages)
+        
         logger.info(
             "IndeedScraper.scrape finished  total_results=%d",
             len(results),
@@ -243,6 +239,16 @@ class IndeedScraper(BaseScraper):
             options=options,
             use_subprocess=True
         )
+
+        orig_quit = self._driver.quit
+
+        def safe_quit(*args, **kwargs):
+            try:
+                orig_quit(*args, **kwargs)
+            except Exception:
+                pass
+
+        self._driver.quit = safe_quit
 
         # esconder webdriver
         self._driver.execute_cdp_cmd(
