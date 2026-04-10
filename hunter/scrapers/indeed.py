@@ -39,12 +39,16 @@ import time
 from typing import Any, Iterable, List, Optional
 from urllib.parse import quote_plus
 
-import undetected_chromedriver as uc
 from bs4 import BeautifulSoup, Tag
 from selenium.common.exceptions import TimeoutException, WebDriverException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.chrome.options import Options
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.webdriver import WebDriver
+
 
 from hunter.models.dto import JobResult
 from .base import BaseScraper
@@ -157,7 +161,7 @@ class IndeedScraper(BaseScraper):
         self.headless = headless
         self.fetch_descriptions = fetch_descriptions
         self.debug = debug
-        self._driver: Optional[uc.Chrome] = None
+        self._driver: Optional[WebDriver] = None
 
     # ------------------------------------------------------------------
     # Public API – fully overrides BaseScraper.scrape()
@@ -219,51 +223,23 @@ class IndeedScraper(BaseScraper):
         if self._driver is not None:
             return
 
-        options = uc.ChromeOptions()
+        options = Options()
 
         if self.headless:
             options.add_argument("--headless=new")
 
-        options.add_argument("--disable-blink-features=AutomationControlled")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--window-size=1920,1080")
 
-        # IMPORTANTE: remover profile fixo
-        # options.add_argument("--user-data-dir=./chrome_profile")  ← REMOVE
-
-        # random user agent
-        options.add_argument(f"--user-agent={random.choice(_USER_AGENTS)}")
-
-        options.add_argument("--start-maximized")
-
-        self._driver = uc.Chrome(
-            options=options,
-            use_subprocess=True
+        options.add_argument(
+            f"--user-agent={random.choice(_USER_AGENTS)}"
         )
 
-        orig_quit = self._driver.quit
+        self._driver = webdriver.Chrome(options=options)
 
-        def safe_quit(*args, **kwargs):
-            try:
-                orig_quit(*args, **kwargs)
-            except Exception:
-                pass
-
-        self._driver.quit = safe_quit
-
-        # esconder webdriver
-        self._driver.execute_cdp_cmd(
-            "Page.addScriptToEvaluateOnNewDocument",
-            {
-                "source": """
-                Object.defineProperty(navigator, 'webdriver', {
-                    get: () => undefined
-                })
-                """
-            },
-        )
-
-        logger.debug("Chrome anti-bot driver initialized")
+        logger.debug("Chrome driver initialized")
 
     def _teardown_driver(self) -> None:
         """
