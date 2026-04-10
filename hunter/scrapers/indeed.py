@@ -232,6 +232,8 @@ class IndeedScraper(BaseScraper):
         options.add_argument("--disable-gpu")
         options.add_argument("--window-size=1920,1080")
 
+        options.binary_location = "/usr/bin/google-chrome"
+        
         service = Service(ChromeDriverManager().install())
 
         self._driver = webdriver.Chrome(
