@@ -112,7 +112,7 @@ class JobApplication(BaseModel):
         _('status'),
         max_length=20,
         choices=JobApplicationStatus.choices,
-        default=JobApplicationStatus.NOT_APPLIED,
+        default=JobApplicationStatus.SAVED,
     )
     notes = models.TextField(_('notes'), blank=True)
     applied_at = models.DateTimeField(_('applied at'), null=True, blank=True)
@@ -131,6 +131,35 @@ class JobApplication(BaseModel):
 
     def __str__(self) -> str:
         return f'{self.job} — {self.get_status_display()}'
+
+class SavedJob(BaseModel):
+    owner = models.ForeignKey(
+        get_user_model(),
+        on_delete=models.CASCADE,
+        related_name='saved_jobs',
+        verbose_name=_('owner'),
+    )
+    job = models.ForeignKey(
+        Job,
+        on_delete=models.CASCADE,
+        related_name='saved_by_users',
+        verbose_name=_('job'),
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['owner', 'created_at'], name='savedjob_owner_created_idx'),
+        ]
+        constraints = [
+            models.UniqueConstraint(fields=['owner', 'job'], name='unique_owner_saved_job'),
+        ]
+        verbose_name = _('saved job')
+        verbose_name_plural = _('saved jobs')
+
+    def __str__(self) -> str:
+        return f'{self.owner_id} saved {self.job}'
+
 
 class Resume(BaseModel):
     owner = models.ForeignKey(

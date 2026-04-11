@@ -6,16 +6,19 @@ from rest_framework.mixins import (
     DestroyModelMixin,
     ListModelMixin,
     RetrieveModelMixin,
+    UpdateModelMixin,
 )
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from .choices import JobApplicationStatus
 from .filters import JobApplicationFilter, JobFilter
-from .models.models import Job, JobApplication, JobMatch, Lead, Resume, Tag
+from .models.models import Job, JobApplication, JobMatch, Lead, Resume, SavedJob, Tag
 from .pagination import HunterPagination
 from .serializers import (
     DashboardSerializer,
     JobApplicationSerializer,
+    JobApplicationWorkflowSerializer,
     JobMatchRequestSerializer,
     JobMatchSerializer,
     JobSerializer,
@@ -23,6 +26,7 @@ from .serializers import (
     ResumeAnalysisSerializer,
     ResumeSerializer,
     ResumeUploadSerializer,
+    SavedJobSerializer,
     SeniorityAssessmentSerializer,
     TagSerializer,
 )
@@ -30,6 +34,8 @@ from .services import (
     DashboardService,
     JobMatchingError,
     JobMatchingService,
+    JobWorkflowError,
+    JobWorkflowService,
     ResumeAnalysisError,
     ResumeAnalysisService,
     ResumeIngestionService,
@@ -71,6 +77,50 @@ class JobViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
+
+    @action(detail=True, methods=['post', 'delete'], url_path='save')
+    def save(self, request, pk=None):
+        job = self.get_object()
+        service = JobWorkflowService()
+
+        if request.method == 'DELETE':
+            service.unsave_job(owner=request.user, job=job)
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        saved_job, created = service.save_job(owner=request.user, job=job)
+        serializer = SavedJobSerializer(
+            saved_job,
+            context=self.get_serializer_context(),
+        )
+        return Response(
+            serializer.data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+
+    @action(detail=True, methods=['post'], url_path='apply')
+    def apply(self, request, pk=None):
+        job = self.get_object()
+        serializer = JobApplicationWorkflowSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            application, created = JobWorkflowService().apply_to_job(
+                owner=request.user,
+                job=job,
+                status=serializer.validated_data.get('status', JobApplicationStatus.APPLIED),
+                notes=serializer.validated_data.get('notes'),
+            )
+        except JobWorkflowError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        response_serializer = JobApplicationSerializer(
+            application,
+            context=self.get_serializer_context(),
+        )
+        return Response(
+            response_serializer.data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
 
     @action(detail=True, methods=['post'], url_path='match')
     def match(self, request, pk=None):
@@ -126,7 +176,12 @@ class LeadViewSet(viewsets.ModelViewSet):
         serializer.save(owner=self.request.user)
 
 
-class JobApplicationViewSet(viewsets.ModelViewSet):
+class JobApplicationViewSet(
+    ListModelMixin,
+    RetrieveModelMixin,
+    UpdateModelMixin,
+    viewsets.GenericViewSet,
+):
     serializer_class = JobApplicationSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = HunterPagination
@@ -142,8 +197,35 @@ class JobApplicationViewSet(viewsets.ModelViewSet):
             .select_related('owner', 'job')
         )
 
-    def perform_create(self, serializer):
-        serializer.save(owner=self.request.user)
+    def get_serializer_class(self):
+        if self.action in {'partial_update', 'update'}:
+            return JobApplicationWorkflowSerializer
+        return JobApplicationSerializer
+
+    def update(self, request, *args, **kwargs):
+        return self._update_application(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        return self._update_application(request, *args, **kwargs)
+
+    def _update_application(self, request, *args, **kwargs):
+        application = self.get_object()
+        serializer = self.get_serializer(
+            data=request.data,
+            partial=kwargs.get('partial', request.method == 'PATCH'),
+        )
+        serializer.is_valid(raise_exception=True)
+
+        updated_application = JobWorkflowService().update_application(
+            application=application,
+            status=serializer.validated_data.get('status'),
+            notes=serializer.validated_data.get('notes'),
+        )
+        response_serializer = JobApplicationSerializer(
+            updated_application,
+            context=self.get_serializer_context(),
+        )
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
 
 
 class ResumeViewSet(
@@ -259,4 +341,19 @@ class JobMatchViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericViewSe
             JobMatch.objects
             .filter(owner=self.request.user)
             .select_related('owner', 'resume', 'job')
+        )
+
+
+class SavedJobViewSet(ListModelMixin, viewsets.GenericViewSet):
+    serializer_class = SavedJobSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = HunterPagination
+    ordering = ['-created_at']
+
+    def get_queryset(self):
+        return (
+            SavedJob.objects
+            .filter(owner=self.request.user)
+            .select_related('owner', 'job')
+            .prefetch_related('job__tags')
         )

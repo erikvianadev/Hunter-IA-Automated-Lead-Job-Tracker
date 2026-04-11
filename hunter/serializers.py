@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from .choices import JobApplicationStatus
+
 from .models.models import (
     Job,
     JobApplication,
@@ -7,6 +9,7 @@ from .models.models import (
     Lead,
     Resume,
     ResumeAnalysis,
+    SavedJob,
     SeniorityAssessment,
     Tag,
 )
@@ -132,6 +135,8 @@ class JobMatchSerializer(serializers.ModelSerializer):
 
 class DashboardSummarySerializer(serializers.Serializer):
     total_resumes = serializers.IntegerField(read_only=True)
+    total_saved_jobs = serializers.IntegerField(read_only=True)
+    total_applications = serializers.IntegerField(read_only=True)
     total_matches = serializers.IntegerField(read_only=True)
     average_match_score = serializers.FloatField(read_only=True, allow_null=True)
     top_match_score = serializers.IntegerField(read_only=True, allow_null=True)
@@ -228,6 +233,9 @@ class LeadSerializer(serializers.ModelSerializer):
 
 class JobApplicationSerializer(serializers.ModelSerializer):
     owner = serializers.PrimaryKeyRelatedField(read_only=True)
+    job = serializers.PrimaryKeyRelatedField(read_only=True)
+    job_title = serializers.CharField(source='job.title', read_only=True)
+    company_name = serializers.CharField(source='job.company_name', read_only=True)
 
     class Meta:
         model = JobApplication
@@ -235,6 +243,8 @@ class JobApplicationSerializer(serializers.ModelSerializer):
             'id',
             'owner',
             'job',
+            'job_title',
+            'company_name',
             'status',
             'notes',
             'applied_at',
@@ -242,3 +252,27 @@ class JobApplicationSerializer(serializers.ModelSerializer):
             'updated_at',
         ]
         read_only_fields = ['owner', 'created_at', 'updated_at']
+
+
+class JobApplicationWorkflowSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(
+        choices=JobApplicationStatus.choices,
+        required=False,
+    )
+    notes = serializers.CharField(required=False, allow_blank=True)
+
+
+class SavedJobSerializer(serializers.ModelSerializer):
+    owner = serializers.PrimaryKeyRelatedField(read_only=True)
+    job = JobSerializer(read_only=True)
+
+    class Meta:
+        model = SavedJob
+        fields = [
+            'id',
+            'owner',
+            'job',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = fields

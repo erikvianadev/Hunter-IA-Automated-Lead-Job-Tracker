@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from django.db.models import Avg, Max
 
-from hunter.models.models import JobMatch, Resume
+from hunter.models.models import JobApplication, JobMatch, Resume, SavedJob
 
 
 class DashboardService:
@@ -32,6 +32,8 @@ class DashboardService:
         return {
             "summary": {
                 "total_resumes": resume_queryset.count(),
+                "total_saved_jobs": SavedJob.objects.filter(owner=owner).count(),
+                "total_applications": JobApplication.objects.filter(owner=owner).count(),
                 "total_matches": match_queryset.count(),
                 "average_match_score": self._normalize_average(
                     match_summary["average_match_score"]

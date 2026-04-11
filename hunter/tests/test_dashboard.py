@@ -2,8 +2,16 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from hunter.choices import ResumeParseStatus
-from hunter.models.models import Job, JobMatch, Resume, ResumeAnalysis, SeniorityAssessment
+from hunter.choices import JobApplicationStatus, ResumeParseStatus
+from hunter.models.models import (
+    Job,
+    JobApplication,
+    JobMatch,
+    Resume,
+    ResumeAnalysis,
+    SavedJob,
+    SeniorityAssessment,
+)
 
 
 class DashboardApiTests(TestCase):
@@ -96,11 +104,20 @@ class DashboardApiTests(TestCase):
             recommendation="Strong match. Prioritize this application.",
             reasoning={"overlapping_skills": ["python", "django"]},
         )
+        SavedJob.objects.create(owner=self.user, job=top_job)
+        JobApplication.objects.create(
+            owner=self.user,
+            job=top_job,
+            status=JobApplicationStatus.APPLIED,
+            notes="Applied yesterday.",
+        )
 
         response = self.client.get("/hunter/api/resumes/dashboard/")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["summary"]["total_resumes"], 2)
+        self.assertEqual(response.data["summary"]["total_saved_jobs"], 1)
+        self.assertEqual(response.data["summary"]["total_applications"], 1)
         self.assertEqual(response.data["summary"]["total_matches"], 2)
         self.assertEqual(response.data["summary"]["top_match_score"], 91)
         self.assertEqual(response.data["summary"]["average_match_score"], 82.5)
@@ -124,6 +141,8 @@ class DashboardApiTests(TestCase):
             {
                 "summary": {
                     "total_resumes": 0,
+                    "total_saved_jobs": 0,
+                    "total_applications": 0,
                     "total_matches": 0,
                     "average_match_score": None,
                     "top_match_score": None,
@@ -187,11 +206,20 @@ class DashboardApiTests(TestCase):
             recommendation="Private",
             reasoning={},
         )
+        SavedJob.objects.create(owner=self.other_user, job=other_job)
+        JobApplication.objects.create(
+            owner=self.other_user,
+            job=other_job,
+            status=JobApplicationStatus.OFFER,
+            notes="Private application.",
+        )
 
         response = self.client.get("/hunter/api/resumes/dashboard/")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["summary"]["total_resumes"], 0)
+        self.assertEqual(response.data["summary"]["total_saved_jobs"], 0)
+        self.assertEqual(response.data["summary"]["total_applications"], 0)
         self.assertEqual(response.data["summary"]["total_matches"], 0)
         self.assertIsNone(response.data["active_resume"])
         self.assertEqual(response.data["top_matches"], [])
