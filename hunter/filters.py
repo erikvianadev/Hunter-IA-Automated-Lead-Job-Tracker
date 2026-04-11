@@ -19,6 +19,8 @@ class JobFilter(django_filters.FilterSet):
 
 
 class JobApplicationFilter(django_filters.FilterSet):
+    job = django_filters.NumberFilter(field_name='job_id')
+
     class Meta:
         model = JobApplication
-        fields = ['status']
+        fields = ['status', 'job']

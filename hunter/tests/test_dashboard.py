@@ -131,6 +131,14 @@ class DashboardApiTests(TestCase):
         )
         self.assertEqual(response.data["top_matches"][0]["id"], best_match.id)
         self.assertEqual(response.data["top_matches"][0]["job_title"], top_job.title)
+        self.assertEqual(len(response.data["recommended_jobs"]), 1)
+        self.assertEqual(response.data["recommended_jobs"][0]["job_id"], second_job.id)
+        self.assertEqual(response.data["recommended_jobs"][0]["match_score"], 74)
+        self.assertEqual(response.data["profile_insights"]["recommended_track"], "junior")
+        self.assertEqual(response.data["profile_insights"]["competitiveness_level"], "high")
+        self.assertEqual(response.data["profile_insights"]["top_gap_area"], "projects")
+        self.assertTrue(response.data["priority_actions"])
+        self.assertEqual(response.data["priority_actions"][0]["action_type"], "project_signal")
 
     def test_dashboard_handles_user_without_active_resume(self) -> None:
         response = self.client.get("/hunter/api/resumes/dashboard/")
@@ -153,6 +161,20 @@ class DashboardApiTests(TestCase):
                 "analysis": None,
                 "seniority_assessment": None,
                 "top_matches": [],
+                "recommended_jobs": [],
+                "priority_actions": [
+                    {
+                        "action_type": "resume_upload",
+                        "title": "Upload your active resume",
+                        "detail": "A current resume unlocks analysis, matching, and dashboard guidance.",
+                        "priority": 1,
+                    }
+                ],
+                "profile_insights": {
+                    "recommended_track": None,
+                    "competitiveness_level": None,
+                    "top_gap_area": None,
+                },
             },
         )
 
@@ -223,3 +245,100 @@ class DashboardApiTests(TestCase):
         self.assertEqual(response.data["summary"]["total_matches"], 0)
         self.assertIsNone(response.data["active_resume"])
         self.assertEqual(response.data["top_matches"], [])
+        self.assertEqual(response.data["recommended_jobs"], [])
+
+    def test_dashboard_priority_actions_reflect_missing_analysis_and_seniority(self) -> None:
+        resume = Resume.objects.create(
+            owner=self.user,
+            file="resumes/user_1/basic.docx",
+            original_filename="basic.docx",
+            extracted_text="Basic resume text",
+            parse_status=ResumeParseStatus.COMPLETED,
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            is_active=True,
+        )
+        self.assertIsNotNone(resume)
+
+        response = self.client.get("/hunter/api/resumes/dashboard/")
+
+        self.assertEqual(response.status_code, 200)
+        action_types = [item["action_type"] for item in response.data["priority_actions"]]
+        self.assertIn("resume_analysis", action_types)
+        self.assertIn("seniority_assessment", action_types)
+
+    def test_dashboard_recommended_jobs_skip_low_matches_and_applied_roles(self) -> None:
+        active_resume = Resume.objects.create(
+            owner=self.user,
+            file="resumes/user_1/active.docx",
+            original_filename="active.docx",
+            extracted_text="Python Django SQL",
+            parse_status=ResumeParseStatus.COMPLETED,
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            is_active=True,
+        )
+        good_job = Job.objects.create(
+            owner=self.user,
+            title="Python Engineer",
+            company_name="Acme",
+            location="Remote",
+            description="Python Django SQL",
+            url="https://example.com/jobs/good",
+        )
+        low_job = Job.objects.create(
+            owner=self.user,
+            title="Support Analyst",
+            company_name="Beta",
+            location="Remote",
+            description="Customer support",
+            url="https://example.com/jobs/low",
+        )
+        applied_job = Job.objects.create(
+            owner=self.user,
+            title="Backend Developer",
+            company_name="Gamma",
+            location="Remote",
+            description="Python APIs",
+            url="https://example.com/jobs/applied",
+        )
+        JobMatch.objects.create(
+            owner=self.user,
+            resume=active_resume,
+            job=applied_job,
+            match_score=90,
+            strengths=["High overlap"],
+            gaps=[],
+            recommendation="Strong match.",
+            reasoning={},
+        )
+        JobMatch.objects.create(
+            owner=self.user,
+            resume=active_resume,
+            job=good_job,
+            match_score=81,
+            strengths=["Strong fit"],
+            gaps=[],
+            recommendation="Strong match.",
+            reasoning={},
+        )
+        JobMatch.objects.create(
+            owner=self.user,
+            resume=active_resume,
+            job=low_job,
+            match_score=32,
+            strengths=[],
+            gaps=["Low overlap"],
+            recommendation="Low match.",
+            reasoning={},
+        )
+        JobApplication.objects.create(
+            owner=self.user,
+            job=applied_job,
+            status=JobApplicationStatus.APPLIED,
+            notes="Already applied",
+        )
+
+        response = self.client.get("/hunter/api/resumes/dashboard/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["recommended_jobs"]), 1)
+        self.assertEqual(response.data["recommended_jobs"][0]["job_id"], good_job.id)

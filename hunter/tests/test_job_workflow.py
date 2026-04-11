@@ -1,5 +1,8 @@
+from datetime import timedelta
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from hunter.choices import JobApplicationStatus
@@ -151,6 +154,67 @@ class JobWorkflowApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["id"], application.id)
         self.assertEqual(response.data["job_title"], self.job.title)
+
+    def test_applications_listing_supports_filtering_by_status_and_job(self) -> None:
+        second_job = Job.objects.create(
+            owner=self.user,
+            title="Data Analyst",
+            company_name="Beta",
+            location="Remote",
+            description="SQL dashboards",
+            url="https://example.com/jobs/3",
+        )
+        JobApplication.objects.create(
+            owner=self.user,
+            job=self.job,
+            status=JobApplicationStatus.APPLIED,
+            notes="Primary",
+        )
+        JobApplication.objects.create(
+            owner=self.user,
+            job=second_job,
+            status=JobApplicationStatus.INTERVIEW,
+            notes="Interview loop",
+        )
+
+        response = self.client.get(
+            f"/hunter/api/applications/?status={JobApplicationStatus.INTERVIEW}&job={second_job.id}"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["job"], second_job.id)
+        self.assertEqual(response.data["results"][0]["status"], JobApplicationStatus.INTERVIEW)
+
+    def test_applications_listing_supports_ordering_by_updated_at(self) -> None:
+        older = JobApplication.objects.create(
+            owner=self.user,
+            job=self.job,
+            status=JobApplicationStatus.APPLIED,
+            notes="Older",
+        )
+        second_job = Job.objects.create(
+            owner=self.user,
+            title="Platform Engineer",
+            company_name="Gamma",
+            location="Remote",
+            description="Python APIs",
+            url="https://example.com/jobs/4",
+        )
+        newer = JobApplication.objects.create(
+            owner=self.user,
+            job=second_job,
+            status=JobApplicationStatus.INTERVIEW,
+            notes="Newer",
+        )
+        JobApplication.objects.filter(id=older.id).update(updated_at=timezone.now() - timedelta(days=2))
+        JobApplication.objects.filter(id=newer.id).update(updated_at=timezone.now())
+
+        response = self.client.get("/hunter/api/applications/?ordering=-updated_at")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["results"][0]["id"], newer.id)
+        self.assertEqual(response.data["results"][1]["id"], older.id)
 
     def test_ownership_isolation_for_saved_jobs_and_applications(self) -> None:
         other_saved_job = SavedJob.objects.create(owner=self.other_user, job=self.other_job)

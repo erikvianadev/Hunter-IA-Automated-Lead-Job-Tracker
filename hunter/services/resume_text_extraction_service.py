@@ -204,6 +204,8 @@ class ResumeTextExtractionService:
 
     def _normalize_whitespace(self, value: str) -> str:
         value = value.replace("\x00", " ")
+        value = value.replace("\r\n", "\n").replace("\r", "\n")
+        value = re.sub(r"[ \t]*\n[ \t]*", "\n", value)
         value = re.sub(r"[ \t\f\v]+", " ", value)
         value = re.sub(r"\n{3,}", "\n\n", value)
         return value.strip()

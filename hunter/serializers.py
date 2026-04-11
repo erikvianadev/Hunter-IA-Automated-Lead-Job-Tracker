@@ -144,6 +144,19 @@ class DashboardSummarySerializer(serializers.Serializer):
     seniority_ready = serializers.BooleanField(read_only=True)
 
 
+class DashboardPriorityActionSerializer(serializers.Serializer):
+    action_type = serializers.CharField(read_only=True)
+    title = serializers.CharField(read_only=True)
+    detail = serializers.CharField(read_only=True)
+    priority = serializers.IntegerField(read_only=True)
+
+
+class DashboardProfileInsightsSerializer(serializers.Serializer):
+    recommended_track = serializers.CharField(read_only=True, allow_null=True)
+    competitiveness_level = serializers.CharField(read_only=True, allow_null=True)
+    top_gap_area = serializers.CharField(read_only=True, allow_null=True)
+
+
 class DashboardJobMatchSerializer(serializers.ModelSerializer):
     job_id = serializers.IntegerField(source='job.id', read_only=True)
     job_title = serializers.CharField(source='job.title', read_only=True)
@@ -167,12 +180,26 @@ class DashboardJobMatchSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class DashboardRecommendedJobSerializer(serializers.Serializer):
+    match_id = serializers.IntegerField(read_only=True)
+    job_id = serializers.IntegerField(read_only=True)
+    title = serializers.CharField(read_only=True)
+    company_name = serializers.CharField(read_only=True)
+    location = serializers.CharField(read_only=True)
+    url = serializers.CharField(read_only=True)
+    match_score = serializers.IntegerField(read_only=True)
+    recommendation = serializers.CharField(read_only=True)
+
+
 class DashboardSerializer(serializers.Serializer):
     summary = DashboardSummarySerializer(read_only=True)
     active_resume = ResumeSerializer(read_only=True, allow_null=True)
     analysis = ResumeAnalysisSerializer(read_only=True, allow_null=True)
     seniority_assessment = SeniorityAssessmentSerializer(read_only=True, allow_null=True)
     top_matches = DashboardJobMatchSerializer(many=True, read_only=True)
+    recommended_jobs = DashboardRecommendedJobSerializer(many=True, read_only=True)
+    priority_actions = DashboardPriorityActionSerializer(many=True, read_only=True)
+    profile_insights = DashboardProfileInsightsSerializer(read_only=True)
 
 
 class TagSerializer(serializers.ModelSerializer):

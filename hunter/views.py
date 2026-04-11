@@ -187,8 +187,8 @@ class JobApplicationViewSet(
     pagination_class = HunterPagination
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_class = JobApplicationFilter
-    ordering_fields = ['status', 'applied_at', 'created_at']
-    ordering = ['-created_at']
+    ordering_fields = ['status', 'job', 'applied_at', 'created_at', 'updated_at']
+    ordering = ['-updated_at']
 
     def get_queryset(self):
         return (
