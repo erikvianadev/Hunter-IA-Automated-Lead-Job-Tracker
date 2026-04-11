@@ -47,6 +47,20 @@ class ScrapeJobsApiTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            list(response.data.keys()),
+            [
+                "status",
+                "providers_run",
+                "providers_succeeded",
+                "providers_failed",
+                "providers_blocked",
+                "providers_invalid_response",
+                "scraped",
+                "saved",
+                "duplicates_removed",
+            ],
+        )
         self.assertEqual(response.data["status"], "partial_success")
         self.assertEqual(response.data["providers_run"], ["remotive", "indeed", "remoteok"])
         self.assertEqual(response.data["providers_succeeded"], ["remotive"])
@@ -56,3 +70,29 @@ class ScrapeJobsApiTests(TestCase):
         self.assertEqual(response.data["scraped"], 0)
         self.assertEqual(response.data["saved"], 2)
         self.assertEqual(response.data["duplicates_removed"], 2)
+
+
+class ProjectHealthEndpointsTests(TestCase):
+    def test_root_endpoint_returns_lightweight_json(self) -> None:
+        response = self.client.get("/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertJSONEqual(
+            response.content,
+            {
+                "status": "ok",
+                "service": "ia-hunter",
+            },
+        )
+
+    def test_health_endpoint_returns_ok_payload(self) -> None:
+        response = self.client.get("/health/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertJSONEqual(
+            response.content,
+            {
+                "status": "ok",
+                "database": "ok",
+            },
+        )

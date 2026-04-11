@@ -6,6 +6,7 @@ from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 
 from hunter.providers.registry import build_enabled_providers, get_unknown_provider_names
+from hunter.scrape_summary import build_scrape_summary
 from hunter.services.job_aggregation_service import JobAggregationService
 from hunter.services.job_persistence_service import JobPersistenceService
 
@@ -64,17 +65,19 @@ class Command(BaseCommand):
             persistence = JobPersistenceService().save_jobs(owner=owner, jobs=aggregation.jobs)
             saved = persistence.saved
 
+        summary = build_scrape_summary(aggregation=aggregation, saved=saved)
+
         logger.info(
             "scrape_command_completed status=%s providers_run=%s providers_succeeded=%s providers_failed=%s providers_blocked=%s providers_invalid_response=%s scraped=%d saved=%d duplicates_removed=%d",
-            aggregation.status,
-            aggregation.providers_run,
-            aggregation.providers_succeeded,
-            aggregation.providers_failed,
-            aggregation.providers_blocked,
-            aggregation.providers_invalid_response,
-            aggregation.scraped,
-            saved,
-            aggregation.duplicates_removed,
+            summary["status"],
+            summary["providers_run"],
+            summary["providers_succeeded"],
+            summary["providers_failed"],
+            summary["providers_blocked"],
+            summary["providers_invalid_response"],
+            summary["scraped"],
+            summary["saved"],
+            summary["duplicates_removed"],
         )
 
         self.stdout.write(
@@ -88,17 +91,17 @@ class Command(BaseCommand):
                     "scraped={scraped} saved={saved} "
                     "duplicates_removed={duplicates_removed}"
                 ).format(
-                    status=aggregation.status,
-                    providers_run=",".join(aggregation.providers_run),
-                    providers_succeeded=",".join(aggregation.providers_succeeded),
-                    providers_failed=",".join(aggregation.providers_failed),
-                    providers_blocked=",".join(aggregation.providers_blocked),
+                    status=summary["status"],
+                    providers_run=",".join(summary["providers_run"]),
+                    providers_succeeded=",".join(summary["providers_succeeded"]),
+                    providers_failed=",".join(summary["providers_failed"]),
+                    providers_blocked=",".join(summary["providers_blocked"]),
                     providers_invalid_response=",".join(
-                        aggregation.providers_invalid_response
+                        summary["providers_invalid_response"]
                     ),
-                    scraped=aggregation.scraped,
-                    saved=saved,
-                    duplicates_removed=aggregation.duplicates_removed,
+                    scraped=summary["scraped"],
+                    saved=summary["saved"],
+                    duplicates_removed=summary["duplicates_removed"],
                 )
             )
         )

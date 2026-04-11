@@ -10,9 +10,10 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 import os
-
-import environ 
+from datetime import timedelta
 from pathlib import Path
+
+import environ
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -68,7 +69,7 @@ TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
         'DIRS': [
-            BASE_DIR / 'base_templates'
+            BASE_DIR / 'base_template'
         ],
         'APP_DIRS': True,
         'OPTIONS': {
@@ -129,15 +130,18 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
-STATIC_URL = 'static/'
-
-STATICFILES_DIRS = [
-    BASE_DIR / 'base_static',
-]
+STATIC_URL = '/static/'
+STATICFILES_DIRS = [BASE_DIR / 'base_static'] if (BASE_DIR / 'base_static').exists() else []
 
 STATIC_ROOT = BASE_DIR / "staticfiles"
-
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -156,7 +160,6 @@ REST_FRAMEWORK = {
         'rest_framework.filters.OrderingFilter',
     ],
 }
-from datetime import timedelta
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
@@ -166,7 +169,6 @@ SIMPLE_JWT = {
 
 JOB_AGGREGATION = {
     'PROVIDER_ORDER': ['remotive', 'remoteok', 'weworkremotely', 'indeed'],
-    'ENABLED_PROVIDERS': ['remotive'],
     'DEFAULTS': {
         'TIMEOUT': 10,
         'MAX_PAGES': 1,
@@ -183,7 +185,7 @@ JOB_AGGREGATION = {
             'MAX_DELAY': 0.0,
         },
         'remoteok': {
-            'ENABLED': True,
+            'ENABLED': False,
             'MAX_PAGES': 1,
             'MIN_DELAY': 0.0,
             'MAX_DELAY': 0.0,

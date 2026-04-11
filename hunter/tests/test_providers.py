@@ -243,4 +243,4 @@ class ProviderRegistryTests(SimpleTestCase):
     def test_disabled_providers_are_skipped(self) -> None:
         providers = build_enabled_providers()
 
-        self.assertEqual([provider.name for provider in providers], ["remotive", "remoteok"])
+        self.assertEqual([provider.name for provider in providers], ["remotive"])

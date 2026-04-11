@@ -8,6 +8,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from hunter.scrape_summary import build_scrape_summary
 from hunter.serializers import ScrapeJobsRequestSerializer
 from hunter.services.job_aggregation_service import JobAggregationService
 from hunter.services.job_persistence_service import JobPersistenceService
@@ -71,19 +72,10 @@ class ScrapeJobsView(APIView):
             )
 
             return Response(
-                {
-                    "status": aggregation.status,
-                    "providers_run": aggregation.providers_run,
-                    "providers_succeeded": aggregation.providers_succeeded,
-                    "providers_failed": aggregation.providers_failed,
-                    "providers_blocked": aggregation.providers_blocked,
-                    "providers_invalid_response": (
-                        aggregation.providers_invalid_response
-                    ),
-                    "scraped": aggregation.scraped,
-                    "saved": persistence.saved,
-                    "duplicates_removed": aggregation.duplicates_removed,
-                },
+                build_scrape_summary(
+                    aggregation=aggregation,
+                    saved=persistence.saved,
+                ),
                 status=status.HTTP_200_OK,
             )
 
