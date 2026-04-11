@@ -2,7 +2,11 @@ from django.contrib.auth import get_user_model
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
-from ..choices import JobApplicationStatus
+from ..choices import JobApplicationStatus, ResumeParseStatus
+
+
+def resume_upload_to(instance, filename: str) -> str:
+    return f"resumes/user_{instance.owner_id}/{filename}"
 
 
 class BaseModel(models.Model):
@@ -127,3 +131,43 @@ class JobApplication(BaseModel):
 
     def __str__(self) -> str:
         return f'{self.job} — {self.get_status_display()}'
+
+class Resume(BaseModel):
+    owner = models.ForeignKey(
+        get_user_model(),
+        on_delete=models.CASCADE,
+        related_name='resumes',
+        verbose_name=_('owner'),
+    )
+    file = models.FileField(_('file'), upload_to=resume_upload_to)
+    original_filename = models.CharField(_('original filename'), max_length=255)
+    extracted_text = models.TextField(_('extracted text'), blank=True)
+    parse_status = models.CharField(
+        _('parse status'),
+        max_length=20,
+        choices=ResumeParseStatus.choices,
+        default=ResumeParseStatus.PENDING,
+    )
+    content_type = models.CharField(_('content type'), max_length=100)
+    is_active = models.BooleanField(_('is active'), default=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(
+                fields=['owner', 'is_active', 'created_at'],
+                name='resume_own_act_idx',
+            ),
+        ]
+        verbose_name = _('resume')
+        verbose_name_plural = _('resumes')
+
+    def __str__(self) -> str:
+        return self.original_filename
+
+    def delete(self, using=None, keep_parents=False):
+        storage = self.file.storage if self.file else None
+        file_name = self.file.name if self.file else ""
+        super().delete(using=using, keep_parents=keep_parents)
+        if storage and file_name:
+            storage.delete(file_name)

@@ -8,3 +8,10 @@ class JobApplicationStatus(models.TextChoices):
     INTERVIEW = 'INTERVIEW', _('Interview')
     OFFER = 'OFFER', _('Offer')
     REJECTED = 'REJECTED', _('Rejected')
+
+
+class ResumeParseStatus(models.TextChoices):
+    PENDING = 'pending', _('Pending')
+    PROCESSING = 'processing', _('Processing')
+    COMPLETED = 'completed', _('Completed')
+    FAILED = 'failed', _('Failed')

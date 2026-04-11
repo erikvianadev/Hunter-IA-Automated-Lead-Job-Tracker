@@ -1,11 +1,53 @@
 from rest_framework import serializers
 
-from .models.models import Job, JobApplication, Lead, Tag
+from .models.models import Job, JobApplication, Lead, Resume, Tag
 
 
 class ScrapeJobsRequestSerializer(serializers.Serializer):
     query = serializers.CharField(required=False, default="Data Scientist", max_length=255)
     location = serializers.CharField(required=False, default="Remote", max_length=255)
+
+
+class ResumeUploadSerializer(serializers.Serializer):
+    file = serializers.FileField()
+
+
+class ResumeSerializer(serializers.ModelSerializer):
+    owner = serializers.PrimaryKeyRelatedField(read_only=True)
+    file_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Resume
+        fields = [
+            'id',
+            'owner',
+            'file',
+            'file_url',
+            'original_filename',
+            'extracted_text',
+            'parse_status',
+            'content_type',
+            'is_active',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = [
+            'owner',
+            'original_filename',
+            'extracted_text',
+            'parse_status',
+            'content_type',
+            'created_at',
+            'updated_at',
+        ]
+
+    def get_file_url(self, obj):
+        request = self.context.get('request')
+        if not obj.file:
+            return None
+        if request is None:
+            return obj.file.url
+        return request.build_absolute_uri(obj.file.url)
 
 
 class TagSerializer(serializers.ModelSerializer):
