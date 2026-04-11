@@ -31,6 +31,22 @@ class ResumeIngestionService:
 
     @transaction.atomic
     def ingest(self, *, owner, uploaded_file: UploadedFile) -> Resume:
+        return self.ingest_with_profile(
+            owner=owner,
+            uploaded_file=uploaded_file,
+            label=None,
+            target_role="",
+        )
+
+    @transaction.atomic
+    def ingest_with_profile(
+        self,
+        *,
+        owner,
+        uploaded_file: UploadedFile,
+        label: str | None = None,
+        target_role: str = "",
+    ) -> Resume:
         content_type = self._detect_content_type(uploaded_file)
         self._validate_file(uploaded_file=uploaded_file, content_type=content_type)
 
@@ -38,6 +54,8 @@ class ResumeIngestionService:
         resume = Resume.objects.create(
             owner=owner,
             file=uploaded_file,
+            label=(label or Path(uploaded_file.name).stem).strip(),
+            target_role=target_role.strip(),
             original_filename=uploaded_file.name,
             content_type=content_type,
             parse_status=ResumeParseStatus.PENDING,

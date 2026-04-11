@@ -48,6 +48,15 @@ class DashboardService:
                 "total_saved_jobs": SavedJob.objects.filter(owner=owner).count(),
                 "total_applications": JobApplication.objects.filter(owner=owner).count(),
                 "total_matches": match_queryset.count(),
+                "active_resume_label": active_resume.label if active_resume is not None else None,
+                "active_resume_target_role": (
+                    active_resume.target_role if active_resume is not None else None
+                ),
+                "active_resume_status": self._derive_active_resume_status(
+                    active_resume=active_resume,
+                    analysis=analysis,
+                    seniority_assessment=seniority_assessment,
+                ),
                 "average_match_score": self._normalize_average(
                     match_summary["average_match_score"]
                 ),
@@ -231,3 +240,14 @@ class DashboardService:
             "projects": analysis.project_score,
         }
         return min(score_map, key=score_map.get)
+
+    def _derive_active_resume_status(self, *, active_resume, analysis, seniority_assessment):
+        if active_resume is None:
+            return "not_set"
+        if active_resume.parse_status != "completed":
+            return "processing"
+        if analysis is None:
+            return "uploaded"
+        if seniority_assessment is None:
+            return "analyzed"
+        return "ready"

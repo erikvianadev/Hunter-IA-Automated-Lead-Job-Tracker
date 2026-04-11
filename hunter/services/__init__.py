@@ -6,6 +6,7 @@ from .job_deduplication_service import JobDeduplicationService
 from .job_persistence_service import JobPersistenceService, PersistenceResult
 from .resume_analysis_service import ResumeAnalysisError, ResumeAnalysisService
 from .resume_ingestion_service import ResumeIngestionService, ResumeValidationError
+from .resume_profile_service import ResumeProfileService
 from .resume_parser_service import ResumeParserService
 from .resume_scoring_service import ResumeScoringService
 from .seniority_assessment_service import (
@@ -31,6 +32,7 @@ __all__ = [
     "ResumeAnalysisError",
     "ResumeAnalysisService",
     "ResumeIngestionService",
+    "ResumeProfileService",
     "ResumeParserService",
     "ResumeScoringService",
     "ResumeTextExtractionError",

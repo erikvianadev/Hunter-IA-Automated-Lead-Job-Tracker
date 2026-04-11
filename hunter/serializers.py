@@ -22,6 +22,8 @@ class ScrapeJobsRequestSerializer(serializers.Serializer):
 
 class ResumeUploadSerializer(serializers.Serializer):
     file = serializers.FileField()
+    label = serializers.CharField(required=False, allow_blank=True, max_length=120)
+    target_role = serializers.CharField(required=False, allow_blank=True, max_length=120)
 
 
 class ResumeSerializer(serializers.ModelSerializer):
@@ -35,6 +37,8 @@ class ResumeSerializer(serializers.ModelSerializer):
             'owner',
             'file',
             'file_url',
+            'label',
+            'target_role',
             'original_filename',
             'extracted_text',
             'parse_status',
@@ -49,6 +53,7 @@ class ResumeSerializer(serializers.ModelSerializer):
             'extracted_text',
             'parse_status',
             'content_type',
+            'is_active',
             'created_at',
             'updated_at',
         ]
@@ -138,6 +143,9 @@ class DashboardSummarySerializer(serializers.Serializer):
     total_saved_jobs = serializers.IntegerField(read_only=True)
     total_applications = serializers.IntegerField(read_only=True)
     total_matches = serializers.IntegerField(read_only=True)
+    active_resume_label = serializers.CharField(read_only=True, allow_null=True)
+    active_resume_target_role = serializers.CharField(read_only=True, allow_null=True)
+    active_resume_status = serializers.CharField(read_only=True)
     average_match_score = serializers.FloatField(read_only=True, allow_null=True)
     top_match_score = serializers.IntegerField(read_only=True, allow_null=True)
     analysis_ready = serializers.BooleanField(read_only=True)
@@ -200,6 +208,25 @@ class DashboardSerializer(serializers.Serializer):
     recommended_jobs = DashboardRecommendedJobSerializer(many=True, read_only=True)
     priority_actions = DashboardPriorityActionSerializer(many=True, read_only=True)
     profile_insights = DashboardProfileInsightsSerializer(read_only=True)
+
+
+class ResumeComparisonItemSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True)
+    label = serializers.CharField(read_only=True)
+    target_role = serializers.CharField(read_only=True)
+    is_active = serializers.BooleanField(read_only=True)
+    parse_status = serializers.CharField(read_only=True)
+    overall_score = serializers.IntegerField(read_only=True, allow_null=True)
+    structure_score = serializers.IntegerField(read_only=True, allow_null=True)
+    project_score = serializers.IntegerField(read_only=True, allow_null=True)
+    recommended_track = serializers.CharField(read_only=True, allow_null=True)
+    created_at = serializers.DateTimeField(read_only=True)
+    updated_at = serializers.DateTimeField(read_only=True)
+
+
+class ResumeComparisonSerializer(serializers.Serializer):
+    compared_resumes = ResumeComparisonItemSerializer(many=True, read_only=True)
+    best_resume_by_score = ResumeComparisonItemSerializer(read_only=True, allow_null=True)
 
 
 class TagSerializer(serializers.ModelSerializer):

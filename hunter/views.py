@@ -24,6 +24,7 @@ from .serializers import (
     JobSerializer,
     LeadSerializer,
     ResumeAnalysisSerializer,
+    ResumeComparisonSerializer,
     ResumeSerializer,
     ResumeUploadSerializer,
     SavedJobSerializer,
@@ -39,6 +40,7 @@ from .services import (
     ResumeAnalysisError,
     ResumeAnalysisService,
     ResumeIngestionService,
+    ResumeProfileService,
     ResumeValidationError,
     SeniorityAssessmentService,
 )
@@ -252,9 +254,11 @@ class ResumeViewSet(
         serializer.is_valid(raise_exception=True)
 
         try:
-            resume = ResumeIngestionService().ingest(
+            resume = ResumeIngestionService().ingest_with_profile(
                 owner=request.user,
                 uploaded_file=serializer.validated_data['file'],
+                label=serializer.validated_data.get('label'),
+                target_role=serializer.validated_data.get('target_role', ''),
             )
         except ResumeValidationError as exc:
             raise serializers.ValidationError({"file": [str(exc)]}) from exc
@@ -270,6 +274,39 @@ class ResumeViewSet(
         payload = DashboardService().build(owner=request.user)
         serializer = DashboardSerializer(
             payload,
+            context=self.get_serializer_context(),
+        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'], url_path='compare')
+    def compare(self, request):
+        raw_ids = (request.query_params.get('ids') or "").strip()
+        resume_ids: list[int] | None = None
+        if raw_ids:
+            try:
+                resume_ids = [int(value.strip()) for value in raw_ids.split(',') if value.strip()]
+            except ValueError as exc:
+                raise serializers.ValidationError({"ids": ["Resume ids must be integers."]}) from exc
+
+        payload = ResumeProfileService().compare(
+            owner=request.user,
+            resume_ids=resume_ids,
+        )
+        serializer = ResumeComparisonSerializer(
+            payload,
+            context=self.get_serializer_context(),
+        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], url_path='activate')
+    def activate(self, request, pk=None):
+        resume = self.get_object()
+        activated_resume = ResumeProfileService().activate(
+            owner=request.user,
+            resume=resume,
+        )
+        serializer = ResumeSerializer(
+            activated_resume,
             context=self.get_serializer_context(),
         )
         return Response(serializer.data, status=status.HTTP_200_OK)

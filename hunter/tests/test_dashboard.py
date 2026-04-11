@@ -31,6 +31,8 @@ class DashboardApiTests(TestCase):
         active_resume = Resume.objects.create(
             owner=self.user,
             file="resumes/user_1/active.docx",
+            label="Backend v2",
+            target_role="Backend Engineer",
             original_filename="active.docx",
             extracted_text="Python Django SQL Docker APIs",
             parse_status=ResumeParseStatus.COMPLETED,
@@ -40,6 +42,8 @@ class DashboardApiTests(TestCase):
         Resume.objects.create(
             owner=self.user,
             file="resumes/user_1/old.docx",
+            label="Old Version",
+            target_role="Data Analyst",
             original_filename="old.docx",
             extracted_text="old resume",
             parse_status=ResumeParseStatus.COMPLETED,
@@ -119,11 +123,16 @@ class DashboardApiTests(TestCase):
         self.assertEqual(response.data["summary"]["total_saved_jobs"], 1)
         self.assertEqual(response.data["summary"]["total_applications"], 1)
         self.assertEqual(response.data["summary"]["total_matches"], 2)
+        self.assertEqual(response.data["summary"]["active_resume_label"], "Backend v2")
+        self.assertEqual(response.data["summary"]["active_resume_target_role"], "Backend Engineer")
+        self.assertEqual(response.data["summary"]["active_resume_status"], "ready")
         self.assertEqual(response.data["summary"]["top_match_score"], 91)
         self.assertEqual(response.data["summary"]["average_match_score"], 82.5)
         self.assertTrue(response.data["summary"]["analysis_ready"])
         self.assertTrue(response.data["summary"]["seniority_ready"])
         self.assertEqual(response.data["active_resume"]["id"], active_resume.id)
+        self.assertEqual(response.data["active_resume"]["label"], "Backend v2")
+        self.assertEqual(response.data["active_resume"]["target_role"], "Backend Engineer")
         self.assertEqual(response.data["analysis"]["id"], analysis.id)
         self.assertEqual(
             response.data["seniority_assessment"]["id"],
@@ -152,6 +161,9 @@ class DashboardApiTests(TestCase):
                     "total_saved_jobs": 0,
                     "total_applications": 0,
                     "total_matches": 0,
+                    "active_resume_label": None,
+                    "active_resume_target_role": None,
+                    "active_resume_status": "not_set",
                     "average_match_score": None,
                     "top_match_score": None,
                     "analysis_ready": False,
@@ -182,6 +194,8 @@ class DashboardApiTests(TestCase):
         other_resume = Resume.objects.create(
             owner=self.other_user,
             file="resumes/user_2/private.docx",
+            label="Private Version",
+            target_role="Senior Data Engineer",
             original_filename="private.docx",
             extracted_text="private",
             parse_status=ResumeParseStatus.COMPLETED,
@@ -243,6 +257,7 @@ class DashboardApiTests(TestCase):
         self.assertEqual(response.data["summary"]["total_saved_jobs"], 0)
         self.assertEqual(response.data["summary"]["total_applications"], 0)
         self.assertEqual(response.data["summary"]["total_matches"], 0)
+        self.assertEqual(response.data["summary"]["active_resume_status"], "not_set")
         self.assertIsNone(response.data["active_resume"])
         self.assertEqual(response.data["top_matches"], [])
         self.assertEqual(response.data["recommended_jobs"], [])
@@ -251,6 +266,8 @@ class DashboardApiTests(TestCase):
         resume = Resume.objects.create(
             owner=self.user,
             file="resumes/user_1/basic.docx",
+            label="Basic",
+            target_role="Analyst",
             original_filename="basic.docx",
             extracted_text="Basic resume text",
             parse_status=ResumeParseStatus.COMPLETED,
@@ -262,6 +279,9 @@ class DashboardApiTests(TestCase):
         response = self.client.get("/hunter/api/resumes/dashboard/")
 
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["summary"]["active_resume_label"], "Basic")
+        self.assertEqual(response.data["summary"]["active_resume_target_role"], "Analyst")
+        self.assertEqual(response.data["summary"]["active_resume_status"], "uploaded")
         action_types = [item["action_type"] for item in response.data["priority_actions"]]
         self.assertIn("resume_analysis", action_types)
         self.assertIn("seniority_assessment", action_types)
@@ -270,6 +290,8 @@ class DashboardApiTests(TestCase):
         active_resume = Resume.objects.create(
             owner=self.user,
             file="resumes/user_1/active.docx",
+            label="Current",
+            target_role="Backend Engineer",
             original_filename="active.docx",
             extracted_text="Python Django SQL",
             parse_status=ResumeParseStatus.COMPLETED,

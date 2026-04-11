@@ -118,8 +118,32 @@ class ResumeApiTests(TestCase):
 
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.data["original_filename"], "resume.docx")
+        self.assertEqual(response.data["label"], "resume")
+        self.assertEqual(response.data["target_role"], "")
+        self.assertTrue(response.data["is_active"])
         self.assertEqual(response.data["parse_status"], ResumeParseStatus.COMPLETED)
         self.assertIn("Jane Doe", response.data["extracted_text"])
+
+    def test_upload_accepts_resume_label_and_target_role(self) -> None:
+        upload = SimpleUploadedFile(
+            "backend.docx",
+            build_docx_bytes("Jane Doe", "Backend Engineer"),
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+
+        response = self.client.post(
+            "/hunter/api/resumes/",
+            {
+                "file": upload,
+                "label": "Backend v2",
+                "target_role": "Backend Engineer",
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["label"], "Backend v2")
+        self.assertEqual(response.data["target_role"], "Backend Engineer")
 
     def test_list_returns_only_current_users_resumes(self) -> None:
         Resume.objects.create(
@@ -194,6 +218,159 @@ class ResumeApiTests(TestCase):
 
         self.assertEqual(response.status_code, 204)
         self.assertFalse(Resume.objects.filter(id=resume.id).exists())
+
+    def test_activate_marks_only_selected_resume_as_active(self) -> None:
+        first_resume = Resume.objects.create(
+            owner=self.user,
+            file="resumes/user_1/first.docx",
+            label="First",
+            target_role="Data Analyst",
+            original_filename="first.docx",
+            extracted_text="first",
+            parse_status=ResumeParseStatus.COMPLETED,
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            is_active=True,
+        )
+        second_resume = Resume.objects.create(
+            owner=self.user,
+            file="resumes/user_1/second.docx",
+            label="Second",
+            target_role="Backend Engineer",
+            original_filename="second.docx",
+            extracted_text="second",
+            parse_status=ResumeParseStatus.COMPLETED,
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            is_active=False,
+        )
+
+        response = self.client.post(f"/hunter/api/resumes/{second_resume.id}/activate/")
+
+        first_resume.refresh_from_db()
+        second_resume.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(first_resume.is_active)
+        self.assertTrue(second_resume.is_active)
+        self.assertEqual(response.data["id"], second_resume.id)
+
+    def test_activation_isolated_to_owned_resume(self) -> None:
+        private_resume = Resume.objects.create(
+            owner=self.other_user,
+            file="resumes/user_2/private.docx",
+            label="Private",
+            target_role="Private Role",
+            original_filename="private.docx",
+            extracted_text="private",
+            parse_status=ResumeParseStatus.COMPLETED,
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            is_active=True,
+        )
+
+        response = self.client.post(f"/hunter/api/resumes/{private_resume.id}/activate/")
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_compare_returns_useful_resume_summary(self) -> None:
+        first_resume = Resume.objects.create(
+            owner=self.user,
+            file="resumes/user_1/first.docx",
+            label="Backend v1",
+            target_role="Backend Engineer",
+            original_filename="first.docx",
+            extracted_text="first",
+            parse_status=ResumeParseStatus.COMPLETED,
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            is_active=False,
+        )
+        second_resume = Resume.objects.create(
+            owner=self.user,
+            file="resumes/user_1/second.docx",
+            label="Backend v2",
+            target_role="Backend Engineer",
+            original_filename="second.docx",
+            extracted_text="second",
+            parse_status=ResumeParseStatus.COMPLETED,
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            is_active=True,
+        )
+        other_resume = Resume.objects.create(
+            owner=self.other_user,
+            file="resumes/user_2/other.docx",
+            label="Other",
+            target_role="Data Engineer",
+            original_filename="other.docx",
+            extracted_text="other",
+            parse_status=ResumeParseStatus.COMPLETED,
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            is_active=True,
+        )
+
+        from hunter.models.models import ResumeAnalysis, SeniorityAssessment
+
+        ResumeAnalysis.objects.create(
+            resume=first_resume,
+            overall_score=68,
+            structure_score=65,
+            clarity_score=70,
+            market_fit_score=66,
+            project_score=60,
+            strengths=[],
+            weaknesses=[],
+            recommendations=[],
+            raw_summary={},
+        )
+        ResumeAnalysis.objects.create(
+            resume=second_resume,
+            overall_score=84,
+            structure_score=82,
+            clarity_score=85,
+            market_fit_score=83,
+            project_score=78,
+            strengths=[],
+            weaknesses=[],
+            recommendations=[],
+            raw_summary={},
+        )
+        SeniorityAssessment.objects.create(
+            resume=first_resume,
+            internship_score=20,
+            junior_score=70,
+            mid_score=60,
+            senior_score=30,
+            freelance_score=40,
+            recommended_track="junior",
+            reasoning={},
+        )
+        SeniorityAssessment.objects.create(
+            resume=second_resume,
+            internship_score=10,
+            junior_score=65,
+            mid_score=78,
+            senior_score=40,
+            freelance_score=35,
+            recommended_track="mid",
+            reasoning={},
+        )
+        ResumeAnalysis.objects.create(
+            resume=other_resume,
+            overall_score=99,
+            structure_score=99,
+            clarity_score=99,
+            market_fit_score=99,
+            project_score=99,
+            strengths=[],
+            weaknesses=[],
+            recommendations=[],
+            raw_summary={},
+        )
+
+        response = self.client.get(
+            f"/hunter/api/resumes/compare/?ids={first_resume.id},{second_resume.id},{other_resume.id}"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["compared_resumes"]), 2)
+        self.assertEqual(response.data["best_resume_by_score"]["id"], second_resume.id)
+        self.assertEqual(response.data["compared_resumes"][0]["id"], second_resume.id)
 
     def test_invalid_file_type_is_rejected(self) -> None:
         upload = SimpleUploadedFile(

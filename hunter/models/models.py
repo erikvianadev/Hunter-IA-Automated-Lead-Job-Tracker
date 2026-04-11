@@ -169,6 +169,8 @@ class Resume(BaseModel):
         verbose_name=_('owner'),
     )
     file = models.FileField(_('file'), upload_to=resume_upload_to)
+    label = models.CharField(_('label'), max_length=120, blank=True, default="")
+    target_role = models.CharField(_('target role'), max_length=120, blank=True, default="")
     original_filename = models.CharField(_('original filename'), max_length=255)
     extracted_text = models.TextField(_('extracted text'), blank=True)
     parse_status = models.CharField(
@@ -178,7 +180,7 @@ class Resume(BaseModel):
         default=ResumeParseStatus.PENDING,
     )
     content_type = models.CharField(_('content type'), max_length=100)
-    is_active = models.BooleanField(_('is active'), default=True)
+    is_active = models.BooleanField(_('is active'), default=False)
 
     class Meta:
         ordering = ['-created_at']
