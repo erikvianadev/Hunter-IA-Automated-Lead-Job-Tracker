@@ -6,6 +6,7 @@ import re
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+import json
 from typing import Any
 from urllib.parse import urljoin
 
@@ -38,6 +39,21 @@ _USER_AGENTS = [
     ),
 ]
 _WHITESPACE_RE = re.compile(r"\s+")
+_JSON_PREFIX_RE = re.compile(r"^[^{\[]*?(?=[{\[])", re.DOTALL)
+_BLOCKED_BODY_MARKERS = (
+    "access denied",
+    "captcha",
+    "cloudflare",
+    "forbidden",
+    "security check",
+    "verify you are a human",
+    "just a moment",
+)
+
+FAILURE_BLOCKED = "blocked"
+FAILURE_INVALID_RESPONSE = "invalid_response"
+FAILURE_UNAVAILABLE = "unavailable"
+FAILURE_PARSE_ERROR = "parse_error"
 
 
 def build_headers(extra: dict[str, str] | None = None) -> dict[str, str]:
@@ -48,7 +64,7 @@ def build_headers(extra: dict[str, str] | None = None) -> dict[str, str]:
             "q=0.9,image/avif,image/webp,*/*;q=0.8"
         ),
         "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate, br",
+        "Accept-Encoding": "gzip, deflate",
         "Connection": "keep-alive",
         "DNT": "1",
         "Upgrade-Insecure-Requests": "1",
@@ -92,6 +108,7 @@ class ProviderConfig:
     max_delay: float = 0.0
     max_retries: int = 2
     enabled: bool = True
+    trust_env: bool = False
 
 
 @dataclass(slots=True)
@@ -100,6 +117,7 @@ class ProviderRunResult:
     jobs: list[JobResult] = field(default_factory=list)
     success: bool = True
     blocked: bool = False
+    failure_type: str = ""
     error_message: str = ""
     duration_seconds: float = 0.0
 
@@ -140,6 +158,7 @@ class BaseJobProvider(ABC):
     ) -> None:
         self.config = config or ProviderConfig()
         self.session = session or requests.Session()
+        self.session.trust_env = self.config.trust_env
         self.session.headers.update(build_headers())
 
     def run(
@@ -188,6 +207,7 @@ class BaseJobProvider(ABC):
                 provider=self.name,
                 success=False,
                 blocked=True,
+                failure_type=FAILURE_BLOCKED,
                 error_message=str(exc),
                 duration_seconds=duration,
             )
@@ -202,6 +222,7 @@ class BaseJobProvider(ABC):
             return ProviderRunResult(
                 provider=self.name,
                 success=False,
+                failure_type=FAILURE_INVALID_RESPONSE,
                 error_message=str(exc),
                 duration_seconds=duration,
             )
@@ -216,6 +237,7 @@ class BaseJobProvider(ABC):
             return ProviderRunResult(
                 provider=self.name,
                 success=False,
+                failure_type=FAILURE_UNAVAILABLE,
                 error_message=str(exc),
                 duration_seconds=duration,
             )
@@ -230,6 +252,7 @@ class BaseJobProvider(ABC):
             return ProviderRunResult(
                 provider=self.name,
                 success=False,
+                failure_type=FAILURE_PARSE_ERROR,
                 error_message=str(exc),
                 duration_seconds=duration,
             )
@@ -244,7 +267,8 @@ class BaseJobProvider(ABC):
             return ProviderRunResult(
                 provider=self.name,
                 success=False,
-                error_message=str(exc),
+                failure_type=FAILURE_PARSE_ERROR,
+                error_message=f"unexpected provider error: {exc}",
                 duration_seconds=duration,
             )
 
@@ -275,11 +299,23 @@ class BaseJobProvider(ABC):
             random_delay(self.config.min_delay, self.config.max_delay)
 
     def _log_response_metadata(self, response: requests.Response) -> None:
+        raw_body = response.text
+        body = raw_body if isinstance(raw_body, str) else str(raw_body or "")
+        stripped = body.lstrip()
+        body_kind = "empty"
+        if stripped.startswith("<"):
+            body_kind = "html"
+        elif stripped.startswith("{") or stripped.startswith("["):
+            body_kind = "json_like"
+        elif stripped:
+            body_kind = "text"
         logger.info(
-            "provider_response provider=%s status=%s content_type=%s",
+            "provider_response provider=%s status=%s content_type=%s body_kind=%s body_preview=%r",
             self.name,
             response.status_code,
             response.headers.get("Content-Type", ""),
+            body_kind,
+            stripped[:120],
         )
 
     def _get_content_type(self, response: requests.Response) -> str:
@@ -308,6 +344,61 @@ class BaseJobProvider(ABC):
             raise ProviderInvalidResponseError(
                 f"{self.name} returned invalid JSON"
             ) from exc
+
+    def _looks_blocked(self, body: str) -> bool:
+        lowered = (body or "").lower()
+        return any(marker in lowered for marker in _BLOCKED_BODY_MARKERS)
+
+    def _decode_json_text(
+        self,
+        body: str,
+        *,
+        allow_wrapped: bool = True,
+    ) -> Any:
+        raw_body = (body or "").strip()
+        if not raw_body:
+            raise ProviderInvalidResponseError(f"{self.name} returned an empty body")
+        if self._looks_blocked(raw_body):
+            raise ProviderBlockedError(f"{self.name} returned a blocked page")
+
+        candidates = [raw_body]
+        if allow_wrapped:
+            candidates.extend(self._json_candidates(raw_body))
+
+        for candidate in candidates:
+            try:
+                return json.loads(candidate)
+            except ValueError:
+                continue
+
+        raise ProviderInvalidResponseError(f"{self.name} returned invalid JSON")
+
+    def _json_candidates(self, body: str) -> list[str]:
+        candidates: list[str] = []
+        stripped = body.strip()
+        prefix_trimmed = _JSON_PREFIX_RE.sub("", stripped, count=1).strip()
+        if prefix_trimmed and prefix_trimmed != stripped:
+            candidates.append(prefix_trimmed)
+
+        decoder = json.JSONDecoder()
+        for start_char in ("{", "["):
+            index = stripped.find(start_char)
+            if index < 0:
+                continue
+            fragment = stripped[index:]
+            try:
+                _, end = decoder.raw_decode(fragment)
+            except ValueError:
+                continue
+            candidates.append(fragment[:end])
+
+        seen: set[str] = set()
+        unique_candidates: list[str] = []
+        for candidate in candidates:
+            if candidate and candidate not in seen:
+                seen.add(candidate)
+                unique_candidates.append(candidate)
+        return unique_candidates
 
     def _request(
         self,
@@ -404,3 +495,23 @@ class BaseJobProvider(ABC):
             blocked_statuses=blocked_statuses,
         )
         return self._ensure_json_response(response)
+
+    def _normalize_jobs_payload(
+        self,
+        payload: object,
+        *,
+        keys: tuple[str, ...] = ("jobs", "data", "results"),
+    ) -> list[dict[str, Any]]:
+        if isinstance(payload, list):
+            return [item for item in payload if isinstance(item, dict)]
+        if isinstance(payload, dict):
+            for key in keys:
+                value = payload.get(key)
+                if isinstance(value, list):
+                    return [item for item in value if isinstance(item, dict)]
+            raise ProviderInvalidResponseError(
+                f"{self.name} JSON payload does not contain a jobs list"
+            )
+        raise ProviderInvalidResponseError(
+            f"{self.name} returned an unsupported JSON payload"
+        )

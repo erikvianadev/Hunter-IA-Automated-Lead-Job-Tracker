@@ -59,12 +59,14 @@ class ScrapeJobsView(APIView):
             )
 
             logger.info(
-                "scrape_request_completed user=%s status=%s scraped=%d saved=%d providers_failed=%d duplicates_removed=%d",
+                "scrape_request_completed user=%s status=%s scraped=%d saved=%d providers_failed=%d providers_blocked=%d providers_invalid_response=%d duplicates_removed=%d",
                 request.user.username,
                 aggregation.status,
                 aggregation.scraped,
                 persistence.saved,
                 len(aggregation.providers_failed),
+                len(aggregation.providers_blocked),
+                len(aggregation.providers_invalid_response),
                 aggregation.duplicates_removed,
             )
 
@@ -74,6 +76,10 @@ class ScrapeJobsView(APIView):
                     "providers_run": aggregation.providers_run,
                     "providers_succeeded": aggregation.providers_succeeded,
                     "providers_failed": aggregation.providers_failed,
+                    "providers_blocked": aggregation.providers_blocked,
+                    "providers_invalid_response": (
+                        aggregation.providers_invalid_response
+                    ),
                     "scraped": aggregation.scraped,
                     "saved": persistence.saved,
                     "duplicates_removed": aggregation.duplicates_removed,

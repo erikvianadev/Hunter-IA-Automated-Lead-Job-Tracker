@@ -1,0 +1,30 @@
+{
+  "0-legal-notice": "Remotive API Legal Notice",
+  "job-count": 2,
+  "jobs": [
+    {
+      "id": 101,
+      "url": "https://remotive.com/remote-jobs/data/senior-data-scientist-101",
+      "title": "Senior Data Scientist",
+      "company_name": "Acme Data",
+      "category": "Data",
+      "job_type": "full_time",
+      "publication_date": "2026-04-10T10:23:26",
+      "candidate_required_location": "Worldwide",
+      "salary": "$120,000 - $150,000",
+      "description": "<p>Build production ML systems.</p>"
+    },
+    {
+      "id": 102,
+      "url": "https://remotive.com/remote-jobs/design/product-designer-102",
+      "title": "Product Designer",
+      "company_name": "Design Co",
+      "category": "Design",
+      "job_type": "full_time",
+      "publication_date": "2026-04-10T11:00:00",
+      "candidate_required_location": "Europe",
+      "salary": "",
+      "description": "<p>Design the next generation of product experiences.</p>"
+    }
+  ]
+}

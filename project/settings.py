@@ -165,26 +165,36 @@ SIMPLE_JWT = {
 }
 
 JOB_AGGREGATION = {
-    'ENABLED_PROVIDERS': ['remoteok', 'weworkremotely', 'indeed'],
+    'PROVIDER_ORDER': ['remotive', 'remoteok', 'weworkremotely', 'indeed'],
     'DEFAULTS': {
         'TIMEOUT': 10,
         'MAX_PAGES': 1,
         'MIN_DELAY': 0.0,
         'MAX_DELAY': 0.0,
         'MAX_RETRIES': 2,
+        'TRUST_ENV': False,
     },
     'PROVIDERS': {
+        'remotive': {
+            'ENABLED': True,
+            'MAX_PAGES': 1,
+            'MIN_DELAY': 0.0,
+            'MAX_DELAY': 0.0,
+        },
         'remoteok': {
+            'ENABLED': True,
             'MAX_PAGES': 1,
             'MIN_DELAY': 0.0,
             'MAX_DELAY': 0.0,
         },
         'weworkremotely': {
+            'ENABLED': False,
             'MAX_PAGES': 1,
             'MIN_DELAY': 0.0,
             'MAX_DELAY': 0.0,
         },
         'indeed': {
+            'ENABLED': False,
             'MAX_PAGES': 2,
             'MIN_DELAY': 1.0,
             'MAX_DELAY': 2.0,

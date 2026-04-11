@@ -24,8 +24,18 @@ class ScrapeJobsApiTests(TestCase):
         aggregate_mock.return_value = AggregationResult(
             jobs=[],
             provider_results=[
-                ProviderRunResult(provider="remoteok", success=True),
-                ProviderRunResult(provider="indeed", success=False, blocked=True),
+                ProviderRunResult(provider="remotive", success=True),
+                ProviderRunResult(
+                    provider="indeed",
+                    success=False,
+                    blocked=True,
+                    failure_type="blocked",
+                ),
+                ProviderRunResult(
+                    provider="remoteok",
+                    success=False,
+                    failure_type="invalid_response",
+                ),
             ],
             duplicates_removed=2,
         )
@@ -38,9 +48,11 @@ class ScrapeJobsApiTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["status"], "partial_success")
-        self.assertEqual(response.data["providers_run"], ["remoteok", "indeed"])
-        self.assertEqual(response.data["providers_succeeded"], ["remoteok"])
-        self.assertEqual(response.data["providers_failed"], ["indeed"])
+        self.assertEqual(response.data["providers_run"], ["remotive", "indeed", "remoteok"])
+        self.assertEqual(response.data["providers_succeeded"], ["remotive"])
+        self.assertEqual(response.data["providers_failed"], ["indeed", "remoteok"])
+        self.assertEqual(response.data["providers_blocked"], ["indeed"])
+        self.assertEqual(response.data["providers_invalid_response"], ["remoteok"])
         self.assertEqual(response.data["scraped"], 0)
         self.assertEqual(response.data["saved"], 2)
         self.assertEqual(response.data["duplicates_removed"], 2)

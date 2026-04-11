@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from bs4 import BeautifulSoup
 
 from hunter.models.dto import JobResult
@@ -76,27 +78,19 @@ class RemoteOKProvider(BaseJobProvider):
     def _parse_payload(self, response) -> list[dict]:
         content_type = self._get_content_type(response)
         if "json" in content_type:
-            payload = self._ensure_json_response(response)
-            if isinstance(payload, list):
-                return payload
-            if isinstance(payload, dict):
-                for key in ("jobs", "data", "results"):
-                    value = payload.get(key)
-                    if isinstance(value, list):
-                        return value
-                raise ProviderInvalidResponseError(
-                    f"{self.name} JSON payload does not contain a jobs list"
-                )
-            raise ProviderInvalidResponseError(
-                f"{self.name} returned an unsupported JSON payload"
-            )
+            payload = self._decode_json_response(response)
+            return self._extract_jobs_payload(payload)
 
         body = response.text.strip()
         if not body:
             raise ProviderInvalidResponseError(f"{self.name} returned an empty body")
 
-        if any(marker in body.lower() for marker in ("access denied", "captcha", "cloudflare")):
+        if self._looks_blocked(body):
             raise ProviderBlockedError(f"{self.name} returned a blocked HTML page")
+
+        json_payload = self._try_parse_json_body(body)
+        if json_payload is not None:
+            return self._extract_jobs_payload(json_payload)
 
         try:
             return self._parse_html_fallback(body)
@@ -109,6 +103,23 @@ class RemoteOKProvider(BaseJobProvider):
                 f"{self.name} returned non-JSON content that could not be parsed"
             ) from exc
 
+    def _decode_json_response(self, response) -> object:
+        try:
+            return self._ensure_json_response(response)
+        except ProviderInvalidResponseError:
+            return self._decode_json_text(response.text)
+
+    def _try_parse_json_body(self, body: str) -> object | None:
+        try:
+            return self._decode_json_text(body)
+        except ProviderBlockedError:
+            raise
+        except ProviderInvalidResponseError:
+            return None
+
+    def _extract_jobs_payload(self, payload: object) -> list[dict]:
+        return self._normalize_jobs_payload(payload)
+
     def _parse_html_fallback(self, body: str) -> list[dict]:
         soup = BeautifulSoup(body, "html.parser")
         script = soup.find("script", type="application/ld+json")
@@ -116,8 +127,6 @@ class RemoteOKProvider(BaseJobProvider):
             raise ProviderParseError(f"{self.name} HTML fallback did not contain job data")
 
         try:
-            import json
-
             payload = json.loads(script.get_text())
         except ValueError as exc:
             raise ProviderParseError(f"{self.name} HTML fallback contained invalid JSON") from exc

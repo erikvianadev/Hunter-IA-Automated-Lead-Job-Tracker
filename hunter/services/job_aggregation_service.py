@@ -5,7 +5,12 @@ import time
 from dataclasses import dataclass, field
 
 from hunter.models.dto import JobResult
-from hunter.providers.base import BaseJobProvider, ProviderRunResult
+from hunter.providers.base import (
+    BaseJobProvider,
+    ProviderRunResult,
+    FAILURE_BLOCKED,
+    FAILURE_INVALID_RESPONSE,
+)
 from hunter.providers.registry import build_enabled_providers
 
 from .job_deduplication_service import JobDeduplicationService
@@ -31,6 +36,22 @@ class AggregationResult:
     @property
     def providers_failed(self) -> list[str]:
         return [result.provider for result in self.provider_results if not result.success]
+
+    @property
+    def providers_blocked(self) -> list[str]:
+        return [
+            result.provider
+            for result in self.provider_results
+            if result.failure_type == FAILURE_BLOCKED
+        ]
+
+    @property
+    def providers_invalid_response(self) -> list[str]:
+        return [
+            result.provider
+            for result in self.provider_results
+            if result.failure_type == FAILURE_INVALID_RESPONSE
+        ]
 
     @property
     def scraped(self) -> int:
@@ -72,10 +93,18 @@ class JobAggregationService:
         jobs, duplicates_removed = self.deduplication_service.deduplicate(collected_jobs)
         duration = time.perf_counter() - started
         logger.info(
-            "aggregation_completed providers_run=%d providers_succeeded=%d providers_failed=%d scraped=%d duplicates_removed=%d duration_seconds=%.3f",
+            "aggregation_completed providers_run=%d providers_succeeded=%d providers_failed=%d providers_blocked=%d providers_invalid_response=%d scraped=%d duplicates_removed=%d duration_seconds=%.3f",
             len(provider_results),
             len([result for result in provider_results if result.success]),
             len([result for result in provider_results if not result.success]),
+            len([result for result in provider_results if result.failure_type == FAILURE_BLOCKED]),
+            len(
+                [
+                    result
+                    for result in provider_results
+                    if result.failure_type == FAILURE_INVALID_RESPONSE
+                ]
+            ),
             len(jobs),
             duplicates_removed,
             duration,

@@ -4,14 +4,16 @@ from django.conf import settings
 
 from .base import BaseJobProvider, ProviderConfig
 from .indeed import IndeedProvider
+from .remotive import RemotiveProvider
 from .remoteok import RemoteOKProvider
 from .weworkremotely import WeWorkRemotelyProvider
 
 
 PROVIDER_CLASSES: dict[str, type[BaseJobProvider]] = {
-    "indeed": IndeedProvider,
+    "remotive": RemotiveProvider,
     "remoteok": RemoteOKProvider,
     "weworkremotely": WeWorkRemotelyProvider,
+    "indeed": IndeedProvider,
 }
 
 
@@ -31,21 +33,34 @@ def build_provider_config(provider_name: str) -> ProviderConfig:
         max_delay=float(provider_settings.get("MAX_DELAY", defaults.get("MAX_DELAY", 0.0))),
         max_retries=max(1, int(provider_settings.get("MAX_RETRIES", defaults.get("MAX_RETRIES", 2)))),
         enabled=bool(provider_settings.get("ENABLED", True)),
+        trust_env=bool(provider_settings.get("TRUST_ENV", defaults.get("TRUST_ENV", False))),
     )
 
 
-def get_enabled_provider_names() -> list[str]:
+def get_configured_provider_names() -> list[str]:
     config = get_job_aggregation_settings()
     provider_names = config.get(
-        "ENABLED_PROVIDERS",
-        ["remoteok", "weworkremotely", "indeed"],
+        "PROVIDER_ORDER",
+        config.get(
+            "ENABLED_PROVIDERS",
+            ["remotive", "remoteok", "weworkremotely", "indeed"],
+        ),
     )
     return [name for name in provider_names if name in PROVIDER_CLASSES]
 
 
-def build_enabled_providers() -> list[BaseJobProvider]:
+def get_unknown_provider_names(provider_names: list[str]) -> list[str]:
+    return [name for name in provider_names if name not in PROVIDER_CLASSES]
+
+
+def build_enabled_providers(
+    provider_names: list[str] | None = None,
+) -> list[BaseJobProvider]:
     providers: list[BaseJobProvider] = []
-    for name in get_enabled_provider_names():
+    selected_provider_names = provider_names or get_configured_provider_names()
+    for name in selected_provider_names:
+        if name not in PROVIDER_CLASSES:
+            continue
         provider_class = PROVIDER_CLASSES[name]
         provider_config = build_provider_config(name)
         if not provider_config.enabled:

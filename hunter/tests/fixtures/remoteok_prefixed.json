@@ -1,0 +1,16 @@
+)]}',
+[
+  {
+    "id": 0,
+    "legal": "RemoteOK API"
+  },
+  {
+    "id": 1,
+    "company": "Acme",
+    "position": "Senior Data Scientist",
+    "location": "Remote",
+    "tags": ["data", "python"],
+    "description": "Production-grade modeling and analytics.",
+    "url": "https://remoteok.com/remote-jobs/1"
+  }
+]

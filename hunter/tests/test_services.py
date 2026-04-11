@@ -4,7 +4,13 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase, SimpleTestCase
 
 from hunter.models.dto import JobResult
-from hunter.providers.base import BaseJobProvider, ProviderBlockedError
+from hunter.providers.base import (
+    BaseJobProvider,
+    FAILURE_BLOCKED,
+    FAILURE_INVALID_RESPONSE,
+    ProviderBlockedError,
+    ProviderInvalidResponseError,
+)
 from hunter.services.job_aggregation_service import JobAggregationService
 from hunter.services.job_deduplication_service import JobDeduplicationService
 from hunter.services.job_persistence_service import JobPersistenceService
@@ -35,6 +41,13 @@ class FailingProvider(BaseJobProvider):
 
     def fetch_jobs(self, *, query: str, location: str = "", max_pages: int = 1):
         raise ProviderBlockedError("provider unavailable")
+
+
+class InvalidResponseProvider(BaseJobProvider):
+    name = "invalid"
+
+    def fetch_jobs(self, *, query: str, location: str = "", max_pages: int = 1):
+        raise ProviderInvalidResponseError("bad payload")
 
 
 class DeduplicationServiceTests(SimpleTestCase):
@@ -103,7 +116,34 @@ class AggregationServiceTests(SimpleTestCase):
         self.assertEqual(result.status, "partial_success")
         self.assertEqual(result.providers_succeeded, ["static"])
         self.assertEqual(result.providers_failed, ["failing"])
+        self.assertEqual(result.providers_blocked, ["failing"])
+        self.assertEqual(result.providers_invalid_response, [])
         self.assertEqual(result.scraped, 1)
+
+    def test_tracks_invalid_response_summary_separately(self) -> None:
+        providers = [
+            StaticProvider(
+                [
+                    JobResult.create(
+                        title="Data Scientist",
+                        company="Acme",
+                        location="Remote",
+                        link="https://example.com/jobs/1",
+                        source="remotive",
+                    )
+                ]
+            ),
+            InvalidResponseProvider(),
+        ]
+
+        result = JobAggregationService(providers=providers).aggregate(
+            query="data scientist",
+            location="remote",
+        )
+
+        self.assertEqual(result.providers_failed, ["invalid"])
+        self.assertEqual(result.providers_blocked, [])
+        self.assertEqual(result.providers_invalid_response, ["invalid"])
 
     def test_closes_provider_sessions_after_aggregation(self) -> None:
         provider = ClosableProvider(
