@@ -130,6 +130,46 @@ class JobMatchSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class DashboardSummarySerializer(serializers.Serializer):
+    total_resumes = serializers.IntegerField(read_only=True)
+    total_matches = serializers.IntegerField(read_only=True)
+    average_match_score = serializers.FloatField(read_only=True, allow_null=True)
+    top_match_score = serializers.IntegerField(read_only=True, allow_null=True)
+    analysis_ready = serializers.BooleanField(read_only=True)
+    seniority_ready = serializers.BooleanField(read_only=True)
+
+
+class DashboardJobMatchSerializer(serializers.ModelSerializer):
+    job_id = serializers.IntegerField(source='job.id', read_only=True)
+    job_title = serializers.CharField(source='job.title', read_only=True)
+    company_name = serializers.CharField(source='job.company_name', read_only=True)
+
+    class Meta:
+        model = JobMatch
+        fields = [
+            'id',
+            'resume',
+            'job_id',
+            'job_title',
+            'company_name',
+            'match_score',
+            'recommendation',
+            'strengths',
+            'gaps',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = fields
+
+
+class DashboardSerializer(serializers.Serializer):
+    summary = DashboardSummarySerializer(read_only=True)
+    active_resume = ResumeSerializer(read_only=True, allow_null=True)
+    analysis = ResumeAnalysisSerializer(read_only=True, allow_null=True)
+    seniority_assessment = SeniorityAssessmentSerializer(read_only=True, allow_null=True)
+    top_matches = DashboardJobMatchSerializer(many=True, read_only=True)
+
+
 class TagSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tag

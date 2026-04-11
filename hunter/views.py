@@ -14,6 +14,7 @@ from .filters import JobApplicationFilter, JobFilter
 from .models.models import Job, JobApplication, JobMatch, Lead, Resume, Tag
 from .pagination import HunterPagination
 from .serializers import (
+    DashboardSerializer,
     JobApplicationSerializer,
     JobMatchRequestSerializer,
     JobMatchSerializer,
@@ -26,6 +27,7 @@ from .serializers import (
     TagSerializer,
 )
 from .services import (
+    DashboardService,
     JobMatchingError,
     JobMatchingService,
     ResumeAnalysisError,
@@ -180,6 +182,15 @@ class ResumeViewSet(
             context=self.get_serializer_context(),
         )
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['get'], url_path='dashboard')
+    def dashboard(self, request):
+        payload = DashboardService().build(owner=request.user)
+        serializer = DashboardSerializer(
+            payload,
+            context=self.get_serializer_context(),
+        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'], url_path='analyze')
     def analyze(self, request, pk=None):

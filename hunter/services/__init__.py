@@ -1,3 +1,4 @@
+from .dashboard_service import DashboardService
 from .job_aggregation_service import AggregationResult, JobAggregationService
 from .job_matching_service import JobMatchingError, JobMatchingService
 from .job_deduplication_service import JobDeduplicationService
@@ -16,6 +17,7 @@ from .resume_text_extraction_service import (
 )
 
 __all__ = [
+    "DashboardService",
     "AggregationResult",
     "JobAggregationService",
     "JobMatchingError",
