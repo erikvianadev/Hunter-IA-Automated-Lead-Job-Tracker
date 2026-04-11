@@ -166,6 +166,7 @@ SIMPLE_JWT = {
 
 JOB_AGGREGATION = {
     'PROVIDER_ORDER': ['remotive', 'remoteok', 'weworkremotely', 'indeed'],
+    'ENABLED_PROVIDERS': ['remotive'],
     'DEFAULTS': {
         'TIMEOUT': 10,
         'MAX_PAGES': 1,
