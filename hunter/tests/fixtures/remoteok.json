@@ -1,0 +1,20 @@
+[
+  {
+    "id": 1,
+    "position": "Senior Data Scientist",
+    "company": "Acme",
+    "location": "Remote",
+    "description": "Build models and analytics systems.",
+    "tags": ["python", "ml"],
+    "url": "https://remoteok.com/remote-jobs/1"
+  },
+  {
+    "id": 2,
+    "position": "Frontend Engineer",
+    "company": "Beta",
+    "location": "Europe",
+    "description": "React work.",
+    "tags": ["react"],
+    "url": "https://remoteok.com/remote-jobs/2"
+  }
+]

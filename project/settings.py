@@ -164,3 +164,31 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
+JOB_AGGREGATION = {
+    'ENABLED_PROVIDERS': ['remoteok', 'weworkremotely', 'indeed'],
+    'DEFAULTS': {
+        'TIMEOUT': 10,
+        'MAX_PAGES': 1,
+        'MIN_DELAY': 0.0,
+        'MAX_DELAY': 0.0,
+        'MAX_RETRIES': 2,
+    },
+    'PROVIDERS': {
+        'remoteok': {
+            'MAX_PAGES': 1,
+            'MIN_DELAY': 0.0,
+            'MAX_DELAY': 0.0,
+        },
+        'weworkremotely': {
+            'MAX_PAGES': 1,
+            'MIN_DELAY': 0.0,
+            'MAX_DELAY': 0.0,
+        },
+        'indeed': {
+            'MAX_PAGES': 2,
+            'MIN_DELAY': 1.0,
+            'MAX_DELAY': 2.0,
+        },
+    },
+}
+

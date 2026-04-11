@@ -1,28 +1,16 @@
-from typing import List
-from django.db import transaction
+from __future__ import annotations
 
 from hunter.models.dto import JobResult
-from hunter.models.models import Job
+from hunter.services.job_persistence_service import JobPersistenceService
 
 
 class JobPersistence:
+    """
+    Backward-compatible shim around the new persistence service.
+    """
 
-    @transaction.atomic
-    def save_jobs(self, owner, jobs: List[JobResult]):
-        created = []
+    def __init__(self) -> None:
+        self.service = JobPersistenceService()
 
-        for job in jobs:
-            obj, _ = Job.objects.get_or_create(
-                url=job.link,
-                defaults={
-                    "owner": owner,
-                    "title": job.title,
-                    "company_name": job.company,
-                    "location": job.location,
-                    "description": job.description,
-                },
-            )
-
-            created.append(obj)
-
-        return created
+    def save_jobs(self, owner, jobs: list[JobResult]):
+        return self.service.save_jobs(owner=owner, jobs=jobs).jobs

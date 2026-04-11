@@ -1,6 +1,6 @@
 import logging
+from collections.abc import Mapping
 
-from django.contrib.auth import get_user_model
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework import status
@@ -8,12 +8,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from hunter.core.aggregator import JobAggregator
-from hunter.core.persistence import JobPersistence
+from hunter.serializers import ScrapeJobsRequestSerializer
+from hunter.services.job_aggregation_service import JobAggregationService
+from hunter.services.job_persistence_service import JobPersistenceService
 
 logger = logging.getLogger(__name__)
-
-User = get_user_model()
 
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -37,8 +36,13 @@ class ScrapeJobsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        query = request.query_params.get("query", "Data Scientist")
-        location = request.query_params.get("location", "Remote")
+        payload = {key: value for key, value in request.query_params.items()}
+        if isinstance(request.data, Mapping):
+            payload.update(dict(request.data))
+        serializer = ScrapeJobsRequestSerializer(data=payload)
+        serializer.is_valid(raise_exception=True)
+        query = serializer.validated_data["query"]
+        location = serializer.validated_data["location"]
 
         logger.info(
             "Scrape triggered by user=%s query=%r location=%r",
@@ -48,27 +52,31 @@ class ScrapeJobsView(APIView):
         )
 
         try:
-            aggregator = JobAggregator()
-            jobs = aggregator.search(query=query, location=location)
-            scraped_count = len(jobs)
-
-            logger.info("Scraped %d jobs (query=%r, location=%r)", scraped_count, query, location)
-
-            persistence = JobPersistence()
-            saved_objects = persistence.save_jobs(owner=request.user, jobs=jobs)
-            saved_count = len(saved_objects)
+            aggregation = JobAggregationService().aggregate(query=query, location=location)
+            persistence = JobPersistenceService().save_jobs(
+                owner=request.user,
+                jobs=aggregation.jobs,
+            )
 
             logger.info(
-                "Persisted %d new jobs for user=%s",
-                saved_count,
+                "scrape_request_completed user=%s status=%s scraped=%d saved=%d providers_failed=%d duplicates_removed=%d",
                 request.user.username,
+                aggregation.status,
+                aggregation.scraped,
+                persistence.saved,
+                len(aggregation.providers_failed),
+                aggregation.duplicates_removed,
             )
 
             return Response(
                 {
-                    "status": "success",
-                    "scraped": scraped_count,
-                    "saved": saved_count,
+                    "status": aggregation.status,
+                    "providers_run": aggregation.providers_run,
+                    "providers_succeeded": aggregation.providers_succeeded,
+                    "providers_failed": aggregation.providers_failed,
+                    "scraped": aggregation.scraped,
+                    "saved": persistence.saved,
+                    "duplicates_removed": aggregation.duplicates_removed,
                 },
                 status=status.HTTP_200_OK,
             )

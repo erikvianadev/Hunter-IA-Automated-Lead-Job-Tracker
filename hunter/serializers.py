@@ -3,6 +3,11 @@ from rest_framework import serializers
 from .models.models import Job, JobApplication, Lead, Tag
 
 
+class ScrapeJobsRequestSerializer(serializers.Serializer):
+    query = serializers.CharField(required=False, default="Data Scientist", max_length=255)
+    location = serializers.CharField(required=False, default="Remote", max_length=255)
+
+
 class TagSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tag
