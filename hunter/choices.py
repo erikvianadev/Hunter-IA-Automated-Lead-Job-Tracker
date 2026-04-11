@@ -15,3 +15,5 @@ class ResumeParseStatus(models.TextChoices):
     PROCESSING = 'processing', _('Processing')
     COMPLETED = 'completed', _('Completed')
     FAILED = 'failed', _('Failed')
+    EMPTY_TEXT = 'empty_text', _('Empty Text')
+    UNSUPPORTED_STRUCTURE = 'unsupported_structure', _('Unsupported Structure')

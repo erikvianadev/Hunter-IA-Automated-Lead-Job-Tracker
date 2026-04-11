@@ -144,7 +144,7 @@ class Resume(BaseModel):
     extracted_text = models.TextField(_('extracted text'), blank=True)
     parse_status = models.CharField(
         _('parse status'),
-        max_length=20,
+        max_length=32,
         choices=ResumeParseStatus.choices,
         default=ResumeParseStatus.PENDING,
     )

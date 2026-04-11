@@ -10,6 +10,8 @@ from hunter.choices import ResumeParseStatus
 from hunter.models.models import Resume
 
 from .resume_text_extraction_service import (
+    EXTRACTION_REASON_EMPTY_TEXT,
+    EXTRACTION_REASON_UNSUPPORTED_STRUCTURE,
     ResumeTextExtractionError,
     ResumeTextExtractionService,
 )
@@ -47,19 +49,20 @@ class ResumeIngestionService:
         try:
             uploaded_file.seek(0)
             file_bytes = uploaded_file.read()
-            extracted_text = self.extraction_service.extract_text(
+            extraction = self.extraction_service.extract(
                 file_bytes=file_bytes,
                 content_type=content_type,
                 filename=uploaded_file.name,
             )
-        except (ResumeTextExtractionError, OSError, ValueError):
-            resume.parse_status = ResumeParseStatus.FAILED
+        except (ResumeTextExtractionError, OSError, ValueError) as exc:
+            reason = getattr(exc, "reason", None)
+            resume.parse_status = self._map_failure_reason_to_status(reason)
             resume.extracted_text = ""
             resume.save(update_fields=["parse_status", "extracted_text", "updated_at"])
             return resume
 
         resume.parse_status = ResumeParseStatus.COMPLETED
-        resume.extracted_text = extracted_text
+        resume.extracted_text = extraction.text
         resume.save(update_fields=["parse_status", "extracted_text", "updated_at"])
         return resume
 
@@ -78,3 +81,10 @@ class ResumeIngestionService:
             return content_type
         guessed_content_type, _ = mimetypes.guess_type(uploaded_file.name)
         return (guessed_content_type or "").lower()
+
+    def _map_failure_reason_to_status(self, reason: str | None) -> str:
+        if reason == EXTRACTION_REASON_EMPTY_TEXT:
+            return ResumeParseStatus.EMPTY_TEXT
+        if reason == EXTRACTION_REASON_UNSUPPORTED_STRUCTURE:
+            return ResumeParseStatus.UNSUPPORTED_STRUCTURE
+        return ResumeParseStatus.FAILED

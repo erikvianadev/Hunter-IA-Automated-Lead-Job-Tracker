@@ -10,8 +10,10 @@ from rest_framework.test import APIClient
 
 from hunter.choices import ResumeParseStatus
 from hunter.models.models import Resume
+from hunter.services.resume_ingestion_service import ResumeIngestionService
 from hunter.services.resume_text_extraction_service import (
     ResumeTextExtractionError,
+    ResumeExtractionResult,
     ResumeTextExtractionService,
 )
 
@@ -223,7 +225,7 @@ class ResumeApiTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(response.data["parse_status"], ResumeParseStatus.FAILED)
+        self.assertEqual(response.data["parse_status"], ResumeParseStatus.UNSUPPORTED_STRUCTURE)
         self.assertEqual(response.data["extracted_text"], "")
 
 
@@ -246,6 +248,15 @@ class ResumeTextExtractionServiceTests(TestCase):
 
         self.assertIn("Jane Doe Resume", text)
 
+    def test_extract_result_marks_completed_for_valid_pdf(self) -> None:
+        result = ResumeTextExtractionService().extract(
+            file_bytes=build_pdf_bytes("Jane Doe Resume"),
+            content_type="application/pdf",
+            filename="resume.pdf",
+        )
+
+        self.assertEqual(result, ResumeExtractionResult(text="Jane Doe Resume", status="completed"))
+
     def test_unsupported_format_raises_error(self) -> None:
         with self.assertRaises(ResumeTextExtractionError):
             ResumeTextExtractionService().extract_text(
@@ -253,3 +264,58 @@ class ResumeTextExtractionServiceTests(TestCase):
                 content_type="text/plain",
                 filename="resume.txt",
             )
+
+    def test_pdf_with_no_extractable_text_raises_empty_text_reason(self) -> None:
+        with self.assertRaises(ResumeTextExtractionError) as exc_info:
+            ResumeTextExtractionService().extract_text(
+                file_bytes=b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF",
+                content_type="application/pdf",
+                filename="empty.pdf",
+            )
+
+        self.assertEqual(exc_info.exception.reason, "empty_text")
+
+
+@override_settings(MEDIA_ROOT=TEMP_MEDIA_ROOT)
+class ResumeIngestionServiceTests(TestCase):
+    @classmethod
+    def setUpClass(cls):
+        os.makedirs(TEMP_MEDIA_ROOT, exist_ok=True)
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
+
+    def setUp(self) -> None:
+        self.user = get_user_model().objects.create_user(
+            username="ingestion-user",
+            password="secret",
+        )
+
+    def test_ingestion_marks_completed_for_extractable_docx(self) -> None:
+        resume = ResumeIngestionService().ingest(
+            owner=self.user,
+            uploaded_file=SimpleUploadedFile(
+                "resume.docx",
+                build_docx_bytes("Jane Doe", "Python Engineer"),
+                content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ),
+        )
+
+        self.assertEqual(resume.parse_status, ResumeParseStatus.COMPLETED)
+        self.assertIn("Jane Doe", resume.extracted_text)
+
+    def test_ingestion_marks_empty_text_for_valid_but_blank_pdf(self) -> None:
+        resume = ResumeIngestionService().ingest(
+            owner=self.user,
+            uploaded_file=SimpleUploadedFile(
+                "empty.pdf",
+                b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF",
+                content_type="application/pdf",
+            ),
+        )
+
+        self.assertEqual(resume.parse_status, ResumeParseStatus.EMPTY_TEXT)
+        self.assertEqual(resume.extracted_text, "")
