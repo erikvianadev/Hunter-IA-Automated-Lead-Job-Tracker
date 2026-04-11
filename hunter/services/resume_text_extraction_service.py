@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import logging
 import re
 import zipfile
 from io import BytesIO
 from xml.etree import ElementTree
+
+
+logger = logging.getLogger(__name__)
 
 
 class ResumeTextExtractionError(Exception):
@@ -34,11 +38,13 @@ class ResumeTextExtractionService:
             with zipfile.ZipFile(BytesIO(file_bytes)) as archive:
                 document_xml = archive.read("word/document.xml")
         except (KeyError, zipfile.BadZipFile) as exc:
+            logger.warning("resume_docx_read_failed error=%s", exc)
             raise ResumeTextExtractionError("Unable to read DOCX file.") from exc
 
         try:
             root = ElementTree.fromstring(document_xml)
         except ElementTree.ParseError as exc:
+            logger.warning("resume_docx_parse_failed error=%s", exc)
             raise ResumeTextExtractionError("Unable to parse DOCX content.") from exc
 
         namespace = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
@@ -48,19 +54,30 @@ class ResumeTextExtractionService:
             line = "".join(texts).strip()
             if line:
                 paragraphs.append(line)
-        return "\n".join(paragraphs).strip()
+        text = "\n".join(paragraphs).strip()
+        if not text:
+            logger.warning("resume_docx_empty_text")
+            raise ResumeTextExtractionError("DOCX file did not contain readable text.")
+        return text
 
     def _extract_pdf_text(self, file_bytes: bytes) -> str:
         decoded = file_bytes.decode("latin-1", errors="ignore")
+        streams = re.findall(r"stream(.*?)endstream", decoded, flags=re.DOTALL)
         text_segments = re.findall(r"\((.*?)(?<!\\)\)\s*Tj", decoded, flags=re.DOTALL)
         text_segments.extend(
             fragment
             for block in re.findall(r"\[(.*?)\]\s*TJ", decoded, flags=re.DOTALL)
             for fragment in re.findall(r"\((.*?)(?<!\\)\)", block, flags=re.DOTALL)
         )
+        text_segments.extend(
+            self._decode_pdf_hex_text(fragment)
+            for stream in streams
+            for fragment in re.findall(r"<([0-9A-Fa-f]+)>\s*Tj", stream)
+        )
         cleaned = [self._decode_pdf_literal_text(segment) for segment in text_segments]
         text = "\n".join(segment for segment in cleaned if segment).strip()
         if not text:
+            logger.warning("resume_pdf_empty_text stream_count=%d", len(streams))
             raise ResumeTextExtractionError("Unable to extract text from PDF file.")
         return text
 
@@ -76,3 +93,9 @@ class ResumeTextExtractionService:
         for source, target in replacements.items():
             value = value.replace(source, target)
         return value.strip()
+
+    def _decode_pdf_hex_text(self, value: str) -> str:
+        try:
+            return bytes.fromhex(value).decode("latin-1", errors="ignore").strip()
+        except ValueError:
+            return ""

@@ -1,5 +1,6 @@
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, serializers, status, viewsets
+from rest_framework.decorators import action
 from rest_framework.mixins import (
     CreateModelMixin,
     DestroyModelMixin,
@@ -16,11 +17,17 @@ from .serializers import (
     JobApplicationSerializer,
     JobSerializer,
     LeadSerializer,
+    ResumeAnalysisSerializer,
     ResumeSerializer,
     ResumeUploadSerializer,
     TagSerializer,
 )
-from .services import ResumeIngestionService, ResumeValidationError
+from .services import (
+    ResumeAnalysisError,
+    ResumeAnalysisService,
+    ResumeIngestionService,
+    ResumeValidationError,
+)
 
 
 class TagViewSet(viewsets.ModelViewSet):
@@ -134,3 +141,38 @@ class ResumeViewSet(
             context=self.get_serializer_context(),
         )
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'], url_path='analyze')
+    def analyze(self, request, pk=None):
+        resume = self.get_object()
+        try:
+            analysis = ResumeAnalysisService().analyze(resume=resume)
+        except ResumeAnalysisError as exc:
+            return Response(
+                {
+                    "detail": str(exc),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = ResumeAnalysisSerializer(
+            analysis,
+            context=self.get_serializer_context(),
+        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['get'], url_path='analysis')
+    def analysis(self, request, pk=None):
+        resume = self.get_object()
+        if not hasattr(resume, 'analysis'):
+            return Response(
+                {
+                    "detail": "Resume analysis does not exist yet.",
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        serializer = ResumeAnalysisSerializer(
+            resume.analysis,
+            context=self.get_serializer_context(),
+        )
+        return Response(serializer.data, status=status.HTTP_200_OK)

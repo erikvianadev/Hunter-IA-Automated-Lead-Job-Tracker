@@ -171,3 +171,29 @@ class Resume(BaseModel):
         super().delete(using=using, keep_parents=keep_parents)
         if storage and file_name:
             storage.delete(file_name)
+
+
+class ResumeAnalysis(BaseModel):
+    resume = models.OneToOneField(
+        Resume,
+        on_delete=models.CASCADE,
+        related_name='analysis',
+        verbose_name=_('resume'),
+    )
+    overall_score = models.PositiveSmallIntegerField(_('overall score'), default=0)
+    structure_score = models.PositiveSmallIntegerField(_('structure score'), default=0)
+    clarity_score = models.PositiveSmallIntegerField(_('clarity score'), default=0)
+    market_fit_score = models.PositiveSmallIntegerField(_('market fit score'), default=0)
+    project_score = models.PositiveSmallIntegerField(_('project score'), default=0)
+    strengths = models.JSONField(_('strengths'), default=list, blank=True)
+    weaknesses = models.JSONField(_('weaknesses'), default=list, blank=True)
+    recommendations = models.JSONField(_('recommendations'), default=list, blank=True)
+    raw_summary = models.JSONField(_('raw summary'), default=dict, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = _('resume analysis')
+        verbose_name_plural = _('resume analyses')
+
+    def __str__(self) -> str:
+        return f'Analysis for {self.resume.original_filename}'

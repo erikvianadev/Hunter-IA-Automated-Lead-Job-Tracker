@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models.models import Job, JobApplication, Lead, Resume, Tag
+from .models.models import Job, JobApplication, Lead, Resume, ResumeAnalysis, Tag
 
 
 class ScrapeJobsRequestSerializer(serializers.Serializer):
@@ -48,6 +48,29 @@ class ResumeSerializer(serializers.ModelSerializer):
         if request is None:
             return obj.file.url
         return request.build_absolute_uri(obj.file.url)
+
+
+class ResumeAnalysisSerializer(serializers.ModelSerializer):
+    resume = serializers.PrimaryKeyRelatedField(read_only=True)
+
+    class Meta:
+        model = ResumeAnalysis
+        fields = [
+            'id',
+            'resume',
+            'overall_score',
+            'structure_score',
+            'clarity_score',
+            'market_fit_score',
+            'project_score',
+            'strengths',
+            'weaknesses',
+            'recommendations',
+            'raw_summary',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = fields
 
 
 class TagSerializer(serializers.ModelSerializer):
