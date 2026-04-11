@@ -1,6 +1,15 @@
 from rest_framework import serializers
 
-from .models.models import Job, JobApplication, Lead, Resume, ResumeAnalysis, Tag
+from .models.models import (
+    Job,
+    JobApplication,
+    JobMatch,
+    Lead,
+    Resume,
+    ResumeAnalysis,
+    SeniorityAssessment,
+    Tag,
+)
 
 
 class ScrapeJobsRequestSerializer(serializers.Serializer):
@@ -67,6 +76,54 @@ class ResumeAnalysisSerializer(serializers.ModelSerializer):
             'weaknesses',
             'recommendations',
             'raw_summary',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = fields
+
+
+class SeniorityAssessmentSerializer(serializers.ModelSerializer):
+    resume = serializers.PrimaryKeyRelatedField(read_only=True)
+
+    class Meta:
+        model = SeniorityAssessment
+        fields = [
+            'id',
+            'resume',
+            'internship_score',
+            'junior_score',
+            'mid_score',
+            'senior_score',
+            'freelance_score',
+            'recommended_track',
+            'reasoning',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = fields
+
+
+class JobMatchRequestSerializer(serializers.Serializer):
+    resume_id = serializers.IntegerField(required=False)
+
+
+class JobMatchSerializer(serializers.ModelSerializer):
+    owner = serializers.PrimaryKeyRelatedField(read_only=True)
+    resume = serializers.PrimaryKeyRelatedField(read_only=True)
+    job = serializers.PrimaryKeyRelatedField(read_only=True)
+
+    class Meta:
+        model = JobMatch
+        fields = [
+            'id',
+            'owner',
+            'resume',
+            'job',
+            'match_score',
+            'strengths',
+            'gaps',
+            'recommendation',
+            'reasoning',
             'created_at',
             'updated_at',
         ]

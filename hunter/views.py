@@ -11,22 +11,28 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .filters import JobApplicationFilter, JobFilter
-from .models.models import Job, JobApplication, Lead, Resume, Tag
+from .models.models import Job, JobApplication, JobMatch, Lead, Resume, Tag
 from .pagination import HunterPagination
 from .serializers import (
     JobApplicationSerializer,
+    JobMatchRequestSerializer,
+    JobMatchSerializer,
     JobSerializer,
     LeadSerializer,
     ResumeAnalysisSerializer,
     ResumeSerializer,
     ResumeUploadSerializer,
+    SeniorityAssessmentSerializer,
     TagSerializer,
 )
 from .services import (
+    JobMatchingError,
+    JobMatchingService,
     ResumeAnalysisError,
     ResumeAnalysisService,
     ResumeIngestionService,
     ResumeValidationError,
+    SeniorityAssessmentService,
 )
 
 
@@ -63,6 +69,39 @@ class JobViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
+
+    @action(detail=True, methods=['post'], url_path='match')
+    def match(self, request, pk=None):
+        job = self.get_object()
+        serializer = JobMatchRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        resume_id = serializer.validated_data.get('resume_id')
+        resume_queryset = Resume.objects.filter(owner=request.user)
+        resume = (
+            resume_queryset.filter(id=resume_id).first()
+            if resume_id is not None
+            else resume_queryset.filter(is_active=True).order_by('-created_at').first()
+        )
+        if resume is None:
+            return Response(
+                {"detail": "A valid owned resume is required for matching."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            match = JobMatchingService().match(
+                owner=request.user,
+                resume=resume,
+                job=job,
+            )
+        except (JobMatchingError, ResumeAnalysisError) as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(
+            JobMatchSerializer(match, context=self.get_serializer_context()).data,
+            status=status.HTTP_200_OK,
+        )
 
 
 class LeadViewSet(viewsets.ModelViewSet):
@@ -148,12 +187,7 @@ class ResumeViewSet(
         try:
             analysis = ResumeAnalysisService().analyze(resume=resume)
         except ResumeAnalysisError as exc:
-            return Response(
-                {
-                    "detail": str(exc),
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = ResumeAnalysisSerializer(
             analysis,
@@ -166,9 +200,7 @@ class ResumeViewSet(
         resume = self.get_object()
         if not hasattr(resume, 'analysis'):
             return Response(
-                {
-                    "detail": "Resume analysis does not exist yet.",
-                },
+                {"detail": "Resume analysis does not exist yet."},
                 status=status.HTTP_404_NOT_FOUND,
             )
         serializer = ResumeAnalysisSerializer(
@@ -176,3 +208,44 @@ class ResumeViewSet(
             context=self.get_serializer_context(),
         )
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], url_path='assess-seniority')
+    def assess_seniority(self, request, pk=None):
+        resume = self.get_object()
+        try:
+            assessment = SeniorityAssessmentService().assess(resume=resume)
+        except ResumeAnalysisError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        serializer = SeniorityAssessmentSerializer(
+            assessment,
+            context=self.get_serializer_context(),
+        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['get'], url_path='seniority')
+    def seniority(self, request, pk=None):
+        resume = self.get_object()
+        if not hasattr(resume, 'seniority_assessment'):
+            return Response(
+                {"detail": "Resume seniority assessment does not exist yet."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        serializer = SeniorityAssessmentSerializer(
+            resume.seniority_assessment,
+            context=self.get_serializer_context(),
+        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class JobMatchViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericViewSet):
+    serializer_class = JobMatchSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = HunterPagination
+    ordering = ['-created_at']
+
+    def get_queryset(self):
+        return (
+            JobMatch.objects
+            .filter(owner=self.request.user)
+            .select_related('owner', 'resume', 'job')
+        )

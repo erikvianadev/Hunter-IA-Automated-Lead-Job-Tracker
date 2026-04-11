@@ -197,3 +197,70 @@ class ResumeAnalysis(BaseModel):
 
     def __str__(self) -> str:
         return f'Analysis for {self.resume.original_filename}'
+
+
+class SeniorityAssessment(BaseModel):
+    resume = models.OneToOneField(
+        Resume,
+        on_delete=models.CASCADE,
+        related_name='seniority_assessment',
+        verbose_name=_('resume'),
+    )
+    internship_score = models.PositiveSmallIntegerField(_('internship score'), default=0)
+    junior_score = models.PositiveSmallIntegerField(_('junior score'), default=0)
+    mid_score = models.PositiveSmallIntegerField(_('mid score'), default=0)
+    senior_score = models.PositiveSmallIntegerField(_('senior score'), default=0)
+    freelance_score = models.PositiveSmallIntegerField(_('freelance score'), default=0)
+    recommended_track = models.CharField(_('recommended track'), max_length=32)
+    reasoning = models.JSONField(_('reasoning'), default=dict, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = _('seniority assessment')
+        verbose_name_plural = _('seniority assessments')
+
+    def __str__(self) -> str:
+        return f'Seniority for {self.resume.original_filename}'
+
+
+class JobMatch(BaseModel):
+    owner = models.ForeignKey(
+        get_user_model(),
+        on_delete=models.CASCADE,
+        related_name='job_matches',
+        verbose_name=_('owner'),
+    )
+    resume = models.ForeignKey(
+        Resume,
+        on_delete=models.CASCADE,
+        related_name='job_matches',
+        verbose_name=_('resume'),
+    )
+    job = models.ForeignKey(
+        Job,
+        on_delete=models.CASCADE,
+        related_name='resume_matches',
+        verbose_name=_('job'),
+    )
+    match_score = models.PositiveSmallIntegerField(_('match score'), default=0)
+    strengths = models.JSONField(_('strengths'), default=list, blank=True)
+    gaps = models.JSONField(_('gaps'), default=list, blank=True)
+    recommendation = models.CharField(_('recommendation'), max_length=255)
+    reasoning = models.JSONField(_('reasoning'), default=dict, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['owner', 'resume', 'job'],
+                name='uniq_owner_resume_job_match',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['owner', 'created_at'], name='jobmatch_owner_created_idx'),
+        ]
+        verbose_name = _('job match')
+        verbose_name_plural = _('job matches')
+
+    def __str__(self) -> str:
+        return f'{self.resume.original_filename} -> {self.job.title}'
