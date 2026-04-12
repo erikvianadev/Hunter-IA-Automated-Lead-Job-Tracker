@@ -1,3 +1,4 @@
+from django.db.models import Prefetch
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
@@ -79,8 +80,8 @@ class JobViewSet(viewsets.ModelViewSet):
     pagination_class = HunterPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = JobFilter
-    search_fields = ['title', 'company_name']
-    ordering_fields = ['title', 'company_name', 'created_at']
+    search_fields = ['title', 'company_name', 'location', 'description']
+    ordering_fields = ['title', 'company_name', 'created_at', 'updated_at', 'date_posted']
     ordering = ['-created_at']
 
     def get_queryset(self):
@@ -88,7 +89,24 @@ class JobViewSet(viewsets.ModelViewSet):
             Job.objects
             .filter(owner=self.request.user)
             .select_related('owner')
-            .prefetch_related('tags')
+            .prefetch_related(
+                'tags',
+                Prefetch(
+                    'saved_by_users',
+                    queryset=SavedJob.objects.filter(owner=self.request.user).order_by('-created_at'),
+                    to_attr='saved_records_for_owner',
+                ),
+                Prefetch(
+                    'applications',
+                    queryset=JobApplication.objects.filter(owner=self.request.user).order_by('-updated_at', '-created_at'),
+                    to_attr='application_records_for_owner',
+                ),
+                Prefetch(
+                    'resume_matches',
+                    queryset=JobMatch.objects.filter(owner=self.request.user).select_related('resume').order_by('-updated_at', '-created_at'),
+                    to_attr='match_records_for_owner',
+                ),
+            )
         )
 
     def perform_create(self, serializer):

@@ -1,3 +1,5 @@
+from urllib.parse import urlparse
+
 from rest_framework import serializers
 
 from .choices import JobApplicationStatus
@@ -366,6 +368,12 @@ class TagSerializer(serializers.ModelSerializer):
 class JobSerializer(serializers.ModelSerializer):
     owner = serializers.PrimaryKeyRelatedField(read_only=True)
     tags = TagSerializer(many=True, read_only=True)
+    source = serializers.SerializerMethodField()
+    is_saved = serializers.SerializerMethodField()
+    application_status = serializers.SerializerMethodField()
+    application_id = serializers.SerializerMethodField()
+    applied_at = serializers.SerializerMethodField()
+    current_match = serializers.SerializerMethodField()
     tag_ids = serializers.PrimaryKeyRelatedField(
         many=True,
         queryset=Tag.objects.all(),
@@ -373,6 +381,19 @@ class JobSerializer(serializers.ModelSerializer):
         write_only=True,
         required=False,
     )
+
+    SOURCE_LABELS = {
+        'ashbyhq.com': 'Ashby',
+        'boards.greenhouse.io': 'Greenhouse',
+        'greenhouse.io': 'Greenhouse',
+        'jobs.ashbyhq.com': 'Ashby',
+        'jobs.lever.co': 'Lever',
+        'lever.co': 'Lever',
+        'remotive.com': 'Remotive',
+        'remoteok.com': 'RemoteOK',
+        'weworkremotely.com': 'We Work Remotely',
+        'indeed.com': 'Indeed',
+    }
 
     class Meta:
         model = Job
@@ -384,14 +405,96 @@ class JobSerializer(serializers.ModelSerializer):
             'location',
             'description',
             'url',
+            'source',
             'salary',
             'date_posted',
+            'is_saved',
+            'application_status',
+            'application_id',
+            'applied_at',
+            'current_match',
             'tags',
             'tag_ids',
             'created_at',
             'updated_at',
         ]
         read_only_fields = ['owner', 'created_at', 'updated_at']
+
+    def _get_saved_records(self, obj):
+        records = getattr(obj, 'saved_records_for_owner', None)
+        if records is not None:
+            return records
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if user is None or not user.is_authenticated:
+            return []
+        return list(obj.saved_by_users.filter(owner=user).order_by('-created_at')[:1])
+
+    def _get_application_records(self, obj):
+        records = getattr(obj, 'application_records_for_owner', None)
+        if records is not None:
+            return records
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if user is None or not user.is_authenticated:
+            return []
+        return list(obj.applications.filter(owner=user).order_by('-updated_at', '-created_at')[:1])
+
+    def _get_match_records(self, obj):
+        records = getattr(obj, 'match_records_for_owner', None)
+        if records is not None:
+            return records
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if user is None or not user.is_authenticated:
+            return []
+        return list(
+            obj.resume_matches
+            .filter(owner=user)
+            .select_related('resume')
+            .order_by('-updated_at', '-created_at')
+        )
+
+    def get_source(self, obj):
+        hostname = urlparse(obj.url or '').netloc.lower().replace('www.', '')
+        if not hostname:
+            return ''
+        for domain, label in self.SOURCE_LABELS.items():
+            if hostname == domain or hostname.endswith(f'.{domain}'):
+                return label
+        return hostname
+
+    def get_is_saved(self, obj):
+        return bool(self._get_saved_records(obj))
+
+    def get_application_status(self, obj):
+        records = self._get_application_records(obj)
+        return records[0].status if records else None
+
+    def get_application_id(self, obj):
+        records = self._get_application_records(obj)
+        return records[0].id if records else None
+
+    def get_applied_at(self, obj):
+        records = self._get_application_records(obj)
+        return records[0].applied_at if records else None
+
+    def get_current_match(self, obj):
+        records = self._get_match_records(obj)
+        if not records:
+            return None
+
+        preferred = next((record for record in records if getattr(record.resume, 'is_active', False)), records[0])
+        return {
+            'id': preferred.id,
+            'resume_id': preferred.resume_id,
+            'resume_label': preferred.resume.label or preferred.resume.original_filename,
+            'match_score': preferred.match_score,
+            'gaps': preferred.gaps,
+            'strengths': preferred.strengths,
+            'recommendation': preferred.recommendation,
+            'updated_at': preferred.updated_at,
+        }
 
 
 class LeadSerializer(serializers.ModelSerializer):
