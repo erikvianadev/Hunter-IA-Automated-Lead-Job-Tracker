@@ -1,0 +1,36 @@
+{
+  "jobs": [
+    {
+      "id": "ashby-1",
+      "title": "Backend Engineer, Billing Platform",
+      "location": "San Francisco, CA",
+      "secondaryLocations": [
+        {
+          "location": "Remote - United States"
+        }
+      ],
+      "descriptionPlain": "Design APIs, billing systems, and internal services with Python.",
+      "department": "Engineering",
+      "team": "Billing",
+      "employmentType": "Full-time",
+      "isRemote": true,
+      "isListed": true,
+      "jobUrl": "https://jobs.ashbyhq.com/openai/ashby-1",
+      "applyUrl": "https://jobs.ashbyhq.com/openai/ashby-1/apply"
+    },
+    {
+      "id": "ashby-2",
+      "title": "Office Manager",
+      "location": "San Francisco, CA",
+      "secondaryLocations": [],
+      "descriptionPlain": "Support workplace operations.",
+      "department": "Operations",
+      "team": "Workplace",
+      "employmentType": "Full-time",
+      "isRemote": false,
+      "isListed": true,
+      "jobUrl": "https://jobs.ashbyhq.com/openai/ashby-2",
+      "applyUrl": "https://jobs.ashbyhq.com/openai/ashby-2/apply"
+    }
+  ]
+}

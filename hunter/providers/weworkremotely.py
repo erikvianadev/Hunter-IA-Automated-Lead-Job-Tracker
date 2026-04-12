@@ -13,6 +13,7 @@ from .base import (
     absolute_url,
     extract_text,
 )
+from .search import SearchCriteria
 
 
 class WeWorkRemotelyProvider(BaseJobProvider):
@@ -26,6 +27,7 @@ class WeWorkRemotelyProvider(BaseJobProvider):
         location: str = "",
         max_pages: int = 1,
     ) -> list[JobResult]:
+        criteria = SearchCriteria(query=query, location=location)
         soup = self._get_soup(
             f"{self.base_url}/remote-jobs/search?term={quote_plus(query.strip())}",
             headers={
@@ -59,7 +61,10 @@ class WeWorkRemotelyProvider(BaseJobProvider):
                 listing.select_one(".region.company")
             ) or extract_text(listing.select_one(".region"))
 
-            if location and location.lower() not in candidate_location.lower():
+            if not criteria.matches_location(
+                candidate_location,
+                is_remote="remote" in candidate_location.lower(),
+            ):
                 continue
 
             results.append(

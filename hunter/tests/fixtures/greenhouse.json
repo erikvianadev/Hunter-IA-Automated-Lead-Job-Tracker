@@ -1,0 +1,47 @@
+{
+  "jobs": [
+    {
+      "id": 101,
+      "title": "Senior Backend Python Engineer",
+      "location": {
+        "name": "Remote - EMEA"
+      },
+      "absolute_url": "https://boards.greenhouse.io/canonical/jobs/101",
+      "content": "<p>Build resilient backend services with Python and Django.</p>",
+      "departments": [
+        {
+          "name": "Engineering"
+        }
+      ],
+      "offices": [
+        {
+          "name": "Remote",
+          "location": "EMEA"
+        }
+      ]
+    },
+    {
+      "id": 202,
+      "title": "Sales Manager",
+      "location": {
+        "name": "New York, United States"
+      },
+      "absolute_url": "https://boards.greenhouse.io/canonical/jobs/202",
+      "content": "<p>Enterprise sales role.</p>",
+      "departments": [
+        {
+          "name": "Sales"
+        }
+      ],
+      "offices": [
+        {
+          "name": "New York",
+          "location": "United States"
+        }
+      ]
+    }
+  ],
+  "meta": {
+    "total": 2
+  }
+}

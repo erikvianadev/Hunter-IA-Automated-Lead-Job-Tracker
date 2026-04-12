@@ -11,6 +11,7 @@ from hunter.providers.base import (
     ProviderBlockedError,
     ProviderInvalidResponseError,
 )
+from hunter.scrape_summary import build_scrape_summary
 from hunter.services.job_aggregation_service import JobAggregationService
 from hunter.services.job_deduplication_service import JobDeduplicationService
 from hunter.services.job_persistence_service import JobPersistenceService
@@ -118,6 +119,8 @@ class AggregationServiceTests(SimpleTestCase):
         self.assertEqual(result.providers_failed, ["failing"])
         self.assertEqual(result.providers_blocked, ["failing"])
         self.assertEqual(result.providers_invalid_response, [])
+        self.assertEqual(result.provider_job_counts, {"static": 1, "failing": 0})
+        self.assertEqual(result.raw_scraped, 1)
         self.assertEqual(result.scraped, 1)
 
     def test_tracks_invalid_response_summary_separately(self) -> None:
@@ -144,6 +147,8 @@ class AggregationServiceTests(SimpleTestCase):
         self.assertEqual(result.providers_failed, ["invalid"])
         self.assertEqual(result.providers_blocked, [])
         self.assertEqual(result.providers_invalid_response, ["invalid"])
+        self.assertEqual(result.provider_job_counts, {"static": 1, "invalid": 0})
+        self.assertEqual(result.raw_scraped, 1)
 
     def test_closes_provider_sessions_after_aggregation(self) -> None:
         provider = ClosableProvider(
@@ -164,6 +169,38 @@ class AggregationServiceTests(SimpleTestCase):
         )
 
         self.assertTrue(provider.closed)
+
+    def test_scrape_summary_includes_provider_counts_and_raw_scraped(self) -> None:
+        aggregation = JobAggregationService(
+            providers=[
+                StaticProvider(
+                    [
+                        JobResult.create(
+                            title="Backend Engineer",
+                            company="Canonical",
+                            location="Remote",
+                            link="https://example.com/jobs/1",
+                            source="greenhouse",
+                        ),
+                        JobResult.create(
+                            title="Backend Engineer",
+                            company="Canonical",
+                            location="Remote",
+                            link="https://example.com/jobs/1",
+                            source="greenhouse",
+                        ),
+                    ]
+                ),
+                InvalidResponseProvider(),
+            ]
+        ).aggregate(query="backend engineer", location="remote")
+
+        summary = build_scrape_summary(aggregation=aggregation, saved=1)
+
+        self.assertEqual(summary["provider_job_counts"], {"static": 2, "invalid": 0})
+        self.assertEqual(summary["raw_scraped"], 2)
+        self.assertEqual(summary["scraped"], 1)
+        self.assertEqual(summary["saved"], 1)
 
 
 class PersistenceServiceTests(TestCase):

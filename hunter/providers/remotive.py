@@ -5,6 +5,7 @@ import logging
 from hunter.models.dto import JobResult
 
 from .base import BaseJobProvider, ProviderBlockedError, ProviderInvalidResponseError
+from .search import SearchCriteria
 
 logger = logging.getLogger(__name__)
 
@@ -35,8 +36,7 @@ class RemotiveProvider(BaseJobProvider):
         payload = self._parse_payload(response)
         jobs_payload = self._normalize_jobs_payload(payload, keys=("jobs",))
 
-        query_tokens = self._tokens(query)
-        location_tokens = self._tokens(location)
+        criteria = SearchCriteria(query=query, location=location)
         results: list[JobResult] = []
         for item in jobs_payload:
             if not isinstance(item, dict):
@@ -56,10 +56,11 @@ class RemotiveProvider(BaseJobProvider):
                 or item.get("location")
                 or "Remote"
             ).strip()
-            if query_tokens and not all(token in searchable for token in query_tokens):
+            if not criteria.matches_query(searchable):
                 continue
-            if location_tokens and not all(
-                token in candidate_location.lower() for token in location_tokens
+            if not criteria.matches_location(
+                candidate_location,
+                is_remote="remote" in candidate_location.lower(),
             ):
                 continue
 
@@ -74,9 +75,6 @@ class RemotiveProvider(BaseJobProvider):
                 )
             )
         return [job for job in results if job.is_valid()]
-
-    def _tokens(self, value: str) -> list[str]:
-        return [token for token in value.lower().split() if token]
 
     def _parse_payload(self, response) -> object:
         content_type = self._get_content_type(response)

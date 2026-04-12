@@ -68,13 +68,15 @@ class Command(BaseCommand):
         summary = build_scrape_summary(aggregation=aggregation, saved=saved)
 
         logger.info(
-            "scrape_command_completed status=%s providers_run=%s providers_succeeded=%s providers_failed=%s providers_blocked=%s providers_invalid_response=%s scraped=%d saved=%d duplicates_removed=%d",
+            "scrape_command_completed status=%s providers_run=%s providers_succeeded=%s providers_failed=%s providers_blocked=%s providers_invalid_response=%s provider_job_counts=%s raw_scraped=%d scraped=%d saved=%d duplicates_removed=%d",
             summary["status"],
             summary["providers_run"],
             summary["providers_succeeded"],
             summary["providers_failed"],
             summary["providers_blocked"],
             summary["providers_invalid_response"],
+            summary["provider_job_counts"],
+            summary["raw_scraped"],
             summary["scraped"],
             summary["saved"],
             summary["duplicates_removed"],
@@ -88,6 +90,8 @@ class Command(BaseCommand):
                     "providers_failed={providers_failed} "
                     "providers_blocked={providers_blocked} "
                     "providers_invalid_response={providers_invalid_response} "
+                    "provider_job_counts={provider_job_counts} "
+                    "raw_scraped={raw_scraped} "
                     "scraped={scraped} saved={saved} "
                     "duplicates_removed={duplicates_removed}"
                 ).format(
@@ -99,6 +103,11 @@ class Command(BaseCommand):
                     providers_invalid_response=",".join(
                         summary["providers_invalid_response"]
                     ),
+                    provider_job_counts=",".join(
+                        f"{provider}:{count}"
+                        for provider, count in summary["provider_job_counts"].items()
+                    ),
+                    raw_scraped=summary["raw_scraped"],
                     scraped=summary["scraped"],
                     saved=summary["saved"],
                     duplicates_removed=summary["duplicates_removed"],

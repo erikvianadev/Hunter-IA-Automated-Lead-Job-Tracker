@@ -170,7 +170,7 @@ SIMPLE_JWT = {
 }
 
 JOB_AGGREGATION = {
-    'PROVIDER_ORDER': ['remotive', 'remoteok', 'weworkremotely', 'indeed'],
+    'PROVIDER_ORDER': ['remotive', 'greenhouse', 'lever', 'ashby', 'remoteok', 'weworkremotely', 'indeed'],
     'DEFAULTS': {
         'TIMEOUT': 10,
         'MAX_PAGES': 1,
@@ -185,6 +185,25 @@ JOB_AGGREGATION = {
             'MAX_PAGES': 1,
             'MIN_DELAY': 0.0,
             'MAX_DELAY': 0.0,
+        },
+        'greenhouse': {
+            'ENABLED': True,
+            'BOARD_TOKENS': [
+                {'token': 'canonical', 'company': 'Canonical'},
+            ],
+        },
+        'lever': {
+            'ENABLED': True,
+            'SITES': [
+                {'site': 'bighealth', 'company': 'Big Health'},
+                {'site': 'dnb', 'company': 'Dun & Bradstreet'},
+            ],
+        },
+        'ashby': {
+            'ENABLED': True,
+            'JOB_BOARDS': [
+                {'board': 'openai', 'company': 'OpenAI'},
+            ],
         },
         'remoteok': {
             'ENABLED': False,

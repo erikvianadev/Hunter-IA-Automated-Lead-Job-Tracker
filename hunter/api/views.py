@@ -60,15 +60,17 @@ class ScrapeJobsView(APIView):
             )
 
             logger.info(
-                "scrape_request_completed user=%s status=%s scraped=%d saved=%d providers_failed=%d providers_blocked=%d providers_invalid_response=%d duplicates_removed=%d",
+                "scrape_request_completed user=%s status=%s raw_scraped=%d scraped=%d saved=%d providers_failed=%d providers_blocked=%d providers_invalid_response=%d duplicates_removed=%d provider_job_counts=%s",
                 request.user.username,
                 aggregation.status,
+                aggregation.raw_scraped,
                 aggregation.scraped,
                 persistence.saved,
                 len(aggregation.providers_failed),
                 len(aggregation.providers_blocked),
                 len(aggregation.providers_invalid_response),
                 aggregation.duplicates_removed,
+                aggregation.provider_job_counts,
             )
 
             return Response(

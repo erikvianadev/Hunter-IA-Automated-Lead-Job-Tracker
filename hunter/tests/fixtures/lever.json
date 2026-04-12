@@ -1,0 +1,37 @@
+[
+  {
+    "id": "lever-1",
+    "text": "Platform Backend Engineer",
+    "categories": {
+      "location": "Remote - US",
+      "allLocations": [
+        "Remote - US",
+        "United States"
+      ],
+      "team": "Engineering",
+      "department": "Platform",
+      "commitment": "Full-time"
+    },
+    "descriptionPlain": "Build backend services in Python for a distributed product team.",
+    "descriptionBodyPlain": "Own APIs, data systems, and cloud workflows.",
+    "hostedUrl": "https://jobs.lever.co/bighealth/lever-1",
+    "applyUrl": "https://jobs.lever.co/bighealth/lever-1/apply",
+    "workplaceType": "remote"
+  },
+  {
+    "id": "lever-2",
+    "text": "Recruiter",
+    "categories": {
+      "location": "Boston, United States",
+      "allLocations": [
+        "Boston, United States"
+      ],
+      "team": "People",
+      "department": "Talent",
+      "commitment": "Full-time"
+    },
+    "descriptionPlain": "Own recruiter pipeline operations.",
+    "hostedUrl": "https://jobs.lever.co/bighealth/lever-2",
+    "workplaceType": "on-site"
+  }
+]

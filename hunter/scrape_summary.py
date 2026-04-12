@@ -11,6 +11,8 @@ def build_scrape_summary(*, aggregation: AggregationResult, saved: int) -> dict[
         "providers_failed": aggregation.providers_failed,
         "providers_blocked": aggregation.providers_blocked,
         "providers_invalid_response": aggregation.providers_invalid_response,
+        "provider_job_counts": aggregation.provider_job_counts,
+        "raw_scraped": aggregation.raw_scraped,
         "scraped": aggregation.scraped,
         "saved": saved,
         "duplicates_removed": aggregation.duplicates_removed,

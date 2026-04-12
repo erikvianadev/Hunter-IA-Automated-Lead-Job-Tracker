@@ -2,8 +2,11 @@ from __future__ import annotations
 
 from django.conf import settings
 
+from .ashby import AshbyProvider
 from .base import BaseJobProvider, ProviderConfig
+from .greenhouse import GreenhouseProvider
 from .indeed import IndeedProvider
+from .lever import LeverProvider
 from .remotive import RemotiveProvider
 from .remoteok import RemoteOKProvider
 from .weworkremotely import WeWorkRemotelyProvider
@@ -11,6 +14,9 @@ from .weworkremotely import WeWorkRemotelyProvider
 
 PROVIDER_CLASSES: dict[str, type[BaseJobProvider]] = {
     "remotive": RemotiveProvider,
+    "greenhouse": GreenhouseProvider,
+    "lever": LeverProvider,
+    "ashby": AshbyProvider,
     "remoteok": RemoteOKProvider,
     "weworkremotely": WeWorkRemotelyProvider,
     "indeed": IndeedProvider,
@@ -25,6 +31,15 @@ def build_provider_config(provider_name: str) -> ProviderConfig:
     config = get_job_aggregation_settings()
     provider_settings = config.get("PROVIDERS", {}).get(provider_name, {})
     defaults = config.get("DEFAULTS", {})
+    common_keys = {
+        "TIMEOUT",
+        "MAX_PAGES",
+        "MIN_DELAY",
+        "MAX_DELAY",
+        "MAX_RETRIES",
+        "ENABLED",
+        "TRUST_ENV",
+    }
 
     return ProviderConfig(
         timeout=min(int(provider_settings.get("TIMEOUT", defaults.get("TIMEOUT", 10))), 10),
@@ -34,6 +49,11 @@ def build_provider_config(provider_name: str) -> ProviderConfig:
         max_retries=max(1, int(provider_settings.get("MAX_RETRIES", defaults.get("MAX_RETRIES", 2)))),
         enabled=bool(provider_settings.get("ENABLED", True)),
         trust_env=bool(provider_settings.get("TRUST_ENV", defaults.get("TRUST_ENV", False))),
+        options={
+            key.lower(): value
+            for key, value in provider_settings.items()
+            if key not in common_keys
+        },
     )
 
 
@@ -43,7 +63,7 @@ def get_configured_provider_names() -> list[str]:
         "PROVIDER_ORDER",
         config.get(
             "ENABLED_PROVIDERS",
-            ["remotive", "remoteok", "weworkremotely", "indeed"],
+            ["remotive", "greenhouse", "lever", "ashby", "remoteok", "weworkremotely", "indeed"],
         ),
     )
     return [name for name in provider_names if name in PROVIDER_CLASSES]

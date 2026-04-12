@@ -30,7 +30,19 @@ class ScrapeJobsCommandTests(TestCase):
                 )
             ],
             provider_results=[
-                ProviderRunResult(provider="remotive", success=True),
+                ProviderRunResult(
+                    provider="remotive",
+                    success=True,
+                    jobs=[
+                        JobResult.create(
+                            title="Data Scientist",
+                            company="Acme",
+                            location="Remote",
+                            link="https://example.com/jobs/1",
+                            source="remoteok",
+                        )
+                    ],
+                ),
                 ProviderRunResult(
                     provider="indeed",
                     success=False,
@@ -52,6 +64,8 @@ class ScrapeJobsCommandTests(TestCase):
 
         self.assertIn("saved=1", output.getvalue())
         self.assertIn("providers_blocked=indeed", output.getvalue())
+        self.assertIn("provider_job_counts=remotive:1,indeed:0", output.getvalue())
+        self.assertIn("raw_scraped=1", output.getvalue())
 
     @patch("hunter.management.commands.scrape_jobs.build_enabled_providers")
     @patch("hunter.management.commands.scrape_jobs.JobPersistenceService.save_jobs")

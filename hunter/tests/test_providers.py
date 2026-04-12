@@ -11,10 +11,14 @@ from hunter.providers.base import (
     FAILURE_INVALID_RESPONSE,
     FAILURE_PARSE_ERROR,
     ProviderBlockedError,
+    ProviderConfig,
     ProviderInvalidResponseError,
     ProviderParseError,
 )
+from hunter.providers.ashby import AshbyProvider
+from hunter.providers.greenhouse import GreenhouseProvider
 from hunter.providers.indeed import IndeedProvider
+from hunter.providers.lever import LeverProvider
 from hunter.providers.remotive import RemotiveProvider
 from hunter.providers.remoteok import RemoteOKProvider
 from hunter.providers.registry import build_enabled_providers, get_configured_provider_names
@@ -22,6 +26,18 @@ from hunter.providers.weworkremotely import WeWorkRemotelyProvider
 
 
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
+
+
+def build_json_response(payload: str) -> Mock:
+    response = Mock()
+    response.status_code = 200
+    response.headers = {"Content-Type": "application/json; charset=utf-8"}
+    response.encoding = "utf-8"
+    response.apparent_encoding = "utf-8"
+    response.text = payload
+    response.json.return_value = json.loads(payload)
+    response.raise_for_status.return_value = None
+    return response
 
 
 class ProviderParsingTests(SimpleTestCase):
@@ -202,6 +218,106 @@ class ProviderParsingTests(SimpleTestCase):
         with self.assertRaisesMessage(ProviderBlockedError, "blocked page"):
             provider._extract_jobs_from_soup(soup)
 
+    def test_greenhouse_parses_structured_board_payload(self) -> None:
+        payload = (FIXTURES_DIR / "greenhouse.json").read_text(encoding="utf-8")
+        session = Mock()
+        session.get.return_value = build_json_response(payload)
+
+        provider = GreenhouseProvider(
+            session=session,
+            config=ProviderConfig(
+                options={
+                    "board_tokens": [
+                        {"token": "canonical", "company": "Canonical"},
+                    ]
+                }
+            ),
+        )
+        jobs = provider.fetch_jobs(query="backend python engineer", location="remote")
+
+        self.assertEqual(len(jobs), 1)
+        self.assertEqual(jobs[0].title, "Senior Backend Python Engineer")
+        self.assertEqual(jobs[0].company, "Canonical")
+        self.assertEqual(jobs[0].source, "greenhouse")
+
+    def test_lever_parses_structured_site_payload(self) -> None:
+        payload = (FIXTURES_DIR / "lever.json").read_text(encoding="utf-8")
+        session = Mock()
+        session.get.return_value = build_json_response(payload)
+
+        provider = LeverProvider(
+            session=session,
+            config=ProviderConfig(
+                max_retries=1,
+                options={
+                    "sites": [
+                        {"site": "bighealth", "company": "Big Health"},
+                    ]
+                }
+            ),
+        )
+        jobs = provider.fetch_jobs(query="backend engineer python", location="remote")
+
+        self.assertEqual(len(jobs), 1)
+        self.assertEqual(jobs[0].title, "Platform Backend Engineer")
+        self.assertEqual(jobs[0].company, "Big Health")
+        self.assertEqual(jobs[0].source, "lever")
+
+    def test_ashby_parses_structured_board_payload(self) -> None:
+        payload = (FIXTURES_DIR / "ashby.json").read_text(encoding="utf-8")
+        session = Mock()
+        session.get.return_value = build_json_response(payload)
+
+        provider = AshbyProvider(
+            session=session,
+            config=ProviderConfig(
+                options={
+                    "job_boards": [
+                        {"board": "openai", "company": "OpenAI"},
+                    ]
+                }
+            ),
+        )
+        jobs = provider.fetch_jobs(query="backend engineer billing", location="remote")
+
+        self.assertEqual(len(jobs), 1)
+        self.assertEqual(jobs[0].title, "Backend Engineer, Billing Platform")
+        self.assertEqual(jobs[0].company, "OpenAI")
+        self.assertEqual(jobs[0].source, "ashby")
+
+    def test_lever_isolates_site_failures_and_returns_partial_results(self) -> None:
+        payload = (FIXTURES_DIR / "lever.json").read_text(encoding="utf-8")
+        good_response = build_json_response(payload)
+        blocked_response = Mock()
+        blocked_response.status_code = 429
+        blocked_response.headers = {"Content-Type": "application/json; charset=utf-8"}
+        blocked_response.encoding = "utf-8"
+        blocked_response.apparent_encoding = "utf-8"
+        blocked_response.text = '{"error":"rate limited"}'
+
+        session = Mock()
+        session.get.side_effect = [good_response, blocked_response]
+
+        provider = LeverProvider(
+            session=session,
+            config=ProviderConfig(
+                max_retries=1,
+                options={
+                    "sites": [
+                        {"site": "bighealth", "company": "Big Health"},
+                        {"site": "dnb", "company": "Dun & Bradstreet"},
+                    ]
+                }
+            ),
+        )
+
+        result = provider.run(query="backend engineer", location="remote")
+
+        self.assertTrue(result.success)
+        self.assertEqual(result.provider, "lever")
+        self.assertEqual(result.count, 1)
+        self.assertEqual(result.jobs[0].company, "Big Health")
+
 
 class ProviderClassificationTests(SimpleTestCase):
     def test_provider_parse_error_is_handled_without_traceback_noise(self) -> None:
@@ -237,10 +353,13 @@ class ProviderRegistryTests(SimpleTestCase):
     def test_default_provider_order_prioritizes_reliable_sources(self) -> None:
         self.assertEqual(
             get_configured_provider_names(),
-            ["remotive", "remoteok", "weworkremotely", "indeed"],
+            ["remotive", "greenhouse", "lever", "ashby", "remoteok", "weworkremotely", "indeed"],
         )
 
     def test_disabled_providers_are_skipped(self) -> None:
         providers = build_enabled_providers()
 
-        self.assertEqual([provider.name for provider in providers], ["remotive"])
+        self.assertEqual(
+            [provider.name for provider in providers],
+            ["remotive", "greenhouse", "lever", "ashby"],
+        )

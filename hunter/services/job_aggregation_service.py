@@ -54,6 +54,14 @@ class AggregationResult:
         ]
 
     @property
+    def provider_job_counts(self) -> dict[str, int]:
+        return {result.provider: result.count for result in self.provider_results}
+
+    @property
+    def raw_scraped(self) -> int:
+        return sum(result.count for result in self.provider_results)
+
+    @property
     def scraped(self) -> int:
         return len(self.jobs)
 
@@ -93,7 +101,7 @@ class JobAggregationService:
         jobs, duplicates_removed = self.deduplication_service.deduplicate(collected_jobs)
         duration = time.perf_counter() - started
         logger.info(
-            "aggregation_completed providers_run=%d providers_succeeded=%d providers_failed=%d providers_blocked=%d providers_invalid_response=%d scraped=%d duplicates_removed=%d duration_seconds=%.3f",
+            "aggregation_completed providers_run=%d providers_succeeded=%d providers_failed=%d providers_blocked=%d providers_invalid_response=%d raw_scraped=%d scraped=%d duplicates_removed=%d provider_job_counts=%s duration_seconds=%.3f",
             len(provider_results),
             len([result for result in provider_results if result.success]),
             len([result for result in provider_results if not result.success]),
@@ -105,8 +113,10 @@ class JobAggregationService:
                     if result.failure_type == FAILURE_INVALID_RESPONSE
                 ]
             ),
+            sum(result.count for result in provider_results),
             len(jobs),
             duplicates_removed,
+            {result.provider: result.count for result in provider_results},
             duration,
         )
 

@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.test import APIClient
 
+from hunter.models.dto import JobResult
 from hunter.services.job_aggregation_service import AggregationResult
 from hunter.providers.base import ProviderRunResult
 from hunter.services.job_persistence_service import PersistenceResult
@@ -24,7 +25,19 @@ class ScrapeJobsApiTests(TestCase):
         aggregate_mock.return_value = AggregationResult(
             jobs=[],
             provider_results=[
-                ProviderRunResult(provider="remotive", success=True),
+                ProviderRunResult(
+                    provider="remotive",
+                    success=True,
+                    jobs=[
+                        JobResult.create(
+                            title="Data Scientist",
+                            company="Acme",
+                            location="Remote",
+                            link="https://example.com/jobs/1",
+                            source="remotive",
+                        )
+                    ],
+                ),
                 ProviderRunResult(
                     provider="indeed",
                     success=False,
@@ -56,6 +69,8 @@ class ScrapeJobsApiTests(TestCase):
                 "providers_failed",
                 "providers_blocked",
                 "providers_invalid_response",
+                "provider_job_counts",
+                "raw_scraped",
                 "scraped",
                 "saved",
                 "duplicates_removed",
@@ -67,6 +82,8 @@ class ScrapeJobsApiTests(TestCase):
         self.assertEqual(response.data["providers_failed"], ["indeed", "remoteok"])
         self.assertEqual(response.data["providers_blocked"], ["indeed"])
         self.assertEqual(response.data["providers_invalid_response"], ["remoteok"])
+        self.assertEqual(response.data["provider_job_counts"], {"remotive": 1, "indeed": 0, "remoteok": 0})
+        self.assertEqual(response.data["raw_scraped"], 1)
         self.assertEqual(response.data["scraped"], 0)
         self.assertEqual(response.data["saved"], 2)
         self.assertEqual(response.data["duplicates_removed"], 2)

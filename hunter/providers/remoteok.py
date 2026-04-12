@@ -12,6 +12,7 @@ from .base import (
     ProviderInvalidResponseError,
     ProviderParseError,
 )
+from .search import SearchCriteria
 
 
 class RemoteOKProvider(BaseJobProvider):
@@ -35,8 +36,7 @@ class RemoteOKProvider(BaseJobProvider):
             },
         )
         payload = self._parse_payload(response)
-        query_tokens = self._tokens(query)
-        location_tokens = self._tokens(location)
+        criteria = SearchCriteria(query=query, location=location)
 
         results: list[JobResult] = []
         for item in payload:
@@ -53,10 +53,11 @@ class RemoteOKProvider(BaseJobProvider):
             ).lower()
             candidate_location = str(item.get("location") or "Remote")
 
-            if query_tokens and not all(token in searchable for token in query_tokens):
+            if not criteria.matches_query(searchable):
                 continue
-            if location_tokens and not all(
-                token in candidate_location.lower() for token in location_tokens
+            if not criteria.matches_location(
+                candidate_location,
+                is_remote="remote" in candidate_location.lower(),
             ):
                 continue
 
@@ -71,9 +72,6 @@ class RemoteOKProvider(BaseJobProvider):
                 )
             )
         return results
-
-    def _tokens(self, value: str) -> list[str]:
-        return [token for token in value.lower().split() if token]
 
     def _parse_payload(self, response) -> list[dict]:
         content_type = self._get_content_type(response)

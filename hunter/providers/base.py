@@ -109,6 +109,7 @@ class ProviderConfig:
     max_retries: int = 2
     enabled: bool = True
     trust_env: bool = False
+    options: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -293,6 +294,9 @@ class BaseJobProvider(ABC):
 
     def _cap_pages(self, requested_pages: int) -> int:
         return max(1, min(requested_pages, self.config.max_pages))
+
+    def _get_option(self, key: str, default: Any = None) -> Any:
+        return self.config.options.get(key.lower(), default)
 
     def _pause(self) -> None:
         if self.config.max_delay > 0:
