@@ -48,7 +48,11 @@ class JobFilter(django_filters.FilterSet):
 
 class JobApplicationFilter(django_filters.FilterSet):
     job = django_filters.NumberFilter(field_name='job_id')
+    company_name = django_filters.CharFilter(
+        field_name='job__company_name',
+        lookup_expr='icontains',
+    )
 
     class Meta:
         model = JobApplication
-        fields = ['status', 'job']
+        fields = ['status', 'job', 'company_name']

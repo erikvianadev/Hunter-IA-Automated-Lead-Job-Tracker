@@ -219,8 +219,9 @@ class JobApplicationViewSet(
     serializer_class = JobApplicationSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = HunterPagination
-    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = JobApplicationFilter
+    search_fields = ['job__title', 'job__company_name', 'job__description', 'notes']
     ordering_fields = ['status', 'job', 'applied_at', 'created_at', 'updated_at']
     ordering = ['-updated_at']
 
@@ -229,6 +230,18 @@ class JobApplicationViewSet(
             JobApplication.objects
             .filter(owner=self.request.user)
             .select_related('owner', 'job')
+            .prefetch_related(
+                Prefetch(
+                    'job__saved_by_users',
+                    queryset=SavedJob.objects.filter(owner=self.request.user).order_by('-created_at'),
+                    to_attr='saved_records_for_owner',
+                ),
+                Prefetch(
+                    'job__resume_matches',
+                    queryset=JobMatch.objects.filter(owner=self.request.user).select_related('resume').order_by('-updated_at', '-created_at'),
+                    to_attr='match_records_for_owner',
+                ),
+            )
         )
 
     def get_serializer_class(self):

@@ -154,6 +154,7 @@ class JobWorkflowApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["id"], application.id)
         self.assertEqual(response.data["job_title"], self.job.title)
+        self.assertEqual(response.data["job_source"], "example.com")
 
     def test_applications_listing_supports_filtering_by_status_and_job(self) -> None:
         second_job = Job.objects.create(
@@ -185,6 +186,39 @@ class JobWorkflowApiTests(TestCase):
         self.assertEqual(response.data["count"], 1)
         self.assertEqual(response.data["results"][0]["job"], second_job.id)
         self.assertEqual(response.data["results"][0]["status"], JobApplicationStatus.INTERVIEW)
+
+    def test_applications_listing_supports_company_filter_and_search(self) -> None:
+        first_application = JobApplication.objects.create(
+            owner=self.user,
+            job=self.job,
+            status=JobApplicationStatus.APPLIED,
+            notes="Backend platform role",
+        )
+        second_job = Job.objects.create(
+            owner=self.user,
+            title="Data Analyst",
+            company_name="Beta Labs",
+            location="Remote",
+            description="SQL dashboards",
+            url="https://jobs.lever.co/beta/2",
+        )
+        JobApplication.objects.create(
+            owner=self.user,
+            job=second_job,
+            status=JobApplicationStatus.SAVED,
+            notes="Analytics track",
+        )
+
+        company_response = self.client.get("/hunter/api/applications/?company_name=Acme")
+        search_response = self.client.get("/hunter/api/applications/?search=platform")
+
+        self.assertEqual(company_response.status_code, 200)
+        self.assertEqual(company_response.data["count"], 1)
+        self.assertEqual(company_response.data["results"][0]["id"], first_application.id)
+
+        self.assertEqual(search_response.status_code, 200)
+        self.assertEqual(search_response.data["count"], 1)
+        self.assertEqual(search_response.data["results"][0]["id"], first_application.id)
 
     def test_applications_listing_supports_ordering_by_updated_at(self) -> None:
         older = JobApplication.objects.create(
@@ -315,3 +349,44 @@ class JobWorkflowApiTests(TestCase):
         self.assertEqual(payload["application_id"], application.id)
         self.assertEqual(payload["current_match"]["match_score"], 82)
         self.assertEqual(payload["current_match"]["resume_label"], "Backend Resume")
+
+    def test_applications_listing_exposes_job_context_and_current_match(self) -> None:
+        SavedJob.objects.create(owner=self.user, job=self.job)
+        application = JobApplication.objects.create(
+            owner=self.user,
+            job=self.job,
+            status=JobApplicationStatus.INTERVIEW,
+            notes="Hiring manager chat booked",
+        )
+        active_resume = Resume.objects.create(
+            owner=self.user,
+            file="resumes/user_1/backend-2.pdf",
+            label="Primary Backend Resume",
+            target_role="Backend Engineer",
+            original_filename="backend-2.pdf",
+            extracted_text="Python Django APIs microservices cloud delivery",
+            content_type="application/pdf",
+            parse_status="completed",
+            is_active=True,
+        )
+        JobMatch.objects.create(
+            owner=self.user,
+            resume=active_resume,
+            job=self.job,
+            match_score=88,
+            strengths=["Distributed systems overlap"],
+            gaps=["Highlight leadership scope"],
+            recommendation="Strong fit with a compelling backend profile.",
+            reasoning={"source": "test"},
+        )
+
+        response = self.client.get("/hunter/api/applications/")
+
+        self.assertEqual(response.status_code, 200)
+        payload = next(item for item in response.data["results"] if item["id"] == application.id)
+        self.assertEqual(payload["job_source"], "example.com")
+        self.assertTrue(payload["job_is_saved"])
+        self.assertEqual(payload["job_url"], self.job.url)
+        self.assertEqual(payload["job_location"], self.job.location)
+        self.assertEqual(payload["current_match"]["match_score"], 88)
+        self.assertEqual(payload["current_match"]["resume_label"], "Primary Backend Resume")

@@ -16,6 +16,46 @@ from .models.models import (
     Tag,
 )
 
+SOURCE_LABELS = {
+    'ashbyhq.com': 'Ashby',
+    'boards.greenhouse.io': 'Greenhouse',
+    'greenhouse.io': 'Greenhouse',
+    'jobs.ashbyhq.com': 'Ashby',
+    'jobs.lever.co': 'Lever',
+    'lever.co': 'Lever',
+    'remotive.com': 'Remotive',
+    'remoteok.com': 'RemoteOK',
+    'weworkremotely.com': 'We Work Remotely',
+    'indeed.com': 'Indeed',
+}
+
+
+def get_source_label(url: str) -> str:
+    hostname = urlparse(url or '').netloc.lower().replace('www.', '')
+    if not hostname:
+        return ''
+    for domain, label in SOURCE_LABELS.items():
+        if hostname == domain or hostname.endswith(f'.{domain}'):
+            return label
+    return hostname
+
+
+def serialize_preferred_match(records):
+    if not records:
+        return None
+
+    preferred = next((record for record in records if getattr(record.resume, 'is_active', False)), records[0])
+    return {
+        'id': preferred.id,
+        'resume_id': preferred.resume_id,
+        'resume_label': preferred.resume.label or preferred.resume.original_filename,
+        'match_score': preferred.match_score,
+        'gaps': preferred.gaps,
+        'strengths': preferred.strengths,
+        'recommendation': preferred.recommendation,
+        'updated_at': preferred.updated_at,
+    }
+
 
 class ScrapeJobsRequestSerializer(serializers.Serializer):
     query = serializers.CharField(required=False, default="Data Scientist", max_length=255)
@@ -382,19 +422,6 @@ class JobSerializer(serializers.ModelSerializer):
         required=False,
     )
 
-    SOURCE_LABELS = {
-        'ashbyhq.com': 'Ashby',
-        'boards.greenhouse.io': 'Greenhouse',
-        'greenhouse.io': 'Greenhouse',
-        'jobs.ashbyhq.com': 'Ashby',
-        'jobs.lever.co': 'Lever',
-        'lever.co': 'Lever',
-        'remotive.com': 'Remotive',
-        'remoteok.com': 'RemoteOK',
-        'weworkremotely.com': 'We Work Remotely',
-        'indeed.com': 'Indeed',
-    }
-
     class Meta:
         model = Job
         fields = [
@@ -456,13 +483,7 @@ class JobSerializer(serializers.ModelSerializer):
         )
 
     def get_source(self, obj):
-        hostname = urlparse(obj.url or '').netloc.lower().replace('www.', '')
-        if not hostname:
-            return ''
-        for domain, label in self.SOURCE_LABELS.items():
-            if hostname == domain or hostname.endswith(f'.{domain}'):
-                return label
-        return hostname
+        return get_source_label(obj.url)
 
     def get_is_saved(self, obj):
         return bool(self._get_saved_records(obj))
@@ -481,20 +502,7 @@ class JobSerializer(serializers.ModelSerializer):
 
     def get_current_match(self, obj):
         records = self._get_match_records(obj)
-        if not records:
-            return None
-
-        preferred = next((record for record in records if getattr(record.resume, 'is_active', False)), records[0])
-        return {
-            'id': preferred.id,
-            'resume_id': preferred.resume_id,
-            'resume_label': preferred.resume.label or preferred.resume.original_filename,
-            'match_score': preferred.match_score,
-            'gaps': preferred.gaps,
-            'strengths': preferred.strengths,
-            'recommendation': preferred.recommendation,
-            'updated_at': preferred.updated_at,
-        }
+        return serialize_preferred_match(records)
 
 
 class LeadSerializer(serializers.ModelSerializer):
@@ -520,6 +528,13 @@ class JobApplicationSerializer(serializers.ModelSerializer):
     job = serializers.PrimaryKeyRelatedField(read_only=True)
     job_title = serializers.CharField(source='job.title', read_only=True)
     company_name = serializers.CharField(source='job.company_name', read_only=True)
+    job_location = serializers.CharField(source='job.location', read_only=True)
+    job_description = serializers.CharField(source='job.description', read_only=True)
+    job_url = serializers.URLField(source='job.url', read_only=True)
+    job_date_posted = serializers.DateField(source='job.date_posted', read_only=True)
+    job_source = serializers.SerializerMethodField()
+    job_is_saved = serializers.SerializerMethodField()
+    current_match = serializers.SerializerMethodField()
 
     class Meta:
         model = JobApplication
@@ -529,13 +544,54 @@ class JobApplicationSerializer(serializers.ModelSerializer):
             'job',
             'job_title',
             'company_name',
+            'job_location',
+            'job_description',
+            'job_url',
+            'job_date_posted',
+            'job_source',
+            'job_is_saved',
             'status',
             'notes',
             'applied_at',
+            'current_match',
             'created_at',
             'updated_at',
         ]
         read_only_fields = ['owner', 'created_at', 'updated_at']
+
+    def _get_saved_records(self, obj):
+        records = getattr(obj.job, 'saved_records_for_owner', None)
+        if records is not None:
+            return records
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if user is None or not user.is_authenticated:
+            return []
+        return list(obj.job.saved_by_users.filter(owner=user).order_by('-created_at')[:1])
+
+    def _get_match_records(self, obj):
+        records = getattr(obj.job, 'match_records_for_owner', None)
+        if records is not None:
+            return records
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if user is None or not user.is_authenticated:
+            return []
+        return list(
+            obj.job.resume_matches
+            .filter(owner=user)
+            .select_related('resume')
+            .order_by('-updated_at', '-created_at')
+        )
+
+    def get_job_source(self, obj):
+        return get_source_label(obj.job.url)
+
+    def get_job_is_saved(self, obj):
+        return bool(self._get_saved_records(obj))
+
+    def get_current_match(self, obj):
+        return serialize_preferred_match(self._get_match_records(obj))
 
 
 class JobApplicationWorkflowSerializer(serializers.Serializer):

@@ -518,6 +518,19 @@ select:focus {
   flex: 1 1 420px;
 }
 
+.application-list-item {
+  align-items: flex-start;
+}
+
+.application-list-item__main {
+  flex: 1 1 420px;
+}
+
+.application-detail-panel {
+  display: grid;
+  gap: 14px;
+}
+
 .jobs-load-more {
   display: flex;
   justify-content: center;
