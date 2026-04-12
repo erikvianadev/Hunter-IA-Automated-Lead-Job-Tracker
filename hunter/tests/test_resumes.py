@@ -9,7 +9,7 @@ from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
 from hunter.choices import ResumeParseStatus
-from hunter.models.models import Resume
+from hunter.models.models import Job, JobMatch, Resume
 from hunter.services.resume_ingestion_service import ResumeIngestionService
 from hunter.services.resume_text_extraction_service import (
     ResumeTextExtractionError,
@@ -370,7 +370,106 @@ class ResumeApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data["compared_resumes"]), 2)
         self.assertEqual(response.data["best_resume_by_score"]["id"], second_resume.id)
+        self.assertEqual(
+            response.data["best_resume_for_likely_target"]["id"],
+            second_resume.id,
+        )
+        self.assertEqual(response.data["likely_target_role"], "Backend Engineer")
+        self.assertIn("comparison_summary", response.data)
+        self.assertTrue(response.data["main_differences"])
+        self.assertEqual(response.data["stronger_areas"]["structure"]["id"], second_resume.id)
+        self.assertEqual(response.data["compared_resumes"][0]["clarity_score"], 85)
+        self.assertEqual(response.data["compared_resumes"][0]["market_fit_score"], 83)
         self.assertEqual(response.data["compared_resumes"][0]["id"], second_resume.id)
+
+    def test_resume_report_returns_rich_deterministic_fields(self) -> None:
+        from hunter.models.models import ResumeAnalysis, SeniorityAssessment
+
+        resume = Resume.objects.create(
+            owner=self.user,
+            file="resumes/user_1/report.docx",
+            label="Backend Premium",
+            target_role="Backend Engineer",
+            original_filename="report.docx",
+            extracted_text="Python Django SQL APIs Docker projects and metrics",
+            parse_status=ResumeParseStatus.COMPLETED,
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            is_active=True,
+        )
+        ResumeAnalysis.objects.create(
+            resume=resume,
+            overall_score=81,
+            structure_score=78,
+            clarity_score=74,
+            market_fit_score=80,
+            project_score=62,
+            strengths=["Clear technical stack."],
+            weaknesses=["Projects need more measurable outcomes."],
+            recommendations=["Add quantified impact to projects."],
+            raw_summary={},
+        )
+        SeniorityAssessment.objects.create(
+            resume=resume,
+            internship_score=20,
+            junior_score=75,
+            mid_score=79,
+            senior_score=38,
+            freelance_score=44,
+            recommended_track="mid",
+            reasoning={"explanation": "Mid roles are the best fit."},
+        )
+        top_job = Job.objects.create(
+            owner=self.user,
+            title="Backend Engineer",
+            company_name="Acme",
+            location="Remote",
+            description="Python Django APIs Docker SQL",
+            url="https://example.com/jobs/report",
+        )
+        JobMatch.objects.create(
+            owner=self.user,
+            resume=resume,
+            job=top_job,
+            match_score=88,
+            strengths=["Python overlap."],
+            gaps=["Need stronger cloud examples."],
+            recommendation="Strong match. Prioritize this application.",
+            reasoning={},
+        )
+
+        response = self.client.get(f"/hunter/api/resumes/{resume.id}/report/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["resume_id"], resume.id)
+        self.assertEqual(response.data["label"], "Backend Premium")
+        self.assertEqual(response.data["target_role"], "Backend Engineer")
+        self.assertEqual(response.data["category_scores"]["overall"], 81)
+        self.assertEqual(response.data["category_scores"]["market_fit"], 80)
+        self.assertEqual(response.data["recommended_track"], "mid")
+        self.assertTrue(response.data["strengths"])
+        self.assertTrue(response.data["top_gaps"])
+        self.assertTrue(response.data["priority_actions"])
+        self.assertEqual(response.data["recent_match_summary"]["average_match_score"], 88.0)
+        self.assertEqual(response.data["recent_match_summary"]["best_match_score"], 88)
+        self.assertIn("Backend Premium", response.data["executive_summary"])
+        self.assertIn("recommended track is mid", response.data["profile_summary"].lower())
+
+    def test_resume_report_is_scoped_to_owner(self) -> None:
+        private_resume = Resume.objects.create(
+            owner=self.other_user,
+            file="resumes/user_2/private-report.docx",
+            label="Private Report",
+            target_role="Data Engineer",
+            original_filename="private-report.docx",
+            extracted_text="private",
+            parse_status=ResumeParseStatus.COMPLETED,
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            is_active=True,
+        )
+
+        response = self.client.get(f"/hunter/api/resumes/{private_resume.id}/report/")
+
+        self.assertEqual(response.status_code, 404)
 
     def test_invalid_file_type_is_rejected(self) -> None:
         upload = SimpleUploadedFile(

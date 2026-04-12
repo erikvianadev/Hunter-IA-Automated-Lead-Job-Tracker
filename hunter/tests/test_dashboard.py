@@ -146,6 +146,10 @@ class DashboardApiTests(TestCase):
         self.assertEqual(response.data["profile_insights"]["recommended_track"], "junior")
         self.assertEqual(response.data["profile_insights"]["competitiveness_level"], "high")
         self.assertEqual(response.data["profile_insights"]["top_gap_area"], "projects")
+        self.assertEqual(response.data["best_resume_summary"]["id"], active_resume.id)
+        self.assertEqual(response.data["resume_report_preview"]["resume_id"], active_resume.id)
+        self.assertEqual(response.data["resume_report_preview"]["average_match_score"], 82.5)
+        self.assertTrue(response.data["comparison_available"])
         self.assertTrue(response.data["priority_actions"])
         self.assertEqual(response.data["priority_actions"][0]["action_type"], "project_signal")
 
@@ -187,6 +191,9 @@ class DashboardApiTests(TestCase):
                     "competitiveness_level": None,
                     "top_gap_area": None,
                 },
+                "best_resume_summary": None,
+                "resume_report_preview": None,
+                "comparison_available": False,
             },
         )
 
@@ -261,6 +268,9 @@ class DashboardApiTests(TestCase):
         self.assertIsNone(response.data["active_resume"])
         self.assertEqual(response.data["top_matches"], [])
         self.assertEqual(response.data["recommended_jobs"], [])
+        self.assertIsNone(response.data["best_resume_summary"])
+        self.assertIsNone(response.data["resume_report_preview"])
+        self.assertFalse(response.data["comparison_available"])
 
     def test_dashboard_priority_actions_reflect_missing_analysis_and_seniority(self) -> None:
         resume = Resume.objects.create(
@@ -282,9 +292,39 @@ class DashboardApiTests(TestCase):
         self.assertEqual(response.data["summary"]["active_resume_label"], "Basic")
         self.assertEqual(response.data["summary"]["active_resume_target_role"], "Analyst")
         self.assertEqual(response.data["summary"]["active_resume_status"], "uploaded")
+        self.assertEqual(response.data["resume_report_preview"]["resume_id"], resume.id)
         action_types = [item["action_type"] for item in response.data["priority_actions"]]
         self.assertIn("resume_analysis", action_types)
         self.assertIn("seniority_assessment", action_types)
+
+    def test_dashboard_flags_comparison_available_when_user_has_multiple_resumes(self) -> None:
+        Resume.objects.create(
+            owner=self.user,
+            file="resumes/user_1/one.docx",
+            label="One",
+            target_role="Backend Engineer",
+            original_filename="one.docx",
+            extracted_text="one",
+            parse_status=ResumeParseStatus.COMPLETED,
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            is_active=True,
+        )
+        Resume.objects.create(
+            owner=self.user,
+            file="resumes/user_1/two.docx",
+            label="Two",
+            target_role="Backend Engineer",
+            original_filename="two.docx",
+            extracted_text="two",
+            parse_status=ResumeParseStatus.COMPLETED,
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            is_active=False,
+        )
+
+        response = self.client.get("/hunter/api/resumes/dashboard/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["comparison_available"])
 
     def test_dashboard_recommended_jobs_skip_low_matches_and_applied_roles(self) -> None:
         active_resume = Resume.objects.create(

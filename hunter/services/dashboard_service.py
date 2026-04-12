@@ -5,11 +5,23 @@ from django.db.models import Avg, Max
 from hunter.choices import JobApplicationStatus
 from hunter.models.models import JobApplication, JobMatch, Resume, SavedJob
 
+from .resume_comparison_service import ResumeComparisonService
+from .resume_report_service import ResumeReportService
+
 
 class DashboardService:
     TOP_MATCHES_LIMIT = 5
     RECOMMENDED_JOBS_LIMIT = 5
     MIN_RECOMMENDED_MATCH_SCORE = 40
+
+    def __init__(
+        self,
+        *,
+        report_service: ResumeReportService | None = None,
+        comparison_service: ResumeComparisonService | None = None,
+    ) -> None:
+        self.report_service = report_service or ResumeReportService()
+        self.comparison_service = comparison_service or ResumeComparisonService()
 
     def build(self, *, owner) -> dict[str, object]:
         resume_queryset = (
@@ -17,6 +29,7 @@ class DashboardService:
             .filter(owner=owner)
             .select_related('analysis', 'seniority_assessment')
         )
+        all_resumes = list(resume_queryset.order_by('-is_active', '-created_at'))
         active_resume = resume_queryset.filter(is_active=True).order_by('-created_at').first()
         analysis = (
             active_resume.analysis
@@ -41,10 +54,16 @@ class DashboardService:
                 top_match_score=Max('match_score'),
             )
         )
+        comparison_payload = self.comparison_service.build(owner=owner)
+        report_preview = (
+            self.report_service.build(resume=active_resume)
+            if active_resume is not None
+            else None
+        )
 
         return {
             "summary": {
-                "total_resumes": resume_queryset.count(),
+                "total_resumes": len(all_resumes),
                 "total_saved_jobs": SavedJob.objects.filter(owner=owner).count(),
                 "total_applications": JobApplication.objects.filter(owner=owner).count(),
                 "total_matches": match_queryset.count(),
@@ -84,6 +103,23 @@ class DashboardService:
                 analysis=analysis,
                 seniority_assessment=seniority_assessment,
             ),
+            "best_resume_summary": comparison_payload["best_resume_by_score"],
+            "resume_report_preview": (
+                {
+                    "resume_id": report_preview["resume_id"],
+                    "executive_summary": report_preview["executive_summary"],
+                    "top_gap": report_preview["top_gaps"][0] if report_preview["top_gaps"] else None,
+                    "top_priority_action": (
+                        report_preview["priority_actions"][0]
+                        if report_preview["priority_actions"]
+                        else None
+                    ),
+                    "average_match_score": report_preview["recent_match_summary"]["average_match_score"],
+                }
+                if report_preview is not None
+                else None
+            ),
+            "comparison_available": len(all_resumes) > 1,
         }
 
     def _normalize_average(self, value):

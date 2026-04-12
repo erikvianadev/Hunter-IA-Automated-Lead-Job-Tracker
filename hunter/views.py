@@ -25,6 +25,7 @@ from .serializers import (
     LeadSerializer,
     ResumeAnalysisSerializer,
     ResumeComparisonSerializer,
+    ResumeReportSerializer,
     ResumeSerializer,
     ResumeUploadSerializer,
     SavedJobSerializer,
@@ -41,6 +42,7 @@ from .services import (
     ResumeAnalysisService,
     ResumeIngestionService,
     ResumeProfileService,
+    ResumeReportService,
     ResumeValidationError,
     SeniorityAssessmentService,
 )
@@ -293,6 +295,16 @@ class ResumeViewSet(
             resume_ids=resume_ids,
         )
         serializer = ResumeComparisonSerializer(
+            payload,
+            context=self.get_serializer_context(),
+        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['get'], url_path='report')
+    def report(self, request, pk=None):
+        resume = self.get_object()
+        payload = ResumeReportService().build(resume=resume)
+        serializer = ResumeReportSerializer(
             payload,
             context=self.get_serializer_context(),
         )
