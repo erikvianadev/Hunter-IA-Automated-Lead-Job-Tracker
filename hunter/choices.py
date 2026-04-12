@@ -17,6 +17,7 @@ class ResumeParseStatus(models.TextChoices):
     COMPLETED = 'completed', _('Completed')
     FAILED = 'failed', _('Failed')
     EMPTY_TEXT = 'empty_text', _('Empty Text')
+    SCANNED_OR_IMAGE_PDF = 'scanned_or_image_pdf', _('Scanned Or Image PDF')
     UNSUPPORTED_STRUCTURE = 'unsupported_structure', _('Unsupported Structure')
 
 

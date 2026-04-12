@@ -179,6 +179,7 @@ class Resume(BaseModel):
     target_role = models.CharField(_('target role'), max_length=120, blank=True, default="")
     original_filename = models.CharField(_('original filename'), max_length=255)
     extracted_text = models.TextField(_('extracted text'), blank=True)
+    extraction_diagnostics = models.JSONField(_('extraction diagnostics'), default=dict, blank=True)
     parse_status = models.CharField(
         _('parse status'),
         max_length=32,

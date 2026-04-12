@@ -135,3 +135,6 @@ gunicorn-error-log
 db.sqlite3
 db copy.sqlite3
 static/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/

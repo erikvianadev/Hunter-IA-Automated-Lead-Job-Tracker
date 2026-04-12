@@ -77,6 +77,59 @@ trailer
     return payload.encode("latin-1")
 
 
+def build_multipage_pdf_bytes(*pages: str) -> bytes:
+    objects: list[str] = [
+        "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj",
+    ]
+    kids: list[str] = []
+    next_object_id = 3
+
+    for page_text in pages:
+        page_id = next_object_id
+        content_id = next_object_id + 1
+        kids.append(f"{page_id} 0 R")
+        escaped = page_text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+        stream = "BT\n/F1 12 Tf\n72 100 Td\n(" + escaped + ") Tj\nET"
+        objects.append(
+            f"{page_id} 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 144] /Contents {content_id} 0 R >>\nendobj"
+        )
+        objects.append(
+            f"{content_id} 0 obj\n<< /Length {len(stream)} >>\nstream\n{stream}\nendstream\nendobj"
+        )
+        next_object_id += 2
+
+    objects.insert(
+        1,
+        f"2 0 obj\n<< /Type /Pages /Kids [{' '.join(kids)}] /Count {len(kids)} >>\nendobj",
+    )
+    payload = "%PDF-1.4\n" + "\n".join(objects) + "\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n"
+    return payload.encode("latin-1")
+
+
+def build_scanned_like_pdf_bytes() -> bytes:
+    payload = """%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 144] /Resources << /XObject << /Im0 4 0 R >> >> >>
+endobj
+4 0 obj
+<< /Type /XObject /Subtype /Image /Width 100 /Height 100 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Length 3 >>
+stream
+abc
+endstream
+endobj
+trailer
+<< /Root 1 0 R >>
+%%EOF
+"""
+    return payload.encode("latin-1")
+
+
 TEMP_MEDIA_ROOT = os.path.join(os.getcwd(), "test_media")
 
 
@@ -535,6 +588,24 @@ class ResumeApiTests(TestCase):
         self.assertEqual(response.data["parse_status"], ResumeParseStatus.UNSUPPORTED_STRUCTURE)
         self.assertEqual(response.data["extracted_text"], "")
 
+    def test_scanned_like_pdf_sets_actionable_status_and_diagnostics(self) -> None:
+        upload = SimpleUploadedFile(
+            "scanned.pdf",
+            build_scanned_like_pdf_bytes(),
+            content_type="application/pdf",
+        )
+
+        response = self.client.post(
+            "/hunter/api/resumes/",
+            {"file": upload},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["parse_status"], ResumeParseStatus.SCANNED_OR_IMAGE_PDF)
+        self.assertEqual(response.data["extraction_diagnostics"]["likely_scanned_pdf"], True)
+        self.assertIn("text PDF or upload a DOCX", response.data["extraction_diagnostics"]["suggestion"])
+
 
 class ResumeTextExtractionServiceTests(TestCase):
     def test_extracts_text_from_docx(self) -> None:
@@ -545,6 +616,15 @@ class ResumeTextExtractionServiceTests(TestCase):
         )
 
         self.assertEqual(text, "Jane Doe\nPython Engineer")
+    
+    def test_docx_normalization_removes_noise_and_blank_lines(self) -> None:
+        text = ResumeTextExtractionService().extract_text(
+            file_bytes=build_docx_bytes("Jane Doe", "Python\u00a0Engineer", "", "Projects\u2022APIs"),
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            filename="resume.docx",
+        )
+
+        self.assertEqual(text, "Jane Doe\nPython Engineer\nProjects\nAPIs")
 
     def test_extracts_text_from_pdf(self) -> None:
         text = ResumeTextExtractionService().extract_text(
@@ -562,7 +642,32 @@ class ResumeTextExtractionServiceTests(TestCase):
             filename="resume.pdf",
         )
 
-        self.assertEqual(result, ResumeExtractionResult(text="Jane Doe Resume", status="completed"))
+        self.assertEqual(result.text, "Jane Doe Resume")
+        self.assertEqual(result.status, "completed")
+        self.assertEqual(result.diagnostics["content_kind"], "pdf")
+
+    def test_extracts_and_normalizes_text_from_multiple_pdf_pages(self) -> None:
+        result = ResumeTextExtractionService().extract(
+            file_bytes=build_multipage_pdf_bytes("Jane Doe", "Python-\nEngineer   APIs"),
+            content_type="application/pdf",
+            filename="resume.pdf",
+        )
+
+        self.assertIn("Jane Doe", result.text)
+        self.assertIn("PythonEngineer APIs", result.text)
+        self.assertEqual(result.diagnostics["page_count"], 2)
+
+    def test_scanned_like_pdf_raises_specific_reason_and_diagnostics(self) -> None:
+        with self.assertRaises(ResumeTextExtractionError) as exc_info:
+            ResumeTextExtractionService().extract_text(
+                file_bytes=build_scanned_like_pdf_bytes(),
+                content_type="application/pdf",
+                filename="scanned.pdf",
+            )
+
+        self.assertEqual(exc_info.exception.reason, "scanned_or_image_pdf")
+        self.assertEqual(exc_info.exception.diagnostics["likely_scanned_pdf"], True)
+        self.assertIn("DOCX", exc_info.exception.diagnostics["suggestion"])
 
     def test_unsupported_format_raises_error(self) -> None:
         with self.assertRaises(ResumeTextExtractionError):
@@ -581,6 +686,7 @@ class ResumeTextExtractionServiceTests(TestCase):
             )
 
         self.assertEqual(exc_info.exception.reason, "empty_text")
+        self.assertIn("selectable text", exc_info.exception.diagnostics["suggestion"])
 
 
 @override_settings(MEDIA_ROOT=TEMP_MEDIA_ROOT)
@@ -626,3 +732,18 @@ class ResumeIngestionServiceTests(TestCase):
 
         self.assertEqual(resume.parse_status, ResumeParseStatus.EMPTY_TEXT)
         self.assertEqual(resume.extracted_text, "")
+        self.assertIn("selectable text", resume.extraction_diagnostics["suggestion"])
+
+    def test_ingestion_marks_scanned_like_pdf_with_specific_status(self) -> None:
+        resume = ResumeIngestionService().ingest(
+            owner=self.user,
+            uploaded_file=SimpleUploadedFile(
+                "scanned.pdf",
+                build_scanned_like_pdf_bytes(),
+                content_type="application/pdf",
+            ),
+        )
+
+        self.assertEqual(resume.parse_status, ResumeParseStatus.SCANNED_OR_IMAGE_PDF)
+        self.assertEqual(resume.extracted_text, "")
+        self.assertEqual(resume.extraction_diagnostics["likely_scanned_pdf"], True)

@@ -56,6 +56,29 @@ DJANGO_DEBUG=True, DJANGO_SECRET_KEY=sua_chave, ALLOWED_HOSTS=127.0.0.1,localhos
 Bash
 python manage.py migrate
 python manage.py runserver
+
+## Frontend React MVP
+
+O repositório agora inclui um frontend React incremental em [frontend](C:\Users\Pichau\Desktop\PROJETO_IA_HUNTER\frontend) que consome a API existente sem alterar os contratos.
+
+### Rodando o frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+O Vite sobe em `http://localhost:3000` e faz proxy local para o Django em `http://127.0.0.1:8000`.
+
+### Fluxos entregues no MVP
+
+- login com JWT via `/api/token/`
+- dashboard consolidado via `/hunter/api/resumes/dashboard/`
+- gestão de currículos com upload, ativação, análise, senioridade, compare e report
+- vagas com filtro, scrape, save, apply e match
+- pipeline de candidaturas com atualização de status e notas
+- billing com visão de planos, assinatura atual, subscribe e cancel
 🔑 Guia de Autenticação
 A API utiliza o fluxo de Bearer Token. Siga os passos abaixo para testar no Insomnia/Postman:
 

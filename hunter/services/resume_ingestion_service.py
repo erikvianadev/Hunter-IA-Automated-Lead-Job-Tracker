@@ -11,6 +11,7 @@ from hunter.models.models import Resume
 
 from .resume_text_extraction_service import (
     EXTRACTION_REASON_EMPTY_TEXT,
+    EXTRACTION_REASON_SCANNED_OR_IMAGE_PDF,
     EXTRACTION_REASON_UNSUPPORTED_STRUCTURE,
     ResumeTextExtractionError,
     ResumeTextExtractionService,
@@ -58,6 +59,7 @@ class ResumeIngestionService:
             target_role=target_role.strip(),
             original_filename=uploaded_file.name,
             content_type=content_type,
+            extraction_diagnostics={},
             parse_status=ResumeParseStatus.PENDING,
             is_active=True,
         )
@@ -76,12 +78,14 @@ class ResumeIngestionService:
             reason = getattr(exc, "reason", None)
             resume.parse_status = self._map_failure_reason_to_status(reason)
             resume.extracted_text = ""
-            resume.save(update_fields=["parse_status", "extracted_text", "updated_at"])
+            resume.extraction_diagnostics = getattr(exc, "diagnostics", {}) or {}
+            resume.save(update_fields=["parse_status", "extracted_text", "extraction_diagnostics", "updated_at"])
             return resume
 
         resume.parse_status = ResumeParseStatus.COMPLETED
         resume.extracted_text = extraction.text
-        resume.save(update_fields=["parse_status", "extracted_text", "updated_at"])
+        resume.extraction_diagnostics = extraction.diagnostics
+        resume.save(update_fields=["parse_status", "extracted_text", "extraction_diagnostics", "updated_at"])
         return resume
 
     def _validate_file(self, *, uploaded_file: UploadedFile, content_type: str) -> None:
@@ -103,6 +107,8 @@ class ResumeIngestionService:
     def _map_failure_reason_to_status(self, reason: str | None) -> str:
         if reason == EXTRACTION_REASON_EMPTY_TEXT:
             return ResumeParseStatus.EMPTY_TEXT
+        if reason == EXTRACTION_REASON_SCANNED_OR_IMAGE_PDF:
+            return ResumeParseStatus.SCANNED_OR_IMAGE_PDF
         if reason == EXTRACTION_REASON_UNSUPPORTED_STRUCTURE:
             return ResumeParseStatus.UNSUPPORTED_STRUCTURE
         return ResumeParseStatus.FAILED
