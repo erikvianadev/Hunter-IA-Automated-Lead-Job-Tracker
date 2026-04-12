@@ -1,4 +1,6 @@
 from django_filters.rest_framework import DjangoFilterBackend
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework import filters, serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.mixins import (
@@ -8,8 +10,9 @@ from rest_framework.mixins import (
     RetrieveModelMixin,
     UpdateModelMixin,
 )
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from .choices import JobApplicationStatus
 from .filters import JobApplicationFilter, JobFilter
@@ -18,6 +21,7 @@ from .pagination import HunterPagination
 from .serializers import (
     BillingOverviewSerializer,
     BillingPlanSerializer,
+    BillingCheckoutSessionSerializer,
     BillingSubscribeSerializer,
     BillingSubscriptionSerializer,
     DashboardSerializer,
@@ -461,7 +465,7 @@ class BillingViewSet(viewsets.GenericViewSet):
         except BillingError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
-        response_serializer = BillingSubscriptionSerializer(payload)
+        response_serializer = BillingCheckoutSessionSerializer(payload)
         return Response(response_serializer.data, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['post'], url_path='cancel')
@@ -473,3 +477,20 @@ class BillingViewSet(viewsets.GenericViewSet):
 
         serializer = BillingSubscriptionSerializer(payload)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class StripeWebhookView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request, *args, **kwargs):
+        signature_header = request.headers.get('Stripe-Signature', '')
+        try:
+            BillingService().handle_webhook_event(
+                payload=request.body,
+                signature_header=signature_header,
+            )
+        except BillingError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"received": True}, status=status.HTTP_200_OK)

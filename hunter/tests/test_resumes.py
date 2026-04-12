@@ -10,13 +10,13 @@ from rest_framework.test import APIClient
 
 from hunter.choices import ResumeParseStatus
 from hunter.models.models import Job, JobMatch, Resume
-from hunter.services.billing_service import BillingService
 from hunter.services.resume_ingestion_service import ResumeIngestionService
 from hunter.services.resume_text_extraction_service import (
     ResumeTextExtractionError,
     ResumeExtractionResult,
     ResumeTextExtractionService,
 )
+from hunter.tests.billing_helpers import create_active_pro_subscription
 
 
 def build_docx_bytes(*paragraphs: str) -> bytes:
@@ -105,11 +105,7 @@ class ResumeApiTests(TestCase):
         self.client.force_authenticate(user=self.user)
 
     def _subscribe_user_to_pro(self) -> None:
-        BillingService().subscribe(
-            owner=self.user,
-            plan_code=BillingService.PLAN_PRO,
-            billing_cycle='monthly',
-        )
+        create_active_pro_subscription(owner=self.user)
 
     def test_authenticated_user_can_upload_resume(self) -> None:
         upload = SimpleUploadedFile(

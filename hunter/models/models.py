@@ -330,6 +330,24 @@ class BillingSubscription(BaseModel):
         default=0,
     )
     currency = models.CharField(_('currency'), max_length=8, default='BRL')
+    stripe_customer_id = models.CharField(
+        _('stripe customer id'),
+        max_length=64,
+        blank=True,
+        default='',
+    )
+    stripe_subscription_id = models.CharField(
+        _('stripe subscription id'),
+        max_length=64,
+        blank=True,
+        default='',
+    )
+    stripe_checkout_session_id = models.CharField(
+        _('stripe checkout session id'),
+        max_length=64,
+        blank=True,
+        default='',
+    )
     auto_renew = models.BooleanField(_('auto renew'), default=True)
     started_at = models.DateTimeField(_('started at'))
     current_period_end = models.DateTimeField(_('current period end'), null=True, blank=True)
@@ -376,6 +394,12 @@ class BillingInvoice(BaseModel):
     )
     amount = models.DecimalField(_('amount'), max_digits=10, decimal_places=2, default=0)
     currency = models.CharField(_('currency'), max_length=8, default='BRL')
+    stripe_invoice_id = models.CharField(
+        _('stripe invoice id'),
+        max_length=64,
+        blank=True,
+        default='',
+    )
     issued_at = models.DateTimeField(_('issued at'))
     paid_at = models.DateTimeField(_('paid at'), null=True, blank=True)
     external_reference = models.CharField(

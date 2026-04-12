@@ -207,3 +207,28 @@ JOB_AGGREGATION = {
     },
 }
 
+STRIPE = {
+    'SECRET_KEY': env('STRIPE_SECRET_KEY', default=''),
+    'PUBLISHABLE_KEY': env('STRIPE_PUBLISHABLE_KEY', default=''),
+    'WEBHOOK_SECRET': env('STRIPE_WEBHOOK_SECRET', default=''),
+    'API_BASE_URL': env('STRIPE_API_BASE_URL', default='https://api.stripe.com'),
+    'SUCCESS_URL': env(
+        'STRIPE_SUCCESS_URL',
+        default='http://localhost:3000/billing/success?session_id={CHECKOUT_SESSION_ID}',
+    ),
+    'CANCEL_URL': env(
+        'STRIPE_CANCEL_URL',
+        default='http://localhost:3000/billing/cancel',
+    ),
+    'PORTAL_RETURN_URL': env(
+        'STRIPE_PORTAL_RETURN_URL',
+        default='http://localhost:3000/settings/billing',
+    ),
+    'PRICE_IDS': {
+        'pro': {
+            'monthly': env('STRIPE_PRICE_PRO_MONTHLY', default=''),
+            'yearly': env('STRIPE_PRICE_PRO_YEARLY', default=''),
+        },
+    },
+}
+

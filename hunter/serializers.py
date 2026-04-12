@@ -70,6 +70,15 @@ class BillingSubscribeSerializer(serializers.Serializer):
     billing_cycle = serializers.CharField(max_length=16)
 
 
+class BillingCheckoutSessionSerializer(serializers.Serializer):
+    plan_code = serializers.CharField(read_only=True)
+    billing_cycle = serializers.CharField(read_only=True)
+    checkout_session_id = serializers.CharField(read_only=True)
+    checkout_url = serializers.URLField(read_only=True)
+    publishable_key = serializers.CharField(read_only=True)
+    price_id = serializers.CharField(read_only=True)
+
+
 class ResumeUploadSerializer(serializers.Serializer):
     file = serializers.FileField()
     label = serializers.CharField(required=False, allow_blank=True, max_length=120)

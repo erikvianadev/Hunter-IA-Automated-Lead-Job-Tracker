@@ -1,5 +1,6 @@
 from .billing_portal_service import BillingPortalService
 from .billing_service import BillingAccessError, BillingError, BillingService
+from .stripe_gateway_service import StripeBillingGatewayService, StripeGatewayError
 from .dashboard_service import DashboardService
 from .job_aggregation_service import AggregationResult, JobAggregationService
 from .job_matching_service import JobMatchingError, JobMatchingService
@@ -28,6 +29,8 @@ __all__ = [
     "BillingError",
     "BillingPortalService",
     "BillingService",
+    "StripeBillingGatewayService",
+    "StripeGatewayError",
     "AggregationResult",
     "JobAggregationService",
     "JobMatchingError",

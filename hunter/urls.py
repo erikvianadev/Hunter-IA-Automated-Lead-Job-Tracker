@@ -35,4 +35,9 @@ urlpatterns = [
         views.BillingViewSet.as_view({'post': 'cancel'}),
         name='billing-cancel',
     ),
+    path(
+        'api/billing/webhook/',
+        views.StripeWebhookView.as_view(),
+        name='billing-webhook',
+    ),
 ]
