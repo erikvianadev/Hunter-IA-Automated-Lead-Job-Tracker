@@ -16,6 +16,10 @@ from .filters import JobApplicationFilter, JobFilter
 from .models.models import Job, JobApplication, JobMatch, Lead, Resume, SavedJob, Tag
 from .pagination import HunterPagination
 from .serializers import (
+    BillingOverviewSerializer,
+    BillingPlanSerializer,
+    BillingSubscribeSerializer,
+    BillingSubscriptionSerializer,
     DashboardSerializer,
     JobApplicationSerializer,
     JobApplicationWorkflowSerializer,
@@ -33,6 +37,10 @@ from .serializers import (
     TagSerializer,
 )
 from .services import (
+    BillingAccessError,
+    BillingError,
+    BillingPortalService,
+    BillingService,
     DashboardService,
     JobMatchingError,
     JobMatchingService,
@@ -282,6 +290,14 @@ class ResumeViewSet(
 
     @action(detail=False, methods=['get'], url_path='compare')
     def compare(self, request):
+        try:
+            BillingService().require_feature(
+                owner=request.user,
+                feature_code=BillingService.FEATURE_RESUME_COMPARISON,
+            )
+        except BillingAccessError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_403_FORBIDDEN)
+
         raw_ids = (request.query_params.get('ids') or "").strip()
         resume_ids: list[int] | None = None
         if raw_ids:
@@ -303,6 +319,14 @@ class ResumeViewSet(
     @action(detail=True, methods=['get'], url_path='report')
     def report(self, request, pk=None):
         resume = self.get_object()
+        try:
+            BillingService().require_feature(
+                owner=request.user,
+                feature_code=BillingService.FEATURE_PREMIUM_REPORTS,
+            )
+        except BillingAccessError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_403_FORBIDDEN)
+
         payload = ResumeReportService().build(resume=resume)
         serializer = ResumeReportSerializer(
             payload,
@@ -406,3 +430,46 @@ class SavedJobViewSet(ListModelMixin, viewsets.GenericViewSet):
             .select_related('owner', 'job')
             .prefetch_related('job__tags')
         )
+
+
+class BillingViewSet(viewsets.GenericViewSet):
+    permission_classes = [IsAuthenticated]
+
+    @action(detail=False, methods=['get'], url_path='plans')
+    def plans(self, request):
+        payload = BillingService().list_plans(owner=request.user)
+        serializer = BillingPlanSerializer(payload, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'], url_path='subscription')
+    def subscription(self, request):
+        payload = BillingPortalService().build_overview(owner=request.user)
+        serializer = BillingOverviewSerializer(payload)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'], url_path='subscribe')
+    def subscribe(self, request):
+        serializer = BillingSubscribeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            payload = BillingService().subscribe(
+                owner=request.user,
+                plan_code=serializer.validated_data['plan_code'],
+                billing_cycle=serializer.validated_data['billing_cycle'],
+            )
+        except BillingError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        response_serializer = BillingSubscriptionSerializer(payload)
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'], url_path='cancel')
+    def cancel(self, request):
+        try:
+            payload = BillingService().cancel(owner=request.user)
+        except BillingError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = BillingSubscriptionSerializer(payload)
+        return Response(serializer.data, status=status.HTTP_200_OK)

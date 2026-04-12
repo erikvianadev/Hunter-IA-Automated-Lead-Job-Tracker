@@ -18,3 +18,20 @@ class ResumeParseStatus(models.TextChoices):
     FAILED = 'failed', _('Failed')
     EMPTY_TEXT = 'empty_text', _('Empty Text')
     UNSUPPORTED_STRUCTURE = 'unsupported_structure', _('Unsupported Structure')
+
+
+class BillingCycle(models.TextChoices):
+    FREE = 'free', _('Free')
+    MONTHLY = 'monthly', _('Monthly')
+    YEARLY = 'yearly', _('Yearly')
+
+
+class BillingSubscriptionStatus(models.TextChoices):
+    ACTIVE = 'active', _('Active')
+    CANCELED = 'canceled', _('Canceled')
+    EXPIRED = 'expired', _('Expired')
+
+
+class BillingInvoiceStatus(models.TextChoices):
+    PAID = 'paid', _('Paid')
+    VOID = 'void', _('Void')

@@ -10,6 +10,7 @@ from rest_framework.test import APIClient
 
 from hunter.choices import ResumeParseStatus
 from hunter.models.models import Job, JobMatch, Resume
+from hunter.services.billing_service import BillingService
 from hunter.services.resume_ingestion_service import ResumeIngestionService
 from hunter.services.resume_text_extraction_service import (
     ResumeTextExtractionError,
@@ -102,6 +103,13 @@ class ResumeApiTests(TestCase):
         )
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
+
+    def _subscribe_user_to_pro(self) -> None:
+        BillingService().subscribe(
+            owner=self.user,
+            plan_code=BillingService.PLAN_PRO,
+            billing_cycle='monthly',
+        )
 
     def test_authenticated_user_can_upload_resume(self) -> None:
         upload = SimpleUploadedFile(
@@ -270,6 +278,7 @@ class ResumeApiTests(TestCase):
         self.assertEqual(response.status_code, 404)
 
     def test_compare_returns_useful_resume_summary(self) -> None:
+        self._subscribe_user_to_pro()
         first_resume = Resume.objects.create(
             owner=self.user,
             file="resumes/user_1/first.docx",
@@ -383,6 +392,7 @@ class ResumeApiTests(TestCase):
         self.assertEqual(response.data["compared_resumes"][0]["id"], second_resume.id)
 
     def test_resume_report_returns_rich_deterministic_fields(self) -> None:
+        self._subscribe_user_to_pro()
         from hunter.models.models import ResumeAnalysis, SeniorityAssessment
 
         resume = Resume.objects.create(
@@ -455,6 +465,7 @@ class ResumeApiTests(TestCase):
         self.assertIn("recommended track is mid", response.data["profile_summary"].lower())
 
     def test_resume_report_is_scoped_to_owner(self) -> None:
+        self._subscribe_user_to_pro()
         private_resume = Resume.objects.create(
             owner=self.other_user,
             file="resumes/user_2/private-report.docx",
@@ -470,6 +481,30 @@ class ResumeApiTests(TestCase):
         response = self.client.get(f"/hunter/api/resumes/{private_resume.id}/report/")
 
         self.assertEqual(response.status_code, 404)
+
+    def test_compare_requires_pro_plan(self) -> None:
+        response = self.client.get("/hunter/api/resumes/compare/")
+
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("Upgrade to Pro", response.data["detail"])
+
+    def test_report_requires_pro_plan(self) -> None:
+        resume = Resume.objects.create(
+            owner=self.user,
+            file="resumes/user_1/basic-report.docx",
+            label="Basic Report",
+            target_role="Backend Engineer",
+            original_filename="basic-report.docx",
+            extracted_text="basic",
+            parse_status=ResumeParseStatus.COMPLETED,
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            is_active=True,
+        )
+
+        response = self.client.get(f"/hunter/api/resumes/{resume.id}/report/")
+
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("Upgrade to Pro", response.data["detail"])
 
     def test_invalid_file_type_is_rejected(self) -> None:
         upload = SimpleUploadedFile(

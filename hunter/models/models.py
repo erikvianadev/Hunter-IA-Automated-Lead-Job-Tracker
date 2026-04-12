@@ -2,7 +2,13 @@ from django.contrib.auth import get_user_model
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
-from ..choices import JobApplicationStatus, ResumeParseStatus
+from ..choices import (
+    BillingCycle,
+    BillingInvoiceStatus,
+    BillingSubscriptionStatus,
+    JobApplicationStatus,
+    ResumeParseStatus,
+)
 
 
 def resume_upload_to(instance, filename: str) -> str:
@@ -295,3 +301,97 @@ class JobMatch(BaseModel):
 
     def __str__(self) -> str:
         return f'{self.resume.original_filename} -> {self.job.title}'
+
+
+class BillingSubscription(BaseModel):
+    owner = models.ForeignKey(
+        get_user_model(),
+        on_delete=models.CASCADE,
+        related_name='billing_subscriptions',
+        verbose_name=_('owner'),
+    )
+    plan_code = models.CharField(_('plan code'), max_length=32, default='free')
+    billing_cycle = models.CharField(
+        _('billing cycle'),
+        max_length=16,
+        choices=BillingCycle.choices,
+        default=BillingCycle.FREE,
+    )
+    status = models.CharField(
+        _('status'),
+        max_length=16,
+        choices=BillingSubscriptionStatus.choices,
+        default=BillingSubscriptionStatus.ACTIVE,
+    )
+    price_amount = models.DecimalField(
+        _('price amount'),
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+    )
+    currency = models.CharField(_('currency'), max_length=8, default='BRL')
+    auto_renew = models.BooleanField(_('auto renew'), default=True)
+    started_at = models.DateTimeField(_('started at'))
+    current_period_end = models.DateTimeField(_('current period end'), null=True, blank=True)
+    canceled_at = models.DateTimeField(_('canceled at'), null=True, blank=True)
+    expires_at = models.DateTimeField(_('expires at'), null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['owner', 'status', 'created_at'], name='billsub_owner_status_idx'),
+        ]
+        verbose_name = _('billing subscription')
+        verbose_name_plural = _('billing subscriptions')
+
+    def __str__(self) -> str:
+        return f'{self.owner_id} {self.plan_code} ({self.billing_cycle})'
+
+
+class BillingInvoice(BaseModel):
+    owner = models.ForeignKey(
+        get_user_model(),
+        on_delete=models.CASCADE,
+        related_name='billing_invoices',
+        verbose_name=_('owner'),
+    )
+    subscription = models.ForeignKey(
+        BillingSubscription,
+        on_delete=models.CASCADE,
+        related_name='invoices',
+        verbose_name=_('subscription'),
+    )
+    plan_code = models.CharField(_('plan code'), max_length=32, default='free')
+    billing_cycle = models.CharField(
+        _('billing cycle'),
+        max_length=16,
+        choices=BillingCycle.choices,
+        default=BillingCycle.FREE,
+    )
+    status = models.CharField(
+        _('status'),
+        max_length=16,
+        choices=BillingInvoiceStatus.choices,
+        default=BillingInvoiceStatus.PAID,
+    )
+    amount = models.DecimalField(_('amount'), max_digits=10, decimal_places=2, default=0)
+    currency = models.CharField(_('currency'), max_length=8, default='BRL')
+    issued_at = models.DateTimeField(_('issued at'))
+    paid_at = models.DateTimeField(_('paid at'), null=True, blank=True)
+    external_reference = models.CharField(
+        _('external reference'),
+        max_length=64,
+        blank=True,
+        default='',
+    )
+
+    class Meta:
+        ordering = ['-issued_at', '-created_at']
+        indexes = [
+            models.Index(fields=['owner', 'issued_at'], name='invoice_owner_issued_idx'),
+        ]
+        verbose_name = _('billing invoice')
+        verbose_name_plural = _('billing invoices')
+
+    def __str__(self) -> str:
+        return f'{self.owner_id} {self.plan_code} invoice {self.amount}'

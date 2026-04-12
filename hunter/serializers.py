@@ -20,6 +20,56 @@ class ScrapeJobsRequestSerializer(serializers.Serializer):
     location = serializers.CharField(required=False, default="Remote", max_length=255)
 
 
+class BillingPlanSerializer(serializers.Serializer):
+    code = serializers.CharField(read_only=True)
+    name = serializers.CharField(read_only=True)
+    billing_cycle = serializers.CharField(read_only=True)
+    price_amount = serializers.DecimalField(read_only=True, max_digits=10, decimal_places=2)
+    currency = serializers.CharField(read_only=True)
+    features = serializers.ListField(child=serializers.CharField(), read_only=True)
+    highlighted = serializers.BooleanField(read_only=True)
+    is_current = serializers.BooleanField(read_only=True)
+
+
+class BillingInvoiceSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True)
+    plan_code = serializers.CharField(read_only=True)
+    billing_cycle = serializers.CharField(read_only=True)
+    status = serializers.CharField(read_only=True)
+    amount = serializers.DecimalField(read_only=True, max_digits=10, decimal_places=2)
+    currency = serializers.CharField(read_only=True)
+    issued_at = serializers.DateTimeField(read_only=True)
+    paid_at = serializers.DateTimeField(read_only=True, allow_null=True)
+    external_reference = serializers.CharField(read_only=True)
+
+
+class BillingSubscriptionSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True, allow_null=True)
+    plan_code = serializers.CharField(read_only=True)
+    plan_name = serializers.CharField(read_only=True)
+    billing_cycle = serializers.CharField(read_only=True)
+    status = serializers.CharField(read_only=True)
+    price_amount = serializers.DecimalField(read_only=True, max_digits=10, decimal_places=2)
+    currency = serializers.CharField(read_only=True)
+    auto_renew = serializers.BooleanField(read_only=True)
+    started_at = serializers.DateTimeField(read_only=True, allow_null=True)
+    current_period_end = serializers.DateTimeField(read_only=True, allow_null=True)
+    canceled_at = serializers.DateTimeField(read_only=True, allow_null=True)
+    expires_at = serializers.DateTimeField(read_only=True, allow_null=True)
+    features = serializers.ListField(child=serializers.CharField(), read_only=True)
+    last_invoice = BillingInvoiceSerializer(read_only=True, allow_null=True)
+
+
+class BillingOverviewSerializer(serializers.Serializer):
+    subscription = BillingSubscriptionSerializer(read_only=True)
+    plans = BillingPlanSerializer(many=True, read_only=True)
+
+
+class BillingSubscribeSerializer(serializers.Serializer):
+    plan_code = serializers.CharField(max_length=32)
+    billing_cycle = serializers.CharField(max_length=16)
+
+
 class ResumeUploadSerializer(serializers.Serializer):
     file = serializers.FileField()
     label = serializers.CharField(required=False, allow_blank=True, max_length=120)

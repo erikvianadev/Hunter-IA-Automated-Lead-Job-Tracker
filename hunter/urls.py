@@ -15,4 +15,24 @@ router.register(r'matches', views.JobMatchViewSet, basename='match')
 urlpatterns = [
     path('api/', include(router.urls)),
     path('api/', include('hunter.api.urls')),
+    path(
+        'api/billing/plans/',
+        views.BillingViewSet.as_view({'get': 'plans'}),
+        name='billing-plans',
+    ),
+    path(
+        'api/billing/subscription/',
+        views.BillingViewSet.as_view({'get': 'subscription'}),
+        name='billing-subscription',
+    ),
+    path(
+        'api/billing/subscribe/',
+        views.BillingViewSet.as_view({'post': 'subscribe'}),
+        name='billing-subscribe',
+    ),
+    path(
+        'api/billing/cancel/',
+        views.BillingViewSet.as_view({'post': 'cancel'}),
+        name='billing-cancel',
+    ),
 ]

@@ -1,3 +1,5 @@
+from .billing_portal_service import BillingPortalService
+from .billing_service import BillingAccessError, BillingError, BillingService
 from .dashboard_service import DashboardService
 from .job_aggregation_service import AggregationResult, JobAggregationService
 from .job_matching_service import JobMatchingError, JobMatchingService
@@ -22,6 +24,10 @@ from .resume_text_extraction_service import (
 
 __all__ = [
     "DashboardService",
+    "BillingAccessError",
+    "BillingError",
+    "BillingPortalService",
+    "BillingService",
     "AggregationResult",
     "JobAggregationService",
     "JobMatchingError",
