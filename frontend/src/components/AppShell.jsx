@@ -4,11 +4,11 @@ import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 
 const navigation = [
-  { to: "/dashboard", label: "Dashboard" },
-  { to: "/resumes", label: "Resumes" },
-  { to: "/jobs", label: "Jobs" },
-  { to: "/applications", label: "Applications" },
-  { to: "/billing", label: "Billing" }
+  { to: "/dashboard", label: "Painel" },
+  { to: "/resumes", label: "Currículos" },
+  { to: "/jobs", label: "Vagas" },
+  { to: "/applications", label: "Candidaturas" },
+  { to: "/billing", label: "Planos" }
 ];
 
 export function AppShell({ title, subtitle, actions, children }) {
@@ -19,9 +19,9 @@ export function AppShell({ title, subtitle, actions, children }) {
     <div className="app-shell">
       <aside className="app-sidebar">
         <div className="brand-lockup">
-          <span className="brand-lockup__eyebrow">Career growth companion</span>
+          <span className="brand-lockup__eyebrow">Seu copiloto de carreira</span>
           <h1>Hunter IA</h1>
-          <p>Improve your resume, organize applications, and discover stronger opportunities in one place.</p>
+          <p>Melhore seu currículo, organize sua busca e acompanhe vagas com mais clareza em um só lugar.</p>
         </div>
 
         <nav className="app-nav">
@@ -38,11 +38,11 @@ export function AppShell({ title, subtitle, actions, children }) {
 
         <div className="theme-switcher">
           <label className="field">
-            <span>Theme</span>
+            <span>Tema</span>
             <select value={themePreference} onChange={(event) => setThemePreference(event.target.value)}>
-              <option value="system">System</option>
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
+              <option value="system">Sistema</option>
+              <option value="light">Claro</option>
+              <option value="dark">Escuro</option>
             </select>
           </label>
         </div>
@@ -50,10 +50,10 @@ export function AppShell({ title, subtitle, actions, children }) {
         <div className="app-sidebar__footer">
           <div>
             <strong>{user.username}</strong>
-            <span>Account #{user.id ?? "-"}</span>
+            <span>Conta #{user.id ?? "-"}</span>
           </div>
           <button className="button button--ghost" type="button" onClick={logout}>
-            Sign out
+            Sair
           </button>
         </div>
       </aside>
@@ -61,7 +61,7 @@ export function AppShell({ title, subtitle, actions, children }) {
       <main className="app-main">
         <header className="page-header">
           <div>
-            <span className="page-header__eyebrow">Career workspace</span>
+            <span className="page-header__eyebrow">Workspace de carreira</span>
             <h2>{title}</h2>
             {subtitle ? <p>{subtitle}</p> : null}
           </div>

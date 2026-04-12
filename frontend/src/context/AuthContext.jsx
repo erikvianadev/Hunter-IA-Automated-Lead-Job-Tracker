@@ -95,7 +95,7 @@ export function AuthProvider({ children }) {
   async function refreshAccessToken(currentRefreshToken) {
     const refreshToken = currentRefreshToken ?? auth.refresh;
     if (!refreshToken) {
-      throw new Error("Session expired.");
+      throw new Error("Sua sessão expirou.");
     }
 
     const response = await fetch(buildUrl("/api/token/refresh/"), {
@@ -107,7 +107,7 @@ export function AuthProvider({ children }) {
 
     if (!response.ok || !payload?.access) {
       setAuth({ access: null, refresh: null, username: "" });
-      throw buildHttpError(response, payload, "Unable to refresh session.");
+      throw buildHttpError(response, payload, "Não foi possível renovar a sessão.");
     }
 
     setAuth((previous) => ({
@@ -151,14 +151,14 @@ export function AuthProvider({ children }) {
       });
       const retriedPayload = await parseResponse(retriedResponse);
       if (!retriedResponse.ok) {
-        throw buildHttpError(retriedResponse, retriedPayload, "Request failed.");
+        throw buildHttpError(retriedResponse, retriedPayload, "A requisição falhou.");
       }
       return retriedPayload;
     }
 
     const payload = await parseResponse(response);
     if (!response.ok) {
-      throw buildHttpError(response, payload, "Request failed.");
+      throw buildHttpError(response, payload, "A requisição falhou.");
     }
     return payload;
   }
@@ -172,7 +172,7 @@ export function AuthProvider({ children }) {
 
     const payload = await parseResponse(response);
     if (!response.ok || !payload?.access || !payload?.refresh) {
-      throw buildHttpError(response, payload, "Invalid credentials.");
+      throw buildHttpError(response, payload, "Credenciais inválidas.");
     }
 
     setAuth({
@@ -191,7 +191,7 @@ export function AuthProvider({ children }) {
     const tokenPayload = decodeJwtPayload(auth.access);
     return {
       id: tokenPayload?.user_id ?? null,
-      username: auth.username || "Operator",
+      username: auth.username || "Usuário",
       isAuthenticated: Boolean(auth.access && auth.refresh)
     };
   }, [auth.access, auth.refresh, auth.username]);

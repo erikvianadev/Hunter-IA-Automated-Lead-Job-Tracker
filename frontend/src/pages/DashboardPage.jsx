@@ -22,7 +22,7 @@ export function DashboardPage() {
       const payload = await request("/hunter/api/resumes/dashboard/");
       setDashboard(payload);
     } catch (requestError) {
-      setError(getErrorMessage(requestError, "We could not load your dashboard right now."));
+      setError(getErrorMessage(requestError, "Não foi possível carregar seu painel agora."));
     } finally {
       setLoading(false);
     }
@@ -32,56 +32,61 @@ export function DashboardPage() {
     loadDashboard();
   }, []);
 
+  const summary = dashboard?.summary ?? {};
+  const profileInsights = dashboard?.profile_insights ?? {};
+  const priorityActions = dashboard?.priority_actions ?? [];
+  const preview = dashboard?.resume_report_preview;
+
   return (
     <AppShell
-      title="Your progress"
-      subtitle="See how your resume, applications, and opportunity quality are moving together."
+      title="Seu progresso"
+      subtitle="Acompanhe currículo, candidaturas e qualidade das vagas em uma visão só."
       actions={
         <button className="button button--ghost" type="button" onClick={loadDashboard}>
-          Refresh overview
+          Atualizar visão geral
         </button>
       }
     >
       {error ? <div className="notice notice--error">{error}</div> : null}
-      {loading ? <div className="loading-panel">Preparing your latest progress snapshot...</div> : null}
+      {loading ? <div className="loading-panel">Preparando um retrato atualizado do seu progresso...</div> : null}
 
       {!loading && dashboard ? (
         <>
           <section className="stats-grid">
             <StatCard
-              label="Resumes"
-              value={dashboard.summary.total_resumes}
-              helper={dashboard.summary.active_resume_label ?? "Choose your main resume"}
+              label="Currículos"
+              value={summary.total_resumes}
+              helper={summary.active_resume_label ?? "Defina seu currículo principal"}
             />
             <StatCard
-              label="Applications"
-              value={dashboard.summary.total_applications}
-              helper="Stay on top of every step"
+              label="Candidaturas"
+              value={summary.total_applications}
+              helper="Acompanhe cada etapa com clareza"
             />
             <StatCard
               label="Matches"
-              value={dashboard.summary.total_matches}
+              value={summary.total_matches}
               helper={
-                dashboard.summary.average_match_score != null
-                  ? `Average fit score ${dashboard.summary.average_match_score}`
-                  : "No fit scores yet"
+                summary.average_match_score != null
+                  ? `Aderência média de ${summary.average_match_score}`
+                  : "Ainda sem scores de aderência"
               }
             />
             <StatCard
-              label="Saved roles"
-              value={dashboard.summary.total_saved_jobs}
+              label="Vagas salvas"
+              value={summary.total_saved_jobs}
               helper={
-                dashboard.summary.top_match_score != null
-                  ? `Best fit score ${dashboard.summary.top_match_score}`
-                  : "Save roles to review later"
+                summary.top_match_score != null
+                  ? `Melhor aderência de ${summary.top_match_score}`
+                  : "Salve vagas para revisar depois"
               }
             />
           </section>
 
           <section className="two-column-grid">
             <SectionCard
-              title="Current focus resume"
-              subtitle="The version powering your insights and job-fit recommendations."
+              title="Currículo em foco"
+              subtitle="A versão que alimenta seus insights e recomendações de aderência."
             >
               {dashboard.active_resume ? (
                 <div className="detail-stack">
@@ -89,45 +94,45 @@ export function DashboardPage() {
                     <strong>{dashboard.active_resume.label || dashboard.active_resume.original_filename}</strong>
                     <StatusBadge value={dashboard.active_resume.parse_status} />
                   </div>
-                  <p>{dashboard.active_resume.target_role || "Add a target role to sharpen your guidance."}</p>
+                  <p>{dashboard.active_resume.target_role || "Adicione um cargo-alvo para receber orientações mais precisas."}</p>
                   <p className="muted-copy">
-                    Updated {formatShortDate(dashboard.active_resume.updated_at)}
+                    Atualizado em {formatShortDate(dashboard.active_resume.updated_at)}
                   </p>
                 </div>
               ) : (
                 <EmptyState
-                  title="Add your first resume"
-                  description="Upload a resume to start getting resume feedback, fit scores, and premium insights."
+                  title="Adicione seu primeiro currículo"
+                  description="Envie um currículo para começar a receber análises, scores de aderência e insights premium."
                 />
               )}
             </SectionCard>
 
             <SectionCard
-              title="Profile direction"
-              subtitle="A quick read on where your current resume is strongest."
+              title="Direção do perfil"
+              subtitle="Uma leitura rápida de onde seu currículo atual está mais forte."
             >
               <div className="insight-list">
                 <div>
-                  <span>Best-fit level</span>
-                  <strong>{titleize(dashboard.profile_insights.recommended_track)}</strong>
+                  <span>Nível mais aderente</span>
+                  <strong>{titleize(profileInsights.recommended_track)}</strong>
                 </div>
                 <div>
-                  <span>Momentum</span>
-                  <strong>{titleize(dashboard.profile_insights.competitiveness_level)}</strong>
+                  <span>Momento atual</span>
+                  <strong>{titleize(profileInsights.competitiveness_level)}</strong>
                 </div>
                 <div>
-                  <span>Biggest gap</span>
-                  <strong>{titleize(dashboard.profile_insights.top_gap_area)}</strong>
+                  <span>Principal lacuna</span>
+                  <strong>{titleize(profileInsights.top_gap_area)}</strong>
                 </div>
               </div>
             </SectionCard>
           </section>
 
           <section className="two-column-grid">
-            <SectionCard title="What to do next" subtitle="Clear next steps generated from your current profile.">
-              {dashboard.priority_actions.length ? (
+            <SectionCard title="Próximos passos" subtitle="Ações prioritárias geradas com base no seu perfil atual.">
+              {priorityActions.length ? (
                 <div className="list-stack">
-                  {dashboard.priority_actions.map((item) => (
+                  {priorityActions.map((item) => (
                     <article className="list-item" key={`${item.action_type}-${item.priority}`}>
                       <div>
                         <div className="inline-meta">
@@ -141,35 +146,35 @@ export function DashboardPage() {
                 </div>
               ) : (
                 <EmptyState
-                  title="You are in a good place"
-                  description="Your current setup already covers the most important next steps."
+                  title="Tudo sob controle por aqui"
+                  description="Seu setup atual já cobre os próximos passos mais importantes."
                 />
               )}
             </SectionCard>
 
-            <SectionCard title="Premium insight preview" subtitle="A preview of the deeper guidance available from your resume data.">
-              {dashboard.resume_report_preview ? (
+            <SectionCard title="Prévia premium" subtitle="Uma amostra das orientações mais profundas disponíveis a partir do seu currículo.">
+              {preview ? (
                 <div className="detail-stack">
-                  <p>{dashboard.resume_report_preview.executive_summary}</p>
+                  <p>{preview.executive_summary}</p>
                   <div className="insight-list">
                     <div>
-                      <span>Main improvement area</span>
-                      <strong>{dashboard.resume_report_preview.top_gap ?? "-"}</strong>
+                      <span>Área principal de melhoria</span>
+                      <strong>{preview.top_gap ?? "-"}</strong>
                     </div>
                     <div>
-                      <span>Best next move</span>
-                      <strong>{dashboard.resume_report_preview.top_priority_action ?? "-"}</strong>
+                      <span>Melhor próximo passo</span>
+                      <strong>{preview.top_priority_action ?? "-"}</strong>
                     </div>
                     <div>
-                      <span>Average job fit</span>
-                      <strong>{dashboard.resume_report_preview.average_match_score ?? "-"}</strong>
+                      <span>Aderência média</span>
+                      <strong>{preview.average_match_score ?? "-"}</strong>
                     </div>
                   </div>
                 </div>
               ) : (
                 <EmptyState
-                  title="No premium preview yet"
-                  description="Generate resume analysis and seniority guidance to unlock a stronger preview here."
+                  title="Nenhuma prévia premium ainda"
+                  description="Gere a análise do currículo e a avaliação de senioridade para liberar uma visão mais rica aqui."
                 />
               )}
             </SectionCard>

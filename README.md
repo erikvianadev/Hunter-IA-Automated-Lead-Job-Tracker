@@ -1,106 +1,143 @@
-# 🏹 Hunter-IA | Automated Lead & Job Tracker
+# Hunter IA
 
-**Link do Projeto:** [Acessar API no Render](https://hunter-ia-automated-lead-job-tracker.onrender.com/hunter/api/jobs/)
+Produto full-stack para busca de vagas, gestão de currículos, candidaturas, matching e cobrança, com backend Django/DRF/JWT e frontend React/Vite.
 
-[![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)](https://www.python.org/)
-[![Django](https://img.shields.io/badge/django-%23092e20.svg?style=for-the-badge&logo=django&logoColor=white)](https://www.djangoproject.com/)
-[![DjangoREST](https://img.shields.io/badge/DJANGO-REST-ff1709?style=for-the-badge&logo=django&logoColor=white&color=ff1709)](https://www.django-rest-framework.org/)
-[![JWT](https://img.shields.io/badge/JWT-black?style=for-the-badge&logo=JSON%20web%20tokens)](https://jwt.io/)
+## Stack atual
 
-O **Hunter-IA** é uma solução de backend robusta projetada para centralizar e inteligenciar a busca por oportunidades no mercado de tecnologia. Com uma arquitetura focada em segurança e performance, o sistema permite o gerenciamento completo de vagas, contatos estratégicos (Leads) e tecnologias (Tags).
+- Backend: Django, Django REST Framework, JWT, WhiteNoise
+- Frontend: React 18, React Router, Vite
+- Banco local: SQLite
+- Billing: Stripe
 
----
+## Estrutura
 
-## 🛠️ Stack Tecnológica
+- `project/`: configuração Django, health/readiness, serving da SPA
+- `hunter/`: domínio, APIs, serviços, scraping e billing
+- `frontend/`: app React usada no dia a dia de desenvolvimento
+- `frontend_build/`: artefato gerado no build de produção do frontend
 
-| Camada | Tecnologia |
-| :--- | :--- |
-| **Linguagem** | Python 3.x |
-| **Framework Web** | Django 5.x |
-| **API Engine** | Django REST Framework |
-| **Segurança** | Simple JWT (OAuth2 Flow) |
-| **Banco de Dados** | SQLite (Desenvolvimento) |
-| **Configuração** | Python-environ (12-Factor App) |
+## Desenvolvimento local
 
----
-## 🌍 Deploy
-O projeto está hospedado e rodando no Render:
-👉 [https://hunter-ia-automated-lead-job-tracker.onrender.com/hunter/api/jobs/](https://hunter-ia-automated-lead-job-tracker.onrender.com/hunter/api/jobs/)
----
+### Backend
 
-## 🚀 Como Configurar o Projeto
-
-### 1. Preparando o Ambiente
 ```bash
-# Clone o repositório
-git clone [https://github.com/erikvianadev/Hunter-IA-Automated-Lead-Job-Tracker.git](https://github.com/erikvianadev/Hunter-IA-Automated-Lead-Job-Tracker.git)
-cd Hunter-IA-Automated-Lead-Job-Tracker
-
-# Crie e ative o ambiente virtual
 python -m venv venv
-# Windows:
-.\venv\Scripts\activate
-# Linux/Mac:
-source venv/bin/activate
-2. Instalação e Variáveis
-Bash
-# Instale as dependências
+venv\Scripts\activate
 pip install -r requirements.txt
-
-# Crie o arquivo de configuração
-touch .env
-Nota: Adicione as seguintes chaves no seu .env:
-DJANGO_DEBUG=True, DJANGO_SECRET_KEY=sua_chave, ALLOWED_HOSTS=127.0.0.1,localhost
-
-3. Execução
-Bash
+copy .env.example .env
 python manage.py migrate
 python manage.py runserver
+```
 
-## Frontend React MVP
+O backend sobe em `http://127.0.0.1:8000`.
 
-O repositório agora inclui um frontend React incremental em [frontend](C:\Users\Pichau\Desktop\PROJETO_IA_HUNTER\frontend) que consome a API existente sem alterar os contratos.
-
-### Rodando o frontend
+### Frontend
 
 ```bash
 cd frontend
 npm install
+copy .env.example .env
 npm run dev
 ```
 
-O Vite sobe em `http://localhost:3000` e faz proxy local para o Django em `http://127.0.0.1:8000`.
+O frontend sobe em `http://127.0.0.1:3000` e faz proxy para o Django local.
 
-### Fluxos entregues no MVP
+## Build de produção
 
-- login com JWT via `/api/token/`
-- dashboard consolidado via `/hunter/api/resumes/dashboard/`
-- gestão de currículos com upload, ativação, análise, senioridade, compare e report
-- vagas com filtro, scrape, save, apply e match
-- pipeline de candidaturas com atualização de status e notas
-- billing com visão de planos, assinatura atual, subscribe e cancel
-🔑 Guia de Autenticação
-A API utiliza o fluxo de Bearer Token. Siga os passos abaixo para testar no Insomnia/Postman:
+O fluxo recomendado desta sprint é manter deploy same-origin: Django servindo API, SPA buildada e assets estáticos.
 
-Obter Acesso: Realize um POST em /api/token/ com username e password.
+```bash
+cd frontend
+npm install
+npm run build
+cd ..
+python manage.py collectstatic --noinput
+python manage.py check --deploy
+```
 
-Autorizar: Copie o access_token retornado.
+O `vite build` gera `frontend_build/` com:
 
-Header: Em suas requisições, adicione o campo:
-Authorization: Bearer <seu_token_aqui>
+- `frontend_build/index.html`: shell da SPA
+- `frontend_build/assets/*`: JS/CSS versionados para produção
 
-📌 Endpoints Estratégicos
-🔐 Autenticação
-POST /api/token/ - Gera tokens de acesso e refresh.
+O Django passa a:
 
-POST /api/token/refresh/ - Renova o token de acesso.
+- servir `/` e rotas da SPA como `/dashboard`, `/jobs`, `/billing/success`
+- continuar atendendo `/api/token/`, `/hunter/...`, `/admin/`, `/health/` e `/ready/`
+- servir assets versionados via `/static/`
 
-🏹 Hunter Core
-GET /hunter/api/jobs/ - Lista vagas com suporte a filtros e paginação.
+## Variáveis de ambiente importantes
 
-POST /hunter/api/leads/ - Registra contatos estratégicos (Recrutadores/Managers).
+Use `.env.example` como base no backend e `frontend/.env.example` no frontend.
 
-GET /hunter/api/tags/ - Gerencia stack de tecnologias associadas.
+### Backend
 
-👤 Autor
-Desenvolvido com ☕ e 🐍 por Erik Viana.
+- `DJANGO_DEBUG`: desligue em produção
+- `DJANGO_SECRET_KEY`: obrigatório em produção
+- `ALLOWED_HOSTS`: hosts reais do deploy
+- `CSRF_TRUSTED_ORIGINS`: origens HTTPS reais do app
+- `APP_BASE_URL`: URL pública do backend/Django
+- `FRONTEND_PUBLIC_URL`: URL pública usada pelo Stripe para success/cancel/return
+- `DJANGO_SERVE_FRONTEND`: mantém o Django servindo a SPA buildada
+- `DJANGO_SERVE_MEDIA_FILES`: útil em deploy simples com uma única app; em infra separada, delegue media ao proxy/storage
+- `DATABASE_URL`: aceita banco externo sem mudar a arquitetura do projeto
+- `CORS_ALLOWED_ORIGINS`: só preencha se frontend e backend ficarem em origens diferentes
+- `USE_X_FORWARDED_PROTO` e `USE_X_FORWARDED_HOST`: ative atrás de proxy/load balancer
+- `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, `DJANGO_SECURE_SSL_REDIRECT`, `SECURE_HSTS_SECONDS`: habilite em produção HTTPS
+
+### Frontend
+
+- `VITE_API_BASE_URL`: deixe vazio para same-origin; defina a URL da API se o frontend rodar separado
+- `VITE_ASSET_BASE`: padrão `/static/`
+- `VITE_BUILD_OUT_DIR`: padrão `../frontend_build`
+- `VITE_DEV_API_PROXY_TARGET`: alvo do proxy local do Vite
+
+### Stripe
+
+- `STRIPE_SECRET_KEY`
+- `STRIPE_PUBLISHABLE_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_PRICE_PRO_MONTHLY`
+- `STRIPE_PRICE_PRO_YEARLY`
+
+Se `STRIPE_SUCCESS_URL`, `STRIPE_CANCEL_URL` e `STRIPE_PORTAL_RETURN_URL` não forem definidos, o backend monta defaults a partir de `FRONTEND_PUBLIC_URL`.
+
+## Health e readiness
+
+- `GET /health/`: confirma que o Django e o banco estão respondendo
+- `GET /ready/`: confirma banco e, quando `DJANGO_SERVE_FRONTEND=True`, também a presença do build do frontend
+
+Isso é útil para deploys simples com uma checagem de liveness/readiness sem adicionar infraestrutura extra.
+
+## Rotas SPA em produção
+
+Com o frontend buildado, refresh direto em rotas como:
+
+- `/dashboard`
+- `/resumes`
+- `/jobs`
+- `/applications`
+- `/billing`
+- `/billing/success`
+- `/billing/cancel`
+
+continua funcionando porque o Django devolve o `index.html` da SPA para rotas não-API.
+
+## Static e media
+
+- Assets do React são gerados no build e entram no pipeline de `collectstatic`
+- `ResumeSerializer.file_url` continua sendo absoluto e estável
+- Para deploy simples, `DJANGO_SERVE_MEDIA_FILES=True` permite servir uploads pelo próprio Django
+
+## Deploy sugerido
+
+Ordem mínima para um deploy estável:
+
+1. Configurar variáveis do `.env`
+2. Instalar dependências Python e Node
+3. Rodar `npm run build` dentro de `frontend/`
+4. Rodar `python manage.py collectstatic --noinput`
+5. Rodar `python manage.py migrate`
+6. Publicar o serviço WSGI com `gunicorn project.wsgi:application`
+
+O `Procfile` já está preparado para esse último passo.

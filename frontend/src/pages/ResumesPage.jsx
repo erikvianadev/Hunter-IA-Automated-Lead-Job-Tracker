@@ -16,8 +16,8 @@ function getResumeReadiness(resume) {
       canAnalyze: false,
       canAssess: false,
       parseTone: "muted",
-      statusTitle: "Select a resume",
-      statusDetail: "Choose one resume to see what is available."
+      statusTitle: "Selecione um currículo",
+      statusDetail: "Escolha um currículo para ver o que já está disponível."
     };
   }
 
@@ -28,21 +28,21 @@ function getResumeReadiness(resume) {
 
   if (!parseReady || !hasUsableText) {
     const detailByStatus = {
-      pending: "This resume is still being prepared. Wait for parsing to finish before requesting insights.",
-      processing: "This resume is still being processed. Insights will unlock once the text is ready.",
-      failed: "We could not read enough content from this file. Upload a cleaner PDF or DOCX to continue.",
-      empty_text: "The file uploaded, but no usable text was found. Try a text-based PDF or DOCX export.",
-      unsupported_structure: "The file structure could not be read well enough for insight generation. Try a clearer export."
+      pending: "Este currículo ainda está sendo preparado. Aguarde o parsing terminar para gerar insights.",
+      processing: "Este currículo ainda está em processamento. Os insights serão liberados quando o texto estiver pronto.",
+      failed: "Não foi possível ler conteúdo suficiente deste arquivo. Envie um PDF ou DOCX mais limpo para continuar.",
+      empty_text: "O arquivo foi enviado, mas nenhum texto utilizável foi encontrado. Tente exportar um PDF ou DOCX com texto selecionável.",
+      unsupported_structure: "A estrutura do arquivo não pôde ser lida bem o suficiente para gerar insights. Tente uma exportação mais limpa."
     };
 
     return {
       canAnalyze: false,
       canAssess: false,
       parseTone: "low",
-      statusTitle: "Resume not ready for insights",
+      statusTitle: "Currículo ainda não está pronto",
       statusDetail:
         detailByStatus[parseStatus] ??
-        "This resume still needs usable extracted text before analysis and seniority guidance can run.",
+        "Este currículo ainda precisa de texto utilizável para liberar análise e avaliação de senioridade.",
       hasUsableText,
       parseReady
     };
@@ -52,8 +52,8 @@ function getResumeReadiness(resume) {
     canAnalyze: true,
     canAssess: true,
     parseTone: "good",
-    statusTitle: "Ready for analysis",
-    statusDetail: "This resume has enough readable text for resume review and seniority guidance.",
+    statusTitle: "Pronto para análise",
+    statusDetail: "Este currículo já tem texto suficiente para análise e avaliação de senioridade.",
     hasUsableText,
     parseReady
   };
@@ -66,24 +66,24 @@ function getInsightStateMessage(kind, error) {
 
   if (error.status === 404) {
     return kind === "analysis"
-      ? "Resume review has not been generated yet."
-      : "Career level guidance has not been generated yet.";
+      ? "A análise deste currículo ainda não foi gerada."
+      : "A avaliação de senioridade ainda não foi gerada.";
   }
 
   if (error.status === 400) {
     return getErrorMessage(
       error,
       kind === "analysis"
-        ? "This resume needs more readable text before we can review it."
-        : "This resume needs enough readable content before we can estimate career level.",
+        ? "Este currículo precisa de mais texto legível antes da análise."
+        : "Este currículo precisa de conteúdo suficiente antes da estimativa de senioridade.",
     );
   }
 
   if (error.status === 403) {
-    return "Premium insight is available on paid plans only.";
+    return "Esse insight premium está disponível apenas nos planos pagos.";
   }
 
-  return getErrorMessage(error, "We could not load this insight right now.");
+  return getErrorMessage(error, "Não foi possível carregar este insight agora.");
 }
 
 export function ResumesPage() {
@@ -112,6 +112,10 @@ export function ResumesPage() {
     () => resumes.find((resume) => resume.id === selectedResumeId) ?? null,
     [resumes, selectedResumeId],
   );
+  const selectedCompareResumes = useMemo(
+    () => resumes.filter((resume) => selectedIds.includes(resume.id)),
+    [resumes, selectedIds],
+  );
   const readiness = useMemo(() => getResumeReadiness(selectedResume), [selectedResume]);
 
   async function loadResumes(preserveSelection = true) {
@@ -135,7 +139,7 @@ export function ResumesPage() {
       const activeResume = items.find((item) => item.is_active) ?? items[0];
       setSelectedResumeId(activeResume.id);
     } catch (requestError) {
-      setError(getErrorMessage(requestError, "We could not load your resumes right now."));
+      setError(getErrorMessage(requestError, "Não foi possível carregar seus currículos agora."));
     } finally {
       setLoading(false);
     }
@@ -159,7 +163,7 @@ export function ResumesPage() {
 
     if (analysisResult.status === "fulfilled") {
       setAnalysis(analysisResult.value);
-      setAnalysisState({ status: "ready", message: "Resume review is ready." });
+      setAnalysisState({ status: "ready", message: "A análise do currículo está pronta." });
     } else {
       setAnalysis(null);
       setAnalysisState({
@@ -170,7 +174,7 @@ export function ResumesPage() {
 
     if (seniorityResult.status === "fulfilled") {
       setSeniority(seniorityResult.value);
-      setSeniorityState({ status: "ready", message: "Career level guidance is ready." });
+      setSeniorityState({ status: "ready", message: "A avaliação de senioridade está pronta." });
     } else {
       setSeniority(null);
       setSeniorityState({
@@ -191,7 +195,7 @@ export function ResumesPage() {
   async function handleUpload(event) {
     event.preventDefault();
     if (!form.file) {
-      setError("Choose a PDF or DOCX resume before continuing.");
+      setError("Escolha um currículo em PDF ou DOCX para continuar.");
       return;
     }
 
@@ -213,7 +217,7 @@ export function ResumesPage() {
         method: "POST",
         body
       });
-      setFeedback(`"${payload.label || payload.original_filename}" is ready for review.`);
+      setFeedback(`"${payload.label || payload.original_filename}" foi enviado e já está disponível para revisão.`);
       setForm({
         file: null,
         label: "",
@@ -222,7 +226,7 @@ export function ResumesPage() {
       await loadResumes(false);
       setSelectedResumeId(payload.id);
     } catch (requestError) {
-      setError(getErrorMessage(requestError, "We could not upload that resume."));
+      setError(getErrorMessage(requestError, "Não foi possível enviar esse currículo."));
     } finally {
       setBusyAction("");
     }
@@ -236,7 +240,7 @@ export function ResumesPage() {
     try {
       await callback();
     } catch (requestError) {
-      setError(getErrorMessage(requestError, "This action could not be completed."));
+      setError(getErrorMessage(requestError, "Não foi possível concluir essa ação."));
     } finally {
       setBusyAction("");
     }
@@ -251,15 +255,15 @@ export function ResumesPage() {
   }
 
   return (
-    <AppShell title="Resumes" subtitle="Keep improving your resume and compare versions when you want deeper insight.">
+    <AppShell title="Currículos" subtitle="Evolua seu currículo, compare versões e acompanhe o que já está pronto para gerar insights.">
       {error ? <div className="notice notice--error">{error}</div> : null}
       {feedback ? <div className="notice notice--success">{feedback}</div> : null}
 
       <section className="two-column-grid two-column-grid--wide-left">
-        <SectionCard title="Add a new resume" subtitle="Upload a fresh version to review, score, and use for job matching.">
+        <SectionCard title="Enviar novo currículo" subtitle="Adicione uma nova versão para revisar, pontuar e usar nas análises de aderência.">
           <form className="stack" onSubmit={handleUpload}>
             <label className="field">
-              <span>Resume file</span>
+              <span>Arquivo do currículo</span>
               <input
                 type="file"
                 accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -271,34 +275,34 @@ export function ResumesPage() {
             </label>
 
             <label className="field">
-              <span>Version name</span>
+              <span>Nome da versão</span>
               <input
                 value={form.label}
                 onChange={(event) => setForm((previous) => ({ ...previous, label: event.target.value }))}
-                placeholder="Backend resume v3"
+                placeholder="Currículo backend v3"
               />
             </label>
 
             <label className="field">
-              <span>Target role</span>
+              <span>Cargo-alvo</span>
               <input
                 value={form.target_role}
                 onChange={(event) =>
                   setForm((previous) => ({ ...previous, target_role: event.target.value }))
                 }
-                placeholder="Backend Engineer"
+                placeholder="Engenheiro(a) Backend"
               />
             </label>
 
             <button className="button button--primary" type="submit" disabled={busyAction === "upload"}>
-              {busyAction === "upload" ? "Uploading your resume..." : "Upload resume"}
+              {busyAction === "upload" ? "Enviando currículo..." : "Enviar currículo"}
             </button>
           </form>
         </SectionCard>
 
         <SectionCard
-          title="Premium comparison"
-          subtitle="Compare two or three resume versions to see which one tells the strongest story."
+          title="Comparação premium"
+          subtitle="Compare duas ou três versões para descobrir qual comunica melhor sua experiência."
           actions={
             <button
               className="button button--secondary"
@@ -308,26 +312,28 @@ export function ResumesPage() {
                 runResumeAction("compare", async () => {
                   const payload = await request(`/hunter/api/resumes/compare/?ids=${selectedIds.join(",")}`);
                   setComparison(payload);
-                  setFeedback("Your resume comparison is ready.");
+                  setFeedback("Sua comparação de currículos está pronta.");
                 })
               }
             >
-              {busyAction === "compare" ? "Comparing versions..." : "Compare selected"}
+              {busyAction === "compare" ? "Comparando versões..." : "Comparar versões"}
             </button>
           }
         >
           <p className="muted-copy">
-            Choose two or three resumes below. Premium access still comes from the backend plan rules.
+            Selecione duas ou três versões abaixo. O acesso premium continua sendo validado pelas regras do backend.
           </p>
           <div className="selection-pills">
-            {selectedIds.length
-              ? selectedIds.map((id) => <span key={id}>Resume #{id}</span>)
-              : <span>Select versions to compare</span>}
+            {selectedCompareResumes.length
+              ? selectedCompareResumes.map((resume) => (
+                <span key={resume.id}>{resume.label || resume.original_filename}</span>
+              ))
+              : <span>Selecione as versões que deseja comparar</span>}
           </div>
           {comparison ? (
             <div className="detail-stack">
               <strong>{comparison.comparison_summary}</strong>
-              <p>Likely target role: {comparison.likely_target_role ?? "-"}</p>
+              <p>Cargo-alvo mais provável: {comparison.likely_target_role ?? "-"}</p>
               <div className="list-stack">
                 {comparison.main_differences.map((item, index) => (
                   <article className="list-item" key={`${item}-${index}`}>
@@ -341,12 +347,12 @@ export function ResumesPage() {
       </section>
 
       <section className="two-column-grid two-column-grid--wide-left">
-        <SectionCard title="Your resume library" subtitle="Pick your main version and keep older iterations for comparison.">
-          {loading ? <div className="loading-panel">Loading your resume library...</div> : null}
+        <SectionCard title="Biblioteca de currículos" subtitle="Escolha sua versão principal e mantenha versões antigas para comparação.">
+          {loading ? <div className="loading-panel">Carregando sua biblioteca de currículos...</div> : null}
           {!loading && !resumes.length ? (
             <EmptyState
-              title="No resumes here yet"
-              description="Upload your first resume to start improving it and unlocking premium insights."
+              title="Nenhum currículo por aqui ainda"
+              description="Envie seu primeiro currículo para começar a melhorar o material e liberar insights premium."
             />
           ) : null}
           {!loading && resumes.length ? (
@@ -368,8 +374,8 @@ export function ResumesPage() {
                       <StatusBadge value={resume.parse_status} />
                       {resume.is_active ? <StatusBadge value="active" /> : null}
                     </div>
-                    <p>{resume.target_role || "No target role yet"}</p>
-                    <p className="muted-copy">Updated {formatShortDate(resume.updated_at)}</p>
+                    <p>{resume.target_role || "Nenhum cargo-alvo definido ainda"}</p>
+                    <p className="muted-copy">Atualizado em {formatShortDate(resume.updated_at)}</p>
                   </div>
 
                   <div className="action-row">
@@ -379,7 +385,7 @@ export function ResumesPage() {
                         checked={selectedIds.includes(resume.id)}
                         onChange={() => toggleCompareSelection(resume.id)}
                       />
-                      Compare
+                      Comparar
                     </label>
                     <button
                       className="button button--ghost"
@@ -388,27 +394,27 @@ export function ResumesPage() {
                         runResumeAction(`activate-${resume.id}`, async () => {
                           await request(`/hunter/api/resumes/${resume.id}/activate/`, { method: "POST" });
                           await loadResumes();
-                          setFeedback("This is now your main resume.");
+                          setFeedback("Este agora é o seu currículo principal.");
                         })
                       }
                     >
-                      Make primary
+                      Tornar principal
                     </button>
                     <button
                       className="button button--ghost"
                       type="button"
                       onClick={() =>
                         runResumeAction(`delete-${resume.id}`, async () => {
-                          if (!window.confirm(`Delete ${resume.label || resume.original_filename}?`)) {
+                          if (!window.confirm(`Excluir ${resume.label || resume.original_filename}?`)) {
                             return;
                           }
                           await request(`/hunter/api/resumes/${resume.id}/`, { method: "DELETE" });
                           await loadResumes(false);
-                          setFeedback("Resume removed.");
+                          setFeedback("Currículo removido.");
                         })
                       }
                     >
-                      Delete
+                      Excluir
                     </button>
                   </div>
                 </article>
@@ -418,8 +424,8 @@ export function ResumesPage() {
         </SectionCard>
 
         <SectionCard
-          title="Resume insights"
-          subtitle="See what is ready now, what still needs text cleanup, and what is locked behind premium access."
+          title="Insights do currículo"
+          subtitle="Veja o que já está pronto, o que ainda depende de texto utilizável e o que faz parte do premium."
           actions={
             selectedResume ? (
               <div className="action-row">
@@ -427,38 +433,38 @@ export function ResumesPage() {
                   className="button button--secondary"
                   type="button"
                   disabled={!readiness.canAnalyze || busyAction === "analyze"}
-                  title={!readiness.canAnalyze ? readiness.statusDetail : "Generate resume review"}
+                  title={!readiness.canAnalyze ? readiness.statusDetail : "Gerar análise do currículo"}
                   onClick={() =>
                     runResumeAction("analyze", async () => {
                       const payload = await request(`/hunter/api/resumes/${selectedResume.id}/analyze/`, {
                         method: "POST"
                       });
                       setAnalysis(payload);
-                      setAnalysisState({ status: "ready", message: "Resume review is ready." });
+                      setAnalysisState({ status: "ready", message: "A análise do currículo está pronta." });
                       await loadResumes();
-                      setFeedback("Resume review is ready.");
+                      setFeedback("A análise do currículo está pronta.");
                     })
                   }
                 >
-                  {busyAction === "analyze" ? "Reviewing..." : "Review resume"}
+                  {busyAction === "analyze" ? "Analisando..." : "Analisar currículo"}
                 </button>
                 <button
                   className="button button--secondary"
                   type="button"
                   disabled={!readiness.canAssess || busyAction === "seniority"}
-                  title={!readiness.canAssess ? readiness.statusDetail : "Generate career level guidance"}
+                  title={!readiness.canAssess ? readiness.statusDetail : "Gerar avaliação de senioridade"}
                   onClick={() =>
                     runResumeAction("seniority", async () => {
                       const payload = await request(`/hunter/api/resumes/${selectedResume.id}/assess-seniority/`, {
                         method: "POST"
                       });
                       setSeniority(payload);
-                      setSeniorityState({ status: "ready", message: "Career level guidance is ready." });
-                      setFeedback("Career level guidance is ready.");
+                      setSeniorityState({ status: "ready", message: "A avaliação de senioridade está pronta." });
+                      setFeedback("A avaliação de senioridade está pronta.");
                     })
                   }
                 >
-                  {busyAction === "seniority" ? "Assessing..." : "Assess fit"}
+                  {busyAction === "seniority" ? "Avaliando..." : "Avaliar senioridade"}
                 </button>
                 <button
                   className="button button--secondary"
@@ -469,23 +475,26 @@ export function ResumesPage() {
                       try {
                         const payload = await request(`/hunter/api/resumes/${selectedResume.id}/report/`);
                         setReport(payload);
-                        setReportState({ status: "ready", message: "Premium resume insight unlocked." });
-                        setFeedback("Premium resume insight unlocked.");
+                        setReportState({ status: "ready", message: "O insight premium foi liberado." });
+                        setFeedback("O insight premium foi liberado.");
                       } catch (requestError) {
                         setReport(null);
                         setReportState({
                           status: requestError.status === 403 ? "locked" : "blocked",
                           message:
                             requestError.status === 403
-                              ? "Premium insight is available on paid plans only."
-                              : getErrorMessage(requestError, "We could not open the premium report.")
+                              ? "Esse insight premium está disponível apenas nos planos pagos."
+                              : getErrorMessage(requestError, "Não foi possível abrir o relatório premium.")
                         });
-                        throw requestError;
+
+                        if (requestError.status !== 403) {
+                          throw requestError;
+                        }
                       }
                     })
                   }
                 >
-                  {busyAction === "report" ? "Opening report..." : "Open premium insight"}
+                  {busyAction === "report" ? "Abrindo relatório..." : "Abrir insight premium"}
                 </button>
               </div>
             ) : null
@@ -500,23 +509,23 @@ export function ResumesPage() {
 
               {selectedResume.file_url ? (
                 <a href={selectedResume.file_url} target="_blank" rel="noreferrer">
-                  Open uploaded resume
+                  Abrir currículo enviado
                 </a>
               ) : null}
 
-              <p>{selectedResume.target_role || "Add a target role to sharpen your feedback."}</p>
+              <p>{selectedResume.target_role || "Adicione um cargo-alvo para receber orientações mais úteis."}</p>
 
               <div className="insight-list">
                 <div>
-                  <span>Resume readiness</span>
+                  <span>Status do currículo</span>
                   <strong>{readiness.statusTitle}</strong>
                 </div>
                 <div>
-                  <span>Resume review</span>
+                  <span>Análise</span>
                   <strong>{analysis ? `${analysis.overall_score}/100` : titleize(analysisState.status)}</strong>
                 </div>
                 <div>
-                  <span>Career level</span>
+                  <span>Senioridade</span>
                   <strong>{seniority ? titleize(seniority.recommended_track) : titleize(seniorityState.status)}</strong>
                 </div>
               </div>
@@ -526,31 +535,31 @@ export function ResumesPage() {
               </div>
 
               {!analysis && analysisState.message ? (
-                <div className={`notice ${analysisState.status === "missing" ? "notice--success" : "notice--error"}`}>
+                <div className={`notice ${analysisState.status === "missing" ? "notice--info" : "notice--error"}`}>
                   {analysisState.message}
                 </div>
               ) : null}
 
               {!seniority && seniorityState.message ? (
-                <div className={`notice ${seniorityState.status === "missing" ? "notice--success" : "notice--error"}`}>
+                <div className={`notice ${seniorityState.status === "missing" ? "notice--info" : "notice--error"}`}>
                   {seniorityState.message}
                 </div>
               ) : null}
 
               {!report && reportState.message ? (
-                <div className={`notice ${reportState.status === "locked" ? "notice--success" : "notice--error"}`}>
+                <div className={`notice ${reportState.status === "locked" ? "notice--info" : "notice--error"}`}>
                   {reportState.message}
                 </div>
               ) : null}
 
               {analysis ? (
                 <div className="detail-stack">
-                  <strong>Resume review highlights</strong>
+                  <strong>Destaques da análise</strong>
                   <p>
-                    Structure {analysis.structure_score} | Clarity {analysis.clarity_score} | Market fit {analysis.market_fit_score} | Projects {analysis.project_score}
+                    Estrutura {analysis.structure_score} | Clareza {analysis.clarity_score} | Aderência {analysis.market_fit_score} | Projetos {analysis.project_score}
                   </p>
                   <ul className="plain-list">
-                    {analysis.recommendations.map((item, index) => (
+                    {(analysis.recommendations ?? []).map((item, index) => (
                       <li key={`${item}-${index}`}>{item}</li>
                     ))}
                   </ul>
@@ -559,20 +568,20 @@ export function ResumesPage() {
 
               {seniority ? (
                 <div className="detail-stack">
-                  <strong>Career level guidance</strong>
+                  <strong>Leitura de senioridade</strong>
                   <p>{titleize(seniority.recommended_track)}</p>
                   <p className="muted-copy">
-                    Junior {seniority.junior_score} | Mid {seniority.mid_score} | Senior {seniority.senior_score}
+                    Júnior {seniority.junior_score} | Pleno {seniority.mid_score} | Sênior {seniority.senior_score}
                   </p>
                 </div>
               ) : null}
 
               {report ? (
                 <div className="detail-stack">
-                  <strong>Premium insight</strong>
+                  <strong>Insight premium</strong>
                   <p>{report.executive_summary}</p>
                   <ul className="plain-list">
-                    {report.priority_actions.map((item, index) => (
+                    {(report.priority_actions ?? []).map((item, index) => (
                       <li key={`${item}-${index}`}>{item}</li>
                     ))}
                   </ul>
@@ -581,8 +590,8 @@ export function ResumesPage() {
             </div>
           ) : (
             <EmptyState
-              title="Choose a resume"
-              description="Select one version from your library to view feedback and premium insight options."
+              title="Selecione um currículo"
+              description="Escolha uma versão da sua biblioteca para ver feedback, senioridade e opções premium."
             />
           )}
         </SectionCard>

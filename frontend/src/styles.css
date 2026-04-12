@@ -98,6 +98,7 @@ select {
 
 button {
   cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease, border-color 0.18s ease;
 }
 
 .boot-screen,
@@ -214,6 +215,18 @@ button {
   border: 1px solid var(--border);
 }
 
+.empty-state {
+  display: grid;
+  gap: 10px;
+  min-height: 170px;
+  align-content: center;
+}
+
+.empty-state h3 {
+  margin: 0;
+  font-size: 1.18rem;
+}
+
 .hero-metrics strong,
 .stat-card__value {
   display: block;
@@ -283,6 +296,11 @@ select {
   outline: none;
 }
 
+.field textarea {
+  min-height: 160px;
+  resize: vertical;
+}
+
 .field input:focus,
 .field textarea:focus,
 .field select:focus,
@@ -294,12 +312,25 @@ select:focus {
 .button {
   border: 0;
   border-radius: 999px;
+  min-height: 44px;
   padding: 12px 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 700;
+  text-align: center;
 }
 
 .button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.button:not(:disabled):hover {
+  transform: translateY(-1px);
 }
 
 .button--primary {
@@ -336,6 +367,12 @@ select:focus {
   color: var(--secondary-strong);
 }
 
+.notice--info {
+  background: color-mix(in srgb, var(--accent-soft) 62%, var(--surface-strong));
+  border-color: color-mix(in srgb, var(--accent) 24%, transparent);
+  color: var(--ink);
+}
+
 .app-shell {
   min-height: 100vh;
   display: grid;
@@ -360,15 +397,21 @@ select:focus {
   gap: 10px;
 }
 
+.page-content {
+  gap: 18px;
+}
+
 .app-nav__link {
   padding: 14px 16px;
   border-radius: var(--radius-md);
   color: var(--ink);
   background: color-mix(in srgb, var(--surface-strong) 55%, transparent);
+  border: 1px solid transparent;
 }
 
 .app-nav__link.is-active {
   background: linear-gradient(135deg, var(--accent-soft), color-mix(in srgb, var(--secondary) 12%, transparent));
+  border-color: color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .app-sidebar__footer,
@@ -413,9 +456,18 @@ select:focus {
   padding: 24px;
 }
 
+.section-card__header {
+  align-items: flex-start;
+}
+
 .section-card__header h2 {
   margin: 0;
   font-size: 1.22rem;
+}
+
+.section-card__header p {
+  margin: 6px 0 0;
+  max-width: 64ch;
 }
 
 .two-column-grid {
@@ -453,6 +505,11 @@ select:focus {
 .checkbox-pill {
   background: color-mix(in srgb, var(--muted) 14%, transparent);
   color: var(--muted);
+}
+
+.status-badge {
+  border: 1px solid transparent;
+  font-weight: 700;
 }
 
 .insight-list {
@@ -494,6 +551,25 @@ select:focus {
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
   background: color-mix(in srgb, var(--surface-strong) 72%, transparent);
+}
+
+.notes-panel {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+  background: color-mix(in srgb, var(--accent-soft) 38%, var(--surface-strong));
+}
+
+.notes-preview {
+  margin: 0;
+  padding-left: 14px;
+  border-left: 3px solid color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.notes-preview--inline {
+  line-height: 1.6;
 }
 
 .plain-list {
@@ -549,6 +625,7 @@ select:focus {
   font-weight: 700;
   font-size: 1rem;
   color: var(--ink);
+  text-align: left;
 }
 
 @keyframes rise-in {
@@ -574,6 +651,10 @@ select:focus {
   .app-sidebar {
     position: static;
     height: auto;
+  }
+
+  .app-nav {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   }
 
   .hero-metrics,
@@ -611,5 +692,17 @@ select:focus {
   .app-sidebar__footer {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .page-header__actions,
+  .section-card__actions,
+  .action-row {
+    width: 100%;
+  }
+
+  .page-header__actions > *,
+  .section-card__actions > *,
+  .action-row > * {
+    width: 100%;
   }
 }

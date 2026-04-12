@@ -13,7 +13,7 @@ function ProtectedRoute({ children }) {
   const { bootstrapped, isAuthenticated } = useAuth();
 
   if (!bootstrapped) {
-    return <div className="boot-screen">Loading your workspace...</div>;
+    return <div className="boot-screen">Preparando seu workspace...</div>;
   }
 
   if (!isAuthenticated) {

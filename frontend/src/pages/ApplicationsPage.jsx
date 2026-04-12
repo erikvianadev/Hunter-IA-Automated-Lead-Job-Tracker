@@ -10,38 +10,38 @@ import { formatDate, formatRelativeDate, formatShortDate, getErrorMessage, title
 
 const APPLICATION_STATUSES = ["saved", "applied", "interview", "rejected", "offer", "archived"];
 const ORDER_OPTIONS = [
-  { value: "-updated_at", label: "Recently updated" },
-  { value: "-applied_at", label: "Recently applied" },
-  { value: "updated_at", label: "Oldest updates first" },
-  { value: "applied_at", label: "Oldest applied first" }
+  { value: "-updated_at", label: "Atualizadas recentemente" },
+  { value: "-applied_at", label: "Aplicadas recentemente" },
+  { value: "updated_at", label: "Atualizações mais antigas" },
+  { value: "applied_at", label: "Aplicações mais antigas" }
 ];
 
 const QUICK_ACTIONS = {
   saved: [
-    { status: "applied", label: "Mark applied", variant: "secondary" },
-    { status: "archived", label: "Archive", variant: "ghost" }
+    { status: "applied", label: "Marcar como aplicada", variant: "secondary" },
+    { status: "archived", label: "Arquivar", variant: "ghost" }
   ],
   applied: [
-    { status: "interview", label: "Move to interview", variant: "secondary" },
-    { status: "rejected", label: "Mark rejected", variant: "ghost" },
-    { status: "archived", label: "Archive", variant: "ghost" }
+    { status: "interview", label: "Mover para entrevista", variant: "secondary" },
+    { status: "rejected", label: "Marcar como rejeitada", variant: "ghost" },
+    { status: "archived", label: "Arquivar", variant: "ghost" }
   ],
   interview: [
-    { status: "offer", label: "Mark offer", variant: "secondary" },
-    { status: "rejected", label: "Mark rejected", variant: "ghost" },
-    { status: "archived", label: "Archive", variant: "ghost" }
+    { status: "offer", label: "Marcar oferta", variant: "secondary" },
+    { status: "rejected", label: "Marcar como rejeitada", variant: "ghost" },
+    { status: "archived", label: "Arquivar", variant: "ghost" }
   ],
   rejected: [
-    { status: "archived", label: "Archive", variant: "ghost" },
-    { status: "saved", label: "Move back to saved", variant: "ghost" }
+    { status: "archived", label: "Arquivar", variant: "ghost" },
+    { status: "saved", label: "Voltar para salvas", variant: "ghost" }
   ],
   offer: [
-    { status: "archived", label: "Archive", variant: "ghost" },
-    { status: "interview", label: "Move back to interview", variant: "ghost" }
+    { status: "archived", label: "Arquivar", variant: "ghost" },
+    { status: "interview", label: "Voltar para entrevista", variant: "ghost" }
   ],
   archived: [
-    { status: "saved", label: "Restore to saved", variant: "secondary" },
-    { status: "applied", label: "Restore to applied", variant: "ghost" }
+    { status: "saved", label: "Restaurar para salvas", variant: "secondary" },
+    { status: "applied", label: "Restaurar para aplicadas", variant: "ghost" }
   ]
 };
 
@@ -71,19 +71,19 @@ function getApplicationListPreview(application) {
 
   return getSummaryPreview(
     application.job_description,
-    "Open the application detail to capture notes, stage changes, and follow-up context.",
+    "Abra o detalhe da candidatura para registrar notas, mudanças de etapa e próximos passos.",
   );
 }
 
 function buildTrackerSummary(count, shown, filters) {
   const parts = [];
-  if (filters.search) parts.push(`keyword "${filters.search}"`);
-  if (filters.company_name) parts.push(`company "${filters.company_name}"`);
-  if (filters.status) parts.push(`${titleize(filters.status)} stage`);
+  if (filters.search) parts.push(`termo "${filters.search}"`);
+  if (filters.company_name) parts.push(`empresa "${filters.company_name}"`);
+  if (filters.status) parts.push(`etapa ${titleize(filters.status).toLowerCase()}`);
 
   return parts.length
-    ? `Showing ${shown} tracked applications out of ${count} matching ${parts.join(", ")}.`
-    : `Showing ${shown} tracked applications out of ${count} in your pipeline.`;
+    ? `Mostrando ${shown} candidaturas rastreadas de ${count} para ${parts.join(", ")}.`
+    : `Mostrando ${shown} candidaturas rastreadas de ${count} no seu pipeline.`;
 }
 
 function getStatusCounts(applications) {
@@ -121,6 +121,9 @@ export function ApplicationsPage() {
   const notesChanged = selectedApplication
     ? (editingNotes[selectedApplication.id] ?? "") !== (selectedApplication.notes ?? "")
     : false;
+  const savedNotesPreview = selectedApplication?.notes?.trim()
+    ? getSummaryPreview(selectedApplication.notes, "")
+    : "Nenhuma nota salva ainda. Use este espaço para registrar contexto, próximas ações e sinais importantes.";
 
   async function loadApplications() {
     setLoading(true);
@@ -150,7 +153,7 @@ export function ApplicationsPage() {
       );
       setEditingNotes(Object.fromEntries(items.map((item) => [item.id, item.notes ?? ""])));
     } catch (requestError) {
-      setError(getErrorMessage(requestError, "We could not load your application tracker."));
+      setError(getErrorMessage(requestError, "Não foi possível carregar seu rastreador de candidaturas."));
       setApplications([]);
       setTotalCount(0);
       setSelectedApplicationId(null);
@@ -177,26 +180,26 @@ export function ApplicationsPage() {
       await loadApplications();
       setSelectedApplicationId(application.id);
     } catch (requestError) {
-      setError(getErrorMessage(requestError, "We could not update this application."));
+      setError(getErrorMessage(requestError, "Não foi possível atualizar esta candidatura."));
     } finally {
       setBusyAction("");
     }
   }
 
   const overviewCards = [
-    { label: "Tracked", value: totalCount, helper: "Loaded from your pipeline" },
-    { label: "Needs action", value: (statusCounts.saved ?? 0) + (statusCounts.applied ?? 0), helper: "Saved or recently applied" },
-    { label: "Interviewing", value: statusCounts.interview ?? 0, helper: "Active conversations" },
-    { label: "Offers", value: statusCounts.offer ?? 0, helper: "Positive outcomes in motion" }
+    { label: "Rastreadas", value: totalCount, helper: "Carregadas do seu pipeline" },
+    { label: "Pedem ação", value: (statusCounts.saved ?? 0) + (statusCounts.applied ?? 0), helper: "Salvas ou aplicadas recentemente" },
+    { label: "Em entrevista", value: statusCounts.interview ?? 0, helper: "Conversas ativas" },
+    { label: "Ofertas", value: statusCounts.offer ?? 0, helper: "Resultados positivos em andamento" }
   ];
 
   return (
     <AppShell
-      title="Applications"
-      subtitle="Turn tracked candidacies into a clean operating workflow with faster triage, clearer detail, and useful notes."
+      title="Candidaturas"
+      subtitle="Transforme candidaturas rastreadas em um fluxo claro, com triagem rápida, detalhes úteis e notas mais visíveis."
       actions={
         <button className="button button--ghost" type="button" onClick={loadApplications}>
-          Refresh tracker
+          Atualizar rastreador
         </button>
       }
     >
@@ -210,8 +213,8 @@ export function ApplicationsPage() {
       </section>
 
       <SectionCard
-        title="Filter your tracker"
-        subtitle="Narrow the pipeline by stage, keyword, company, and recency so the next follow-up is easier to find."
+        title="Filtrar rastreador"
+        subtitle="Afine o pipeline por etapa, termo, empresa e recência para encontrar o próximo follow-up com mais facilidade."
       >
         <form
           className="stack"
@@ -220,42 +223,42 @@ export function ApplicationsPage() {
             setAppliedFilters({ ...filters });
           }}
         >
-          <div className="jobs-filter-grid">
-            <label className="field">
-              <span>Keyword</span>
-              <input
-                value={filters.search}
-                onChange={(event) => setFilters((previous) => ({ ...previous, search: event.target.value }))}
-                placeholder="Role, recruiter, note, keyword..."
-              />
-            </label>
+            <div className="jobs-filter-grid">
+              <label className="field">
+                <span>Palavra-chave</span>
+                <input
+                  value={filters.search}
+                  onChange={(event) => setFilters((previous) => ({ ...previous, search: event.target.value }))}
+                  placeholder="Cargo, recrutador, nota, termo..."
+                />
+              </label>
 
-            <label className="field">
-              <span>Company</span>
-              <input
-                value={filters.company_name}
-                onChange={(event) => setFilters((previous) => ({ ...previous, company_name: event.target.value }))}
-                placeholder="Acme"
-              />
-            </label>
+              <label className="field">
+                <span>Empresa</span>
+                <input
+                  value={filters.company_name}
+                  onChange={(event) => setFilters((previous) => ({ ...previous, company_name: event.target.value }))}
+                  placeholder="Acme"
+                />
+              </label>
 
-            <label className="field">
-              <span>Stage</span>
-              <select
-                value={filters.status}
-                onChange={(event) => setFilters((previous) => ({ ...previous, status: event.target.value }))}
-              >
-                <option value="">All stages</option>
-                {APPLICATION_STATUSES.map((status) => (
-                  <option key={status} value={status}>
-                    {titleize(status)}
+              <label className="field">
+                <span>Etapa</span>
+                <select
+                  value={filters.status}
+                  onChange={(event) => setFilters((previous) => ({ ...previous, status: event.target.value }))}
+                >
+                  <option value="">Todas as etapas</option>
+                  {APPLICATION_STATUSES.map((status) => (
+                    <option key={status} value={status}>
+                      {titleize(status)}
                   </option>
                 ))}
               </select>
             </label>
 
             <label className="field">
-              <span>Sort by</span>
+              <span>Ordenar por</span>
               <select
                 value={filters.ordering}
                 onChange={(event) => setFilters((previous) => ({ ...previous, ordering: event.target.value }))}
@@ -271,7 +274,7 @@ export function ApplicationsPage() {
 
           <div className="action-row">
             <button className="button button--primary" type="submit">
-              Apply filters
+              Aplicar filtros
             </button>
             <button
               className="button button--ghost"
@@ -282,7 +285,7 @@ export function ApplicationsPage() {
                 setAppliedFilters(cleared);
               }}
             >
-              Clear filters
+              Limpar filtros
             </button>
           </div>
 
@@ -292,14 +295,14 @@ export function ApplicationsPage() {
 
       <section className="two-column-grid two-column-grid--wide-left">
         <SectionCard
-          title="Applications pipeline"
-          subtitle="Scan status, provider, timing, and fit context without opening each record."
+          title="Pipeline de candidaturas"
+          subtitle="Veja status, origem, recência e contexto de aderência sem precisar abrir cada item."
         >
-          {loading ? <div className="loading-panel">Loading your application workflow...</div> : null}
+          {loading ? <div className="loading-panel">Carregando seu fluxo de candidaturas...</div> : null}
           {!loading && !applications.length ? (
             <EmptyState
-              title="No applications tracked yet"
-              description="Start tracking from opportunities, or clear your filters if you expected existing applications here."
+              title="Nenhuma candidatura rastreada ainda"
+              description="Comece a rastrear a partir das vagas ou limpe os filtros caso esperasse ver itens aqui."
             />
           ) : null}
 
@@ -319,36 +322,37 @@ export function ApplicationsPage() {
                       {application.job_source ? <span className="status-badge tone-muted">{application.job_source}</span> : null}
                       {application.current_match ? (
                         <span className={`status-badge tone-${getScoreTone(application.current_match.match_score)}`}>
-                          {application.current_match.match_score}% fit
+                          {application.current_match.match_score}% aderência
                         </span>
                       ) : null}
                     </div>
 
                     <p>
-                      {application.company_name || "Unknown company"}
+                      {application.company_name || "Empresa não informada"}
                       {application.job_location ? ` | ${application.job_location}` : ""}
                     </p>
 
                     <p className="muted-copy">
-                      {application.applied_at ? `Applied ${formatShortDate(application.applied_at)} | ` : "Not marked as applied yet | "}
-                      Updated {formatRelativeDate(application.updated_at)}
+                      {application.applied_at ? `Aplicada em ${formatShortDate(application.applied_at)} | ` : "Ainda não marcada como aplicada | "}
+                      Atualizada {formatRelativeDate(application.updated_at)}
                     </p>
 
-                    <p>{getApplicationListPreview(application)}</p>
+                    <p className={application.notes?.trim() ? "notes-preview notes-preview--inline" : ""}>{getApplicationListPreview(application)}</p>
 
                     <div className="selection-pills">
-                      {application.job_is_saved ? <span>Saved in jobs workspace</span> : null}
-                      {application.current_match?.resume_label ? <span>Resume: {application.current_match.resume_label}</span> : null}
+                      {application.job_is_saved ? <span>Salva no workspace de vagas</span> : null}
+                      {application.current_match?.resume_label ? <span>Currículo: {application.current_match.resume_label}</span> : null}
+                      {application.notes?.trim() ? <span>Com notas</span> : <span>Sem notas</span>}
                     </div>
                   </div>
 
                   <div className="action-row action-row--wrap">
                     <button className="button button--ghost" type="button" onClick={() => setSelectedApplicationId(application.id)}>
-                      Inspect
+                      Ver detalhes
                     </button>
                     {application.job_url ? (
                       <a className="button button--ghost" href={application.job_url} target="_blank" rel="noreferrer">
-                        Open job
+                        Abrir vaga
                       </a>
                     ) : null}
                   </div>
@@ -359,13 +363,13 @@ export function ApplicationsPage() {
         </SectionCard>
 
         <SectionCard
-          title="Application detail"
-          subtitle="Use the selected record as your control panel for stage changes, notes, and fit context."
+          title="Detalhes da candidatura"
+          subtitle="Use o item selecionado como painel de controle para etapas, notas e contexto de aderência."
         >
           {!selectedApplication ? (
             <EmptyState
-              title="Choose an application"
-              description="Select an item from the pipeline to inspect its timeline, update status, and capture practical follow-up notes."
+              title="Selecione uma candidatura"
+              description="Escolha um item do pipeline para ver o histórico, atualizar o status e registrar notas úteis de acompanhamento."
             />
           ) : (
             <div className="detail-stack">
@@ -374,38 +378,38 @@ export function ApplicationsPage() {
                 <StatusBadge value={selectedApplication.status} />
                 {selectedApplication.current_match ? (
                   <span className={`status-badge tone-${getScoreTone(selectedApplication.current_match.match_score)}`}>
-                    {selectedApplication.current_match.match_score}/100 fit
+                    {selectedApplication.current_match.match_score}/100 aderência
                   </span>
                 ) : null}
               </div>
 
               <p className="job-detail-company">
-                {selectedApplication.company_name || "Unknown company"}
+                {selectedApplication.company_name || "Empresa não informada"}
                 {selectedApplication.job_location ? ` | ${selectedApplication.job_location}` : ""}
               </p>
 
               <div className="insight-list insight-list--four">
                 <div>
-                  <span>Source</span>
-                  <strong>{selectedApplication.job_source || "Unavailable"}</strong>
+                  <span>Fonte</span>
+                  <strong>{selectedApplication.job_source || "Indisponível"}</strong>
                 </div>
                 <div>
-                  <span>Applied date</span>
-                  <strong>{selectedApplication.applied_at ? formatShortDate(selectedApplication.applied_at) : "Not yet marked"}</strong>
+                  <span>Data da aplicação</span>
+                  <strong>{selectedApplication.applied_at ? formatShortDate(selectedApplication.applied_at) : "Ainda não marcada"}</strong>
                 </div>
                 <div>
-                  <span>Last updated</span>
+                  <span>Última atualização</span>
                   <strong>{formatDate(selectedApplication.updated_at)}</strong>
                 </div>
                 <div>
-                  <span>Jobs workspace</span>
-                  <strong>{selectedApplication.job_is_saved ? "Linked and saved" : "Application only"}</strong>
+                  <span>Workspace de vagas</span>
+                  <strong>{selectedApplication.job_is_saved ? "Vinculada e salva" : "Apenas candidatura"}</strong>
                 </div>
               </div>
 
               <div className="application-detail-panel">
                 <label className="field">
-                  <span>Stage</span>
+                  <span>Etapa</span>
                   <select
                     value={selectedApplication.status}
                     disabled={busyAction === `application-${selectedApplication.id}`}
@@ -413,7 +417,7 @@ export function ApplicationsPage() {
                       updateApplication(
                         selectedApplication,
                         { status: event.target.value },
-                        `Application moved to ${titleize(event.target.value)}.`,
+                        `Candidatura movida para ${titleize(event.target.value).toLowerCase()}.`,
                       )
                     }
                   >
@@ -436,7 +440,7 @@ export function ApplicationsPage() {
                         updateApplication(
                           selectedApplication,
                           { status: action.status },
-                          `Application moved to ${titleize(action.status)}.`,
+                          `Candidatura movida para ${titleize(action.status).toLowerCase()}.`,
                         )
                       }
                     >
@@ -445,7 +449,7 @@ export function ApplicationsPage() {
                   ))}
                   {selectedApplication.job_url ? (
                     <a className="button button--ghost" href={selectedApplication.job_url} target="_blank" rel="noreferrer">
-                      Open original posting
+                      Abrir anúncio original
                     </a>
                   ) : null}
                 </div>
@@ -453,11 +457,22 @@ export function ApplicationsPage() {
 
               <SectionCard
                 className="job-detail-subcard"
-                title="Notes and follow-ups"
-                subtitle="Capture recruiter replies, interview prep, blockers, and practical next steps."
+                title="Notas e próximos passos"
+                subtitle="Registre retornos de recrutadores, preparo para entrevistas, bloqueios e ações práticas."
               >
+                <div className="notes-panel">
+                  <div className="inline-meta">
+                    <strong>Resumo rápido</strong>
+                    <span className={`status-badge ${selectedApplication.notes?.trim() ? "tone-good" : "tone-muted"}`}>
+                      {selectedApplication.notes?.trim() ? "Com notas" : "Sem notas"}
+                    </span>
+                    {notesChanged ? <span className="status-badge tone-medium">Rascunho alterado</span> : null}
+                  </div>
+                  <p className={selectedApplication.notes?.trim() ? "notes-preview" : "muted-copy"}>{savedNotesPreview}</p>
+                </div>
+
                 <label className="field">
-                  <span>Notes</span>
+                  <span>Notas</span>
                   <textarea
                     rows="8"
                     value={editingNotes[selectedApplication.id] ?? ""}
@@ -467,9 +482,11 @@ export function ApplicationsPage() {
                         [selectedApplication.id]: event.target.value
                       }))
                     }
-                    placeholder="Add recruiter context, interview preparation points, compensation notes, or next actions..."
+                    placeholder="Adicione contexto do recrutador, preparação para entrevista, informações de remuneração ou próximos passos..."
                   />
                 </label>
+
+                {notesChanged ? <div className="notice notice--info">Você tem alterações não salvas nas notas desta candidatura.</div> : null}
 
                 <div className="action-row action-row--wrap">
                   <button
@@ -480,11 +497,11 @@ export function ApplicationsPage() {
                       updateApplication(
                         selectedApplication,
                         { notes: editingNotes[selectedApplication.id] ?? "" },
-                        "Application notes saved.",
+                        "Notas da candidatura salvas.",
                       )
                     }
                   >
-                    Save notes
+                    Salvar notas
                   </button>
                   <button
                     className="button button--ghost"
@@ -497,34 +514,34 @@ export function ApplicationsPage() {
                       }))
                     }
                   >
-                    Reset draft
+                    Descartar rascunho
                   </button>
-                  <span className="muted-copy">Last edited {formatRelativeDate(selectedApplication.updated_at)}</span>
+                  <span className="muted-copy">Última atualização {formatRelativeDate(selectedApplication.updated_at)}</span>
                 </div>
               </SectionCard>
 
               <SectionCard
                 className="job-detail-subcard"
-                title="Match context"
+                title="Contexto de match"
                 subtitle={
                   selectedApplication.current_match
-                    ? `Using ${selectedApplication.current_match.resume_label} as the latest known resume context.`
-                    : "No related fit check exists for this application yet."
+                    ? `Usando ${selectedApplication.current_match.resume_label} como o contexto mais recente de currículo.`
+                    : "Ainda não existe um match relacionado a esta candidatura."
                 }
               >
                 {selectedApplication.current_match ? (
                   <div className="detail-stack">
                     <div className="insight-list insight-list--three">
                       <div>
-                        <span>Match score</span>
+                        <span>Score de aderência</span>
                         <strong>{selectedApplication.current_match.match_score}/100</strong>
                       </div>
                       <div>
-                        <span>Resume used</span>
+                        <span>Currículo usado</span>
                         <strong>{selectedApplication.current_match.resume_label}</strong>
                       </div>
                       <div>
-                        <span>Updated</span>
+                        <span>Atualizado</span>
                         <strong>{formatRelativeDate(selectedApplication.current_match.updated_at)}</strong>
                       </div>
                     </div>
@@ -535,7 +552,7 @@ export function ApplicationsPage() {
 
                     {selectedApplication.current_match.strengths?.length ? (
                       <div>
-                        <strong>Why this role fits</strong>
+                        <strong>Por que faz sentido</strong>
                         <ul className="plain-list">
                           {selectedApplication.current_match.strengths.slice(0, 3).map((item, index) => (
                             <li key={`${item}-${index}`}>{item}</li>
@@ -546,7 +563,7 @@ export function ApplicationsPage() {
 
                     {selectedApplication.current_match.gaps?.length ? (
                       <div>
-                        <strong>Watch-outs</strong>
+                        <strong>Pontos de atenção</strong>
                         <ul className="plain-list">
                           {selectedApplication.current_match.gaps.slice(0, 3).map((item, index) => (
                             <li key={`${item}-${index}`}>{item}</li>
@@ -557,17 +574,17 @@ export function ApplicationsPage() {
                   </div>
                 ) : (
                   <p className="muted-copy">
-                    This application does not have match guidance yet. You can still track the workflow here, and the jobs workspace can refresh fit context later.
+                    Esta candidatura ainda não tem um match associado. Você pode seguir acompanhando o fluxo aqui e atualizar a aderência depois pelo workspace de vagas.
                   </p>
                 )}
               </SectionCard>
 
               <SectionCard
                 className="job-detail-subcard"
-                title="Job summary"
-                subtitle="Keep the original opportunity context close while you work the application."
+                title="Resumo da vaga"
+                subtitle="Mantenha o contexto da oportunidade por perto enquanto conduz a candidatura."
               >
-                <p>{selectedApplication.job_description || "No detailed job summary was captured for this application yet."}</p>
+                <p>{selectedApplication.job_description || "Nenhum resumo detalhado da vaga foi capturado para esta candidatura ainda."}</p>
               </SectionCard>
             </div>
           )}

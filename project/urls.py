@@ -17,14 +17,15 @@ Including another URLconf
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
-from django.urls import include, path
+from django.urls import include, path, re_path
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
-from .views import HealthView, RootView
+from .views import FrontendAppView, HealthView, ReadinessView, RootView
 
 urlpatterns = [
     path('', RootView.as_view(), name='root'),
     path('health/', HealthView.as_view(), name='health'),
+    path('ready/', ReadinessView.as_view(), name='ready'),
     path('admin/', admin.site.urls),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
@@ -32,5 +33,11 @@ urlpatterns = [
     path('api-auth/', include('rest_framework.urls')),
 ]
 
-if settings.DEBUG:
+if settings.SERVE_MEDIA_FILES:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+urlpatterns += [
+    re_path(r'^(?!api/|api-auth/|admin/|health/|ready/|hunter/|media/|static/).*$',
+            FrontendAppView.as_view(),
+            name='frontend-spa'),
+]

@@ -25,7 +25,7 @@ export function LoginPage() {
     try {
       await login(form);
     } catch (requestError) {
-      setError(getErrorMessage(requestError, "We could not sign you in right now."));
+      setError(getErrorMessage(requestError, "Não foi possível entrar agora."));
     } finally {
       setSubmitting(false);
     }
@@ -34,53 +34,53 @@ export function LoginPage() {
   return (
     <div className="auth-layout">
       <div className="auth-panel auth-panel--hero">
-        <span className="hero-chip">Find better opportunities with more confidence</span>
-        <h1>Turn resume progress into a clearer, calmer job search.</h1>
+        <span className="hero-chip">Encontre vagas melhores com mais confiança</span>
+        <h1>Transforme seu progresso em uma busca de emprego mais clara e organizada.</h1>
         <p>
-          Hunter IA helps you improve your resume, organize every application, and
-          unlock premium insights that make your next move easier to prioritize.
+          O Hunter IA ajuda você a evoluir seu currículo, acompanhar cada candidatura
+          e usar insights premium para priorizar os próximos passos com mais segurança.
         </p>
         <div className="hero-metrics">
           <article>
-            <strong>One focused workspace</strong>
-            <span>Resume progress, opportunities, applications, and billing in one flow</span>
+            <strong>Um workspace focado</strong>
+            <span>Currículos, vagas, candidaturas e plano no mesmo fluxo</span>
           </article>
           <article>
-            <strong>Built for momentum</strong>
-            <span>Keep improving your materials while staying on top of every opening</span>
+            <strong>Feito para manter ritmo</strong>
+            <span>Melhore seus materiais enquanto acompanha cada oportunidade</span>
           </article>
           <article>
-            <strong>Premium when needed</strong>
-            <span>Unlock richer resume comparisons and deeper employability insights</span>
+            <strong>Premium quando fizer sentido</strong>
+            <span>Desbloqueie comparações mais ricas e insights mais profundos de empregabilidade</span>
           </article>
         </div>
       </div>
 
       <div className="auth-panel auth-panel--form">
         <div className="form-card">
-          <span className="form-card__eyebrow">Sign in</span>
-          <h2>Welcome back</h2>
-          <p>Sign in to continue improving your resume and tracking your search.</p>
+          <span className="form-card__eyebrow">Entrar</span>
+          <h2>Bem-vindo de volta</h2>
+          <p>Entre para continuar evoluindo seu currículo e acompanhando sua busca.</p>
 
           <form className="stack" onSubmit={handleSubmit}>
             <label className="field">
-              <span>Username</span>
+              <span>Usuário</span>
               <input
                 value={form.username}
                 onChange={(event) => setForm((previous) => ({ ...previous, username: event.target.value }))}
-                placeholder="your-username"
+                placeholder="seu-usuario"
                 autoComplete="username"
                 required
               />
             </label>
 
             <label className="field">
-              <span>Password</span>
+              <span>Senha</span>
               <input
                 type="password"
                 value={form.password}
                 onChange={(event) => setForm((previous) => ({ ...previous, password: event.target.value }))}
-                placeholder="Enter your password"
+                placeholder="Digite sua senha"
                 autoComplete="current-password"
                 required
               />
@@ -89,7 +89,7 @@ export function LoginPage() {
             {error ? <div className="notice notice--error">{error}</div> : null}
 
             <button className="button button--primary" type="submit" disabled={submitting}>
-              {submitting ? "Signing you in..." : "Continue"}
+              {submitting ? "Entrando..." : "Continuar"}
             </button>
           </form>
         </div>

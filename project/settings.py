@@ -14,6 +14,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import environ
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -24,6 +25,11 @@ env = environ.Env(
 )
 environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 
+
+def resolve_path(value: str | os.PathLike[str]) -> Path:
+    path = Path(value)
+    return path if path.is_absolute() else BASE_DIR / path
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
@@ -31,10 +37,46 @@ environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 SECRET_KEY = env('DJANGO_SECRET_KEY', default='django-insecure-v6m^+o5n4+%-_yxh6-hrt1h(75@lnt%gsng2(!v-kkj!vnx$h(')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = env('DJANGO_DEBUG', default=True)
+DEBUG = env.bool('DJANGO_DEBUG', default=False)
 
-ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['*'])
+ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['127.0.0.1', 'localhost'] if DEBUG else [])
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
+CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[])
+CORS_ALLOW_ALL_ORIGINS = env.bool("CORS_ALLOW_ALL_ORIGINS", default=False)
+CORS_ALLOW_CREDENTIALS = env.bool("CORS_ALLOW_CREDENTIALS", default=False)
+CORS_ALLOWED_METHODS = env.list(
+    "CORS_ALLOWED_METHODS",
+    default=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+)
+CORS_ALLOWED_HEADERS = env.list(
+    "CORS_ALLOWED_HEADERS",
+    default=[
+        "Authorization",
+        "Content-Type",
+        "Accept",
+        "Origin",
+        "User-Agent",
+        "DNT",
+        "Cache-Control",
+        "X-Requested-With",
+        "X-CSRFToken",
+    ],
+)
+USE_X_FORWARDED_HOST = env.bool("USE_X_FORWARDED_HOST", default=not DEBUG)
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https") if env.bool("USE_X_FORWARDED_PROTO", default=not DEBUG) else None
+SECURE_SSL_REDIRECT = env.bool("DJANGO_SECURE_SSL_REDIRECT", default=False)
+SESSION_COOKIE_SECURE = env.bool("SESSION_COOKIE_SECURE", default=not DEBUG)
+CSRF_COOKIE_SECURE = env.bool("CSRF_COOKIE_SECURE", default=not DEBUG)
+SECURE_HSTS_SECONDS = env.int("SECURE_HSTS_SECONDS", default=0)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env.bool("SECURE_HSTS_INCLUDE_SUBDOMAINS", default=False)
+SECURE_HSTS_PRELOAD = env.bool("SECURE_HSTS_PRELOAD", default=False)
+APP_BASE_URL = env("APP_BASE_URL", default="http://localhost:8000")
+FRONTEND_PUBLIC_URL = env("FRONTEND_PUBLIC_URL", default="http://localhost:3000" if DEBUG else APP_BASE_URL)
+SERVE_FRONTEND = env.bool("DJANGO_SERVE_FRONTEND", default=True)
+SERVE_MEDIA_FILES = env.bool("DJANGO_SERVE_MEDIA_FILES", default=DEBUG)
+FRONTEND_BUILD_DIR = resolve_path(env("FRONTEND_BUILD_DIR", default="frontend_build"))
+FRONTEND_INDEX_FILE = FRONTEND_BUILD_DIR / "index.html"
+FRONTEND_ASSETS_DIR = FRONTEND_BUILD_DIR / "assets"
 
 
 # Application definition
@@ -55,6 +97,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
+    'project.middleware.SimpleCORSMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -89,10 +132,7 @@ WSGI_APPLICATION = 'project.wsgi.application'
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': env.db(default=f"sqlite:///{(BASE_DIR / 'db.sqlite3').as_posix()}"),
 }
 
 
@@ -130,12 +170,15 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
-STATIC_URL = '/static/'
-STATICFILES_DIRS = [BASE_DIR / 'base_static'] if (BASE_DIR / 'base_static').exists() else []
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
-
-STATIC_ROOT = BASE_DIR / "staticfiles"
+STATIC_URL = env("STATIC_URL", default="/static/")
+MEDIA_URL = env("MEDIA_URL", default="/media/")
+MEDIA_ROOT = resolve_path(env("MEDIA_ROOT", default="media"))
+STATIC_ROOT = resolve_path(env("STATIC_ROOT", default="staticfiles"))
+STATICFILES_DIRS = []
+if (BASE_DIR / "base_static").exists():
+    STATICFILES_DIRS.append(BASE_DIR / "base_static")
+if FRONTEND_ASSETS_DIR.exists():
+    STATICFILES_DIRS.append(("assets", FRONTEND_ASSETS_DIR))
 STORAGES = {
     "default": {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
@@ -144,6 +187,7 @@ STORAGES = {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
 }
+WHITENOISE_MAX_AGE = env.int("WHITENOISE_MAX_AGE", default=31536000)
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -161,6 +205,36 @@ REST_FRAMEWORK = {
         'rest_framework.filters.SearchFilter',
         'rest_framework.filters.OrderingFilter',
     ],
+}
+
+LOG_LEVEL = env("LOG_LEVEL", default="INFO")
+DJANGO_LOG_LEVEL = env("DJANGO_LOG_LEVEL", default="INFO")
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "standard": {
+            "format": "%(asctime)s %(levelname)s %(name)s %(message)s",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "standard",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": LOG_LEVEL,
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["console"],
+            "level": DJANGO_LOG_LEVEL,
+            "propagate": False,
+        },
+    },
 }
 
 SIMPLE_JWT = {
@@ -233,15 +307,15 @@ STRIPE = {
     'API_BASE_URL': env('STRIPE_API_BASE_URL', default='https://api.stripe.com'),
     'SUCCESS_URL': env(
         'STRIPE_SUCCESS_URL',
-        default='http://localhost:3000/billing/success?session_id={CHECKOUT_SESSION_ID}',
+        default=f'{FRONTEND_PUBLIC_URL.rstrip("/")}/billing/success?session_id={{CHECKOUT_SESSION_ID}}',
     ),
     'CANCEL_URL': env(
         'STRIPE_CANCEL_URL',
-        default='http://localhost:3000/billing/cancel',
+        default=f'{FRONTEND_PUBLIC_URL.rstrip("/")}/billing/cancel',
     ),
     'PORTAL_RETURN_URL': env(
         'STRIPE_PORTAL_RETURN_URL',
-        default='http://localhost:3000/settings/billing',
+        default=f'{FRONTEND_PUBLIC_URL.rstrip("/")}/billing',
     ),
     'PRICE_IDS': {
         'pro': {

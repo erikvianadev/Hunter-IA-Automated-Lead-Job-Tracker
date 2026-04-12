@@ -1,7 +1,10 @@
+import shutil
+from pathlib import Path
 from unittest.mock import patch
+from uuid import uuid4
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
 from hunter.models.dto import JobResult
@@ -90,6 +93,7 @@ class ScrapeJobsApiTests(TestCase):
 
 
 class ProjectHealthEndpointsTests(TestCase):
+    @override_settings(SERVE_FRONTEND=False)
     def test_root_endpoint_returns_lightweight_json(self) -> None:
         response = self.client.get("/")
 
@@ -99,9 +103,12 @@ class ProjectHealthEndpointsTests(TestCase):
             {
                 "status": "ok",
                 "service": "ia-hunter",
+                "database": "ok",
+                "frontend": "not_required",
             },
         )
 
+    @override_settings(SERVE_FRONTEND=False)
     def test_health_endpoint_returns_ok_payload(self) -> None:
         response = self.client.get("/health/")
 
@@ -110,6 +117,51 @@ class ProjectHealthEndpointsTests(TestCase):
             response.content,
             {
                 "status": "ok",
+                "service": "ia-hunter",
                 "database": "ok",
+                "frontend": "not_required",
             },
         )
+
+    @override_settings(
+        SERVE_FRONTEND=True,
+        FRONTEND_INDEX_FILE=Path("frontend-build-missing-for-test/index.html"),
+    )
+    def test_readiness_endpoint_reports_missing_frontend_build(self) -> None:
+        response = self.client.get("/ready/")
+
+        self.assertEqual(response.status_code, 503)
+        self.assertJSONEqual(
+            response.content,
+            {
+                "status": "error",
+                "service": "ia-hunter",
+                "database": "ok",
+                "frontend": "missing",
+            },
+        )
+
+    def test_spa_route_serves_built_frontend_when_present(self) -> None:
+        workspace_temp_root = Path(__file__).resolve().parents[2] / "tmp_test_frontend_build"
+        workspace_temp_root.mkdir(exist_ok=True)
+        build_dir = workspace_temp_root / f"build_{uuid4().hex}"
+        build_dir.mkdir()
+        index_file = build_dir / "index.html"
+
+        try:
+            index_file.write_text("<!doctype html><html><body><div id='root'>ok</div></body></html>", encoding="utf-8")
+
+            with override_settings(
+                SERVE_FRONTEND=True,
+                FRONTEND_BUILD_DIR=build_dir,
+                FRONTEND_INDEX_FILE=index_file,
+                FRONTEND_ASSETS_DIR=build_dir / "assets",
+            ):
+                response = self.client.get("/dashboard")
+        finally:
+            shutil.rmtree(build_dir, ignore_errors=True)
+            if workspace_temp_root.exists() and not any(workspace_temp_root.iterdir()):
+                workspace_temp_root.rmdir()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "<div id='root'>ok</div>", html=False)

@@ -10,23 +10,23 @@ export function BillingResultPage({ kind }) {
 
   return (
     <AppShell
-      title={isSuccess ? "Checkout success" : "Checkout canceled"}
-      subtitle="Return surface for Stripe redirects configured on the Django side."
+      title={isSuccess ? "Checkout concluído" : "Checkout cancelado"}
+      subtitle="Confirme o resultado do pagamento e volte para o seu plano com segurança."
     >
-      <SectionCard title={isSuccess ? "Payment flow completed" : "Checkout was interrupted"}>
+      <SectionCard title={isSuccess ? "Pagamento finalizado" : "Checkout interrompido"}>
         <div className="detail-stack">
           <p>
             {isSuccess
-              ? "Stripe redirected back successfully. Refresh billing to confirm the subscription after webhook processing."
-              : "No subscription changes were finalized. You can review plans and try again anytime."}
+              ? "O Stripe concluiu o redirecionamento. Atualize a página de planos para confirmar a assinatura após o processamento do webhook."
+              : "Nenhuma mudança de assinatura foi concluída. Você pode revisar os planos e tentar novamente quando quiser."}
           </p>
-          {sessionId ? <p className="muted-copy">Checkout session: {sessionId}</p> : null}
+          {sessionId ? <p className="muted-copy">Sessão de checkout: {sessionId}</p> : null}
           <div className="action-row">
             <Link className="button button--primary" to="/billing">
-              Go to billing
+              Ir para planos
             </Link>
             <Link className="button button--ghost" to="/dashboard">
-              Back to dashboard
+              Voltar ao painel
             </Link>
           </div>
         </div>
