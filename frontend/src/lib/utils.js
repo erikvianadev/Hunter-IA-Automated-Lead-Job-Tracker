@@ -185,22 +185,67 @@ export function decodeJwtPayload(token) {
   }
 }
 
+const USER_MESSAGE_PATTERNS = [
+  {
+    pattern: /(no active account found|unable to log in with provided credentials|invalid credentials)/i,
+    message: "Usuario ou senha nao conferem. Revise seus dados e tente novamente."
+  },
+  {
+    pattern: /(authentication credentials were not provided|not authenticated)/i,
+    message: "Sua sessao nao foi reconhecida. Entre novamente para continuar."
+  },
+  {
+    pattern: /(token is invalid|token is expired|token not valid|given token not valid)/i,
+    message: "Sua sessao expirou. Entre novamente para continuar."
+  },
+  {
+    pattern: /(failed to fetch|networkerror|network error)/i,
+    message: "Nao foi possivel falar com o servidor agora. Tente novamente em instantes."
+  },
+  {
+    pattern: /(unsupported media type|unsupported file|file type not supported)/i,
+    message: "Esse arquivo nao pode ser processado aqui. Envie um PDF ou DOCX."
+  },
+  {
+    pattern: /(permission denied|forbidden|not enough permissions)/i,
+    message: "Voce nao tem acesso a essa acao agora."
+  }
+];
+
+export function normalizeUserMessage(message) {
+  if (!message || typeof message !== "string") {
+    return message;
+  }
+
+  const clean = message.trim();
+  if (!clean) {
+    return clean;
+  }
+
+  const match = USER_MESSAGE_PATTERNS.find((item) => item.pattern.test(clean));
+  if (match) {
+    return match.message;
+  }
+
+  return clean;
+}
+
 export function getErrorMessage(error, fallback = "Algo deu errado.") {
   if (!error) {
-    return fallback;
+    return normalizeUserMessage(fallback);
   }
 
   if (typeof error === "string") {
-    return error;
+    return normalizeUserMessage(error);
   }
 
   if (error.detail) {
-    return error.detail;
+    return normalizeUserMessage(error.detail);
   }
 
   if (error.message) {
-    return error.message;
+    return normalizeUserMessage(error.message);
   }
 
-  return fallback;
+  return normalizeUserMessage(fallback);
 }

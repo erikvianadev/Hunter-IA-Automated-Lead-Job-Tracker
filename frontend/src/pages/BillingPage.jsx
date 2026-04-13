@@ -5,6 +5,7 @@ import { EmptyState } from "../components/EmptyState";
 import { SectionCard } from "../components/SectionCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { useAuth } from "../context/AuthContext";
+import { getBillingStatusPresentation } from "../lib/presentation";
 import { formatCurrency, formatDate, getErrorMessage, titleize } from "../lib/utils";
 
 export function BillingPage() {
@@ -23,7 +24,7 @@ export function BillingPage() {
       const payload = await request("/hunter/api/billing/subscription/");
       setOverview(payload);
     } catch (requestError) {
-      setError(getErrorMessage(requestError, "Não foi possível carregar os detalhes do seu plano."));
+      setError(getErrorMessage(requestError, "Nao foi possivel carregar os detalhes do seu plano agora."));
     } finally {
       setLoading(false);
     }
@@ -46,10 +47,10 @@ export function BillingPage() {
           billing_cycle: billingCycle
         })
       });
-      setFeedback("Redirecionando para o checkout seguro...");
+      setFeedback("Abrindo o checkout seguro para confirmar seu upgrade...");
       window.location.href = payload.checkout_url;
     } catch (requestError) {
-      setError(getErrorMessage(requestError, "Não foi possível iniciar o checkout."));
+      setError(getErrorMessage(requestError, "Nao foi possivel abrir o checkout agora."));
     } finally {
       setBusyAction("");
     }
@@ -65,34 +66,35 @@ export function BillingPage() {
         method: "POST",
         body: JSON.stringify({})
       });
-      setFeedback("As configurações de renovação foram atualizadas.");
+      setFeedback("Renovacao automatica desativada. Seu acesso atual continua valido ate o fim do ciclo.");
       await loadOverview();
     } catch (requestError) {
-      setError(getErrorMessage(requestError, "Não foi possível atualizar sua assinatura."));
+      setError(getErrorMessage(requestError, "Nao foi possivel atualizar sua assinatura agora."));
     } finally {
       setBusyAction("");
     }
   }
 
   const subscription = overview?.subscription;
+  const subscriptionStatus = subscription ? getBillingStatusPresentation(subscription.status || subscription.plan_code) : null;
 
   return (
     <AppShell
       title="Planos"
-      subtitle="Escolha o plano certo para liberar insights mais profundos e apoiar sua busca com mais confiança."
+      subtitle="Escolha o plano certo para liberar insights mais profundos e conduzir sua busca com mais confianca."
       actions={
         <button className="button button--ghost" type="button" onClick={loadOverview}>
           Atualizar planos
         </button>
       }
     >
-      {error ? <div className="notice notice--error">{error}</div> : null}
+      {error ? <div className="notice notice--blocked">{error}</div> : null}
       {feedback ? <div className="notice notice--success">{feedback}</div> : null}
 
       <section className="two-column-grid">
         <SectionCard
           title="Seu plano atual"
-          subtitle="Veja o que está ativo hoje e quando o acesso atual será renovado."
+          subtitle="Veja o que esta ativo hoje, o que isso significa para seu acesso e quando o ciclo atual termina."
           actions={
             subscription?.plan_code !== "free" ? (
               <button
@@ -101,7 +103,7 @@ export function BillingPage() {
                 disabled={busyAction === "cancel"}
                 onClick={cancelSubscription}
               >
-                {busyAction === "cancel" ? "Atualizando..." : "Desativar renovação"}
+                {busyAction === "cancel" ? "Atualizando..." : "Desativar renovacao"}
               </button>
             ) : null
           }
@@ -111,17 +113,31 @@ export function BillingPage() {
             <div className="detail-stack">
               <div className="inline-meta">
                 <strong>{subscription.plan_name}</strong>
-                <StatusBadge value={subscription.status} />
+                <StatusBadge
+                  value={subscription.status || subscription.plan_code}
+                  label={subscriptionStatus.label}
+                  tone={subscriptionStatus.tone}
+                />
                 <StatusBadge value={subscription.billing_cycle} />
               </div>
               <p>
-                {formatCurrency(subscription.price_amount, subscription.currency)} | Renovação{" "}
+                {formatCurrency(subscription.price_amount, subscription.currency)} | Renovacao{" "}
                 {subscription.auto_renew ? "ativa" : "desativada"}
               </p>
               <p className="muted-copy">
                 Iniciado em {formatDate(subscription.started_at)}
                 {subscription.current_period_end ? ` | Ciclo atual termina em ${formatDate(subscription.current_period_end)}` : ""}
               </p>
+              <div className={`notice notice--${subscriptionStatus.tone === "good" ? "success" : subscriptionStatus.tone === "warning" ? "warning" : subscriptionStatus.tone === "blocked" ? "blocked" : "info"}`}>
+                <strong>
+                  {subscription.auto_renew ? "Seu acesso segue protegido" : "Sua renovacao automatica esta desligada"}
+                </strong>
+                <p>
+                  {subscription.auto_renew
+                    ? "Enquanto a renovacao estiver ativa, seu plano continua pronto para os recursos premium incluidos."
+                    : "Seu plano continua disponivel ate o fim do ciclo atual. Depois disso, o acesso volta para o nivel correspondente."}
+                </p>
+              </div>
               {subscription.features?.length ? (
                 <div className="selection-pills">
                   {subscription.features.map((feature) => (
@@ -131,7 +147,7 @@ export function BillingPage() {
               ) : null}
               {subscription.last_invoice ? (
                 <div className="detail-stack">
-                  <strong>Última fatura</strong>
+                  <strong>Ultima fatura</strong>
                   <p>
                     {formatCurrency(subscription.last_invoice.amount, subscription.last_invoice.currency)} |{" "}
                     {titleize(subscription.last_invoice.status)}
@@ -143,32 +159,44 @@ export function BillingPage() {
           {!loading && !subscription ? (
             <EmptyState
               title="Nenhum plano encontrado"
-              description="Assim que sua assinatura estiver disponível, os detalhes vão aparecer aqui."
+              description="Assim que sua assinatura estiver disponivel, os detalhes vao aparecer aqui."
             />
           ) : null}
         </SectionCard>
 
-        <SectionCard title="Depois do checkout" subtitle="Volte aqui após o pagamento para confirmar o plano e o acesso liberado.">
+        <SectionCard
+          title="Depois do checkout"
+          subtitle="Se o pagamento ja foi concluido, volte aqui para confirmar o plano e o acesso liberado."
+        >
           <div className="detail-stack">
+            <div className="notice notice--info">
+              <strong>Confirmacao em alguns instantes</strong>
+              <p>Depois do checkout, o plano pode levar alguns instantes para aparecer atualizado.</p>
+              <p>Se ainda nao mudou, atualize esta pagina daqui a pouco.</p>
+            </div>
             <p>
-              Página de sucesso: <code>/billing/success</code>
+              Pagamento concluido: <code>/billing/success</code>
             </p>
             <p>
-              Página de cancelamento: <code>/billing/cancel</code>
+              Checkout interrompido: <code>/billing/cancel</code>
             </p>
             <p className="muted-copy">
-              Checkout, validação do plano e acesso premium continuam sendo controlados com segurança pelo backend.
+              A cobranca e a validacao final do acesso continuam protegidas pelo backend. Aqui voce acompanha o resultado
+              de forma mais clara.
             </p>
           </div>
         </SectionCard>
       </section>
 
-      <SectionCard title="Opções de upgrade" subtitle="Desbloqueie insights premium quando quiser análises mais profundas e comparações avançadas.">
-        {loading ? <div className="loading-panel">Carregando planos disponíveis...</div> : null}
+      <SectionCard
+        title="Opcoes de upgrade"
+        subtitle="Desbloqueie comparacoes avancadas e insights premium quando quiser mais profundidade na sua estrategia."
+      >
+        {loading ? <div className="loading-panel">Carregando planos disponiveis...</div> : null}
         {!loading && !overview?.plans?.length ? (
           <EmptyState
-            title="Nenhum plano disponível agora"
-            description="Verifique a configuração de cobrança e atualize esta página."
+            title="Nenhum plano disponivel agora"
+            description="Atualize a pagina em instantes para tentar novamente."
           />
         ) : null}
         {!loading && overview?.plans?.length ? (
@@ -177,7 +205,7 @@ export function BillingPage() {
               <article className={plan.highlighted ? "plan-card is-highlighted" : "plan-card"} key={`${plan.code}-${plan.billing_cycle}`}>
                 <div className="inline-meta">
                   <strong>{plan.name}</strong>
-                  {plan.is_current ? <StatusBadge value="active" /> : null}
+                  {plan.is_current ? <StatusBadge value="active" label="Plano atual" /> : null}
                 </div>
                 <h3>{formatCurrency(plan.price_amount, plan.currency)}</h3>
                 <p>{titleize(plan.billing_cycle)}</p>

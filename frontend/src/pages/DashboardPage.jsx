@@ -6,7 +6,13 @@ import { SectionCard } from "../components/SectionCard";
 import { StatCard } from "../components/StatCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { useAuth } from "../context/AuthContext";
+import { getResumeParsePresentation } from "../lib/presentation";
 import { formatShortDate, getErrorMessage, titleize } from "../lib/utils";
+
+function hasResumeUsableText(resume) {
+  const extractedText = (resume?.extracted_text || "").trim();
+  return extractedText.length >= 40 && extractedText.split(/\s+/).length >= 8;
+}
 
 export function DashboardPage() {
   const { request } = useAuth();
@@ -22,7 +28,7 @@ export function DashboardPage() {
       const payload = await request("/hunter/api/resumes/dashboard/");
       setDashboard(payload);
     } catch (requestError) {
-      setError(getErrorMessage(requestError, "Não foi possível carregar seu painel agora."));
+      setError(getErrorMessage(requestError, "Nao foi possivel carregar sua visao geral agora."));
     } finally {
       setLoading(false);
     }
@@ -36,40 +42,45 @@ export function DashboardPage() {
   const profileInsights = dashboard?.profile_insights ?? {};
   const priorityActions = dashboard?.priority_actions ?? [];
   const preview = dashboard?.resume_report_preview;
+  const activeResumePresentation = dashboard?.active_resume
+    ? getResumeParsePresentation(dashboard.active_resume.parse_status, {
+      hasUsableText: hasResumeUsableText(dashboard.active_resume)
+    })
+    : null;
 
   return (
     <AppShell
       title="Seu progresso"
-      subtitle="Acompanhe currículo, candidaturas e qualidade das vagas em uma visão só."
+      subtitle="Acompanhe curriculo, candidaturas e qualidade das vagas em uma visao unica e facil de agir."
       actions={
         <button className="button button--ghost" type="button" onClick={loadDashboard}>
-          Atualizar visão geral
+          Atualizar visao geral
         </button>
       }
     >
-      {error ? <div className="notice notice--error">{error}</div> : null}
+      {error ? <div className="notice notice--blocked">{error}</div> : null}
       {loading ? <div className="loading-panel">Preparando um retrato atualizado do seu progresso...</div> : null}
 
       {!loading && dashboard ? (
         <>
           <section className="stats-grid">
             <StatCard
-              label="Currículos"
+              label="Curriculos"
               value={summary.total_resumes}
-              helper={summary.active_resume_label ?? "Defina seu currículo principal"}
+              helper={summary.active_resume_label ?? "Defina um curriculo principal para guiar os insights"}
             />
             <StatCard
               label="Candidaturas"
               value={summary.total_applications}
-              helper="Acompanhe cada etapa com clareza"
+              helper="Acompanhe cada etapa com mais clareza"
             />
             <StatCard
               label="Matches"
               value={summary.total_matches}
               helper={
                 summary.average_match_score != null
-                  ? `Aderência média de ${summary.average_match_score}`
-                  : "Ainda sem scores de aderência"
+                  ? `Aderencia media de ${summary.average_match_score}`
+                  : "Atualize um match para enxergar aderencia media"
               }
             />
             <StatCard
@@ -77,43 +88,50 @@ export function DashboardPage() {
               value={summary.total_saved_jobs}
               helper={
                 summary.top_match_score != null
-                  ? `Melhor aderência de ${summary.top_match_score}`
-                  : "Salve vagas para revisar depois"
+                  ? `Melhor aderencia de ${summary.top_match_score}`
+                  : "Salve vagas para montar sua shortlist"
               }
             />
           </section>
 
           <section className="two-column-grid">
             <SectionCard
-              title="Currículo em foco"
-              subtitle="A versão que alimenta seus insights e recomendações de aderência."
+              title="Curriculo em foco"
+              subtitle="A versao principal que alimenta seus insights e recomendacoes de aderencia."
             >
               {dashboard.active_resume ? (
                 <div className="detail-stack">
                   <div className="inline-meta">
                     <strong>{dashboard.active_resume.label || dashboard.active_resume.original_filename}</strong>
-                    <StatusBadge value={dashboard.active_resume.parse_status} />
+                    <StatusBadge
+                      value={dashboard.active_resume.parse_status}
+                      label={activeResumePresentation.label}
+                      tone={activeResumePresentation.tone}
+                    />
                   </div>
-                  <p>{dashboard.active_resume.target_role || "Adicione um cargo-alvo para receber orientações mais precisas."}</p>
-                  <p className="muted-copy">
-                    Atualizado em {formatShortDate(dashboard.active_resume.updated_at)}
-                  </p>
+                  <p>{dashboard.active_resume.target_role || "Adicione um cargo-alvo para receber orientacoes mais precisas."}</p>
+                  <p className="muted-copy">Atualizado em {formatShortDate(dashboard.active_resume.updated_at)}</p>
+                  <div className={`notice notice--${activeResumePresentation.tone === "good" ? "success" : activeResumePresentation.tone === "warning" ? "warning" : activeResumePresentation.tone === "blocked" ? "blocked" : "info"}`}>
+                    <strong>{activeResumePresentation.title}</strong>
+                    <p>{activeResumePresentation.description}</p>
+                    <p>{activeResumePresentation.nextStep}</p>
+                  </div>
                 </div>
               ) : (
                 <EmptyState
-                  title="Adicione seu primeiro currículo"
-                  description="Envie um currículo para começar a receber análises, scores de aderência e insights premium."
+                  title="Adicione seu primeiro curriculo"
+                  description="Envie um curriculo para comecar a receber analises, scores de aderencia e orientacoes mais profundas."
                 />
               )}
             </SectionCard>
 
             <SectionCard
-              title="Direção do perfil"
-              subtitle="Uma leitura rápida de onde seu currículo atual está mais forte."
+              title="Direcao do perfil"
+              subtitle="Uma leitura rapida de onde seu curriculo atual esta mais forte hoje."
             >
               <div className="insight-list">
                 <div>
-                  <span>Nível mais aderente</span>
+                  <span>Nivel mais aderente</span>
                   <strong>{titleize(profileInsights.recommended_track)}</strong>
                 </div>
                 <div>
@@ -129,7 +147,7 @@ export function DashboardPage() {
           </section>
 
           <section className="two-column-grid">
-            <SectionCard title="Próximos passos" subtitle="Ações prioritárias geradas com base no seu perfil atual.">
+            <SectionCard title="Proximos passos" subtitle="Acoes prioritarias para manter seu progresso visivel e consistente.">
               {priorityActions.length ? (
                 <div className="list-stack">
                   {priorityActions.map((item) => (
@@ -137,7 +155,7 @@ export function DashboardPage() {
                       <div>
                         <div className="inline-meta">
                           <strong>{item.title}</strong>
-                          <StatusBadge value={`priority_${item.priority}`} tone="medium" />
+                          <StatusBadge value={`priority_${item.priority}`} tone="warning" />
                         </div>
                         <p>{item.detail}</p>
                       </div>
@@ -147,34 +165,34 @@ export function DashboardPage() {
               ) : (
                 <EmptyState
                   title="Tudo sob controle por aqui"
-                  description="Seu setup atual já cobre os próximos passos mais importantes."
+                  description="Seu setup atual ja cobre os proximos passos mais importantes."
                 />
               )}
             </SectionCard>
 
-            <SectionCard title="Prévia premium" subtitle="Uma amostra das orientações mais profundas disponíveis a partir do seu currículo.">
+            <SectionCard title="Previa premium" subtitle="Uma amostra do tipo de orientacao que voce libera com um diagnostico mais profundo.">
               {preview ? (
                 <div className="detail-stack">
                   <p>{preview.executive_summary}</p>
                   <div className="insight-list">
                     <div>
-                      <span>Área principal de melhoria</span>
+                      <span>Area principal de melhoria</span>
                       <strong>{preview.top_gap ?? "-"}</strong>
                     </div>
                     <div>
-                      <span>Melhor próximo passo</span>
+                      <span>Melhor proximo passo</span>
                       <strong>{preview.top_priority_action ?? "-"}</strong>
                     </div>
                     <div>
-                      <span>Aderência média</span>
+                      <span>Aderencia media</span>
                       <strong>{preview.average_match_score ?? "-"}</strong>
                     </div>
                   </div>
                 </div>
               ) : (
                 <EmptyState
-                  title="Nenhuma prévia premium ainda"
-                  description="Gere a análise do currículo e a avaliação de senioridade para liberar uma visão mais rica aqui."
+                  title="Nenhuma previa premium ainda"
+                  description="Gere a analise do curriculo e a leitura de senioridade para liberar uma visao mais rica aqui."
                 />
               )}
             </SectionCard>

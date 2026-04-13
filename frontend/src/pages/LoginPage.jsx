@@ -25,7 +25,7 @@ export function LoginPage() {
     try {
       await login(form);
     } catch (requestError) {
-      setError(getErrorMessage(requestError, "Não foi possível entrar agora."));
+      setError(getErrorMessage(requestError, "Nao foi possivel entrar agora. Revise seus dados e tente novamente."));
     } finally {
       setSubmitting(false);
     }
@@ -34,16 +34,16 @@ export function LoginPage() {
   return (
     <div className="auth-layout">
       <div className="auth-panel auth-panel--hero">
-        <span className="hero-chip">Encontre vagas melhores com mais confiança</span>
+        <span className="hero-chip">Encontre vagas melhores com mais confianca</span>
         <h1>Transforme seu progresso em uma busca de emprego mais clara e organizada.</h1>
         <p>
-          O Hunter IA ajuda você a evoluir seu currículo, acompanhar cada candidatura
-          e usar insights premium para priorizar os próximos passos com mais segurança.
+          O Hunter IA ajuda voce a evoluir seu curriculo, acompanhar cada candidatura
+          e usar insights premium para priorizar os proximos passos com mais seguranca.
         </p>
         <div className="hero-metrics">
           <article>
             <strong>Um workspace focado</strong>
-            <span>Currículos, vagas, candidaturas e plano no mesmo fluxo</span>
+            <span>Curriculos, vagas, candidaturas e plano no mesmo fluxo</span>
           </article>
           <article>
             <strong>Feito para manter ritmo</strong>
@@ -51,7 +51,7 @@ export function LoginPage() {
           </article>
           <article>
             <strong>Premium quando fizer sentido</strong>
-            <span>Desbloqueie comparações mais ricas e insights mais profundos de empregabilidade</span>
+            <span>Desbloqueie comparacoes mais ricas e insights mais profundos de empregabilidade</span>
           </article>
         </div>
       </div>
@@ -60,11 +60,11 @@ export function LoginPage() {
         <div className="form-card">
           <span className="form-card__eyebrow">Entrar</span>
           <h2>Bem-vindo de volta</h2>
-          <p>Entre para continuar evoluindo seu currículo e acompanhando sua busca.</p>
+          <p>Entre para continuar evoluindo seu curriculo e acompanhando sua busca.</p>
 
           <form className="stack" onSubmit={handleSubmit}>
             <label className="field">
-              <span>Usuário</span>
+              <span>Usuario</span>
               <input
                 value={form.username}
                 onChange={(event) => setForm((previous) => ({ ...previous, username: event.target.value }))}
@@ -86,7 +86,13 @@ export function LoginPage() {
               />
             </label>
 
-            {error ? <div className="notice notice--error">{error}</div> : null}
+            {error ? (
+              <div className="notice notice--blocked">
+                <strong>Nao foi possivel entrar</strong>
+                <p>{error}</p>
+                <p>Confira usuario e senha. Se o problema continuar, tente novamente em instantes.</p>
+              </div>
+            ) : null}
 
             <button className="button button--primary" type="submit" disabled={submitting}>
               {submitting ? "Entrando..." : "Continuar"}

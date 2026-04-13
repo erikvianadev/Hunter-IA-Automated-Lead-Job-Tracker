@@ -78,6 +78,7 @@ body,
 body {
   color: var(--ink);
   background: var(--app-background);
+  overflow-x: hidden;
 }
 
 a {
@@ -170,6 +171,10 @@ button {
   border-radius: 999px;
   padding: 7px 12px;
   font-size: 0.8rem;
+  max-width: 100%;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .hero-chip,
@@ -320,6 +325,11 @@ select:focus {
   gap: 8px;
   font-weight: 700;
   text-align: center;
+  max-width: 100%;
+  min-width: 0;
+  white-space: normal;
+  flex-wrap: wrap;
+  overflow-wrap: anywhere;
 }
 
 .button:disabled {
@@ -350,9 +360,18 @@ select:focus {
 }
 
 .notice {
+  display: grid;
+  gap: 6px;
   border-radius: var(--radius-md);
   padding: 14px 16px;
   border: 1px solid var(--border);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.notice p,
+.notice strong {
+  margin: 0;
 }
 
 .notice--error {
@@ -370,6 +389,24 @@ select:focus {
 .notice--info {
   background: color-mix(in srgb, var(--accent-soft) 62%, var(--surface-strong));
   border-color: color-mix(in srgb, var(--accent) 24%, transparent);
+  color: var(--ink);
+}
+
+.notice--warning {
+  background: color-mix(in srgb, var(--accent-soft) 78%, var(--surface-strong));
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  color: var(--accent-strong);
+}
+
+.notice--blocked {
+  background: color-mix(in srgb, var(--danger-soft) 82%, var(--surface-strong));
+  border-color: color-mix(in srgb, var(--danger) 46%, transparent);
+  color: var(--danger);
+}
+
+.notice--premium {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 82%, var(--surface-strong)), color-mix(in srgb, var(--secondary-soft) 46%, var(--surface-strong)));
+  border-color: color-mix(in srgb, var(--accent) 38%, transparent);
   color: var(--ink);
 }
 
@@ -444,6 +481,7 @@ select:focus {
   display: grid;
   gap: 18px;
   align-content: start;
+  min-width: 0;
 }
 
 .page-header,
@@ -454,20 +492,32 @@ select:focus {
 
 .section-card {
   padding: 24px;
+  min-width: 0;
 }
 
 .section-card__header {
   align-items: flex-start;
 }
 
+.section-card > *,
+.page-header > *,
+.list-item > *,
+.inline-meta > *,
+.action-row > *,
+.selection-pills > * {
+  min-width: 0;
+}
+
 .section-card__header h2 {
   margin: 0;
   font-size: 1.22rem;
+  overflow-wrap: anywhere;
 }
 
 .section-card__header p {
   margin: 6px 0 0;
   max-width: 64ch;
+  overflow-wrap: anywhere;
 }
 
 .two-column-grid {
@@ -495,9 +545,24 @@ select:focus {
   color: var(--accent-strong);
 }
 
+.tone-warning {
+  background: color-mix(in srgb, var(--accent-soft) 82%, var(--surface-strong));
+  color: var(--accent-strong);
+}
+
 .tone-low {
   background: var(--danger-soft);
   color: var(--danger);
+}
+
+.tone-blocked {
+  background: color-mix(in srgb, var(--danger-soft) 88%, var(--surface-strong));
+  color: var(--danger);
+}
+
+.tone-premium {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 84%, var(--surface-strong)), color-mix(in srgb, var(--secondary-soft) 48%, var(--surface-strong)));
+  color: var(--ink);
 }
 
 .tone-muted,
@@ -510,6 +575,7 @@ select:focus {
 .status-badge {
   border: 1px solid transparent;
   font-weight: 700;
+  line-height: 1.35;
 }
 
 .insight-list {
@@ -526,9 +592,28 @@ select:focus {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.insight-list--three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .insight-list span {
   display: block;
   margin-bottom: 8px;
+}
+
+.insight-list strong,
+.stat-card__value,
+.stat-card__helper,
+.job-detail-company,
+.notes-preview,
+.plain-list li,
+.brand-lockup p,
+.page-header p,
+.list-item p,
+.empty-state p,
+.loading-panel,
+.loading-inline {
+  overflow-wrap: anywhere;
 }
 
 .jobs-filter-grid,
@@ -551,6 +636,7 @@ select:focus {
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
   background: color-mix(in srgb, var(--surface-strong) 72%, transparent);
+  min-width: 0;
 }
 
 .notes-panel {
@@ -592,6 +678,7 @@ select:focus {
 
 .job-list-item__main {
   flex: 1 1 420px;
+  min-width: 0;
 }
 
 .application-list-item {
@@ -600,6 +687,7 @@ select:focus {
 
 .application-list-item__main {
   flex: 1 1 420px;
+  min-width: 0;
 }
 
 .application-detail-panel {
@@ -626,6 +714,53 @@ select:focus {
   font-size: 1rem;
   color: var(--ink);
   text-align: left;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.action-row--wrap {
+  align-items: stretch;
+}
+
+.action-row--wrap > * {
+  flex: 1 1 180px;
+}
+
+.plan-card {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.plan-card h3,
+.plan-card p,
+.plan-card li,
+.stat-card,
+.provider-breakdown__card p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.plan-card.is-highlighted {
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent-soft) 26%, var(--surface-elevated)), var(--surface-elevated));
+}
+
+.page-header,
+.section-card__header,
+.list-item,
+.inline-form,
+.action-row,
+.inline-meta,
+.selection-pills,
+.stat-card,
+.empty-state,
+.notes-panel,
+.detail-stack,
+.list-stack,
+.provider-breakdown,
+.jobs-filter-grid {
+  min-width: 0;
 }
 
 @keyframes rise-in {

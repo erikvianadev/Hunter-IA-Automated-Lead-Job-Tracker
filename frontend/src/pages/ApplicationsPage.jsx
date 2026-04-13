@@ -6,6 +6,7 @@ import { SectionCard } from "../components/SectionCard";
 import { StatCard } from "../components/StatCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { useAuth } from "../context/AuthContext";
+import { getMatchNoticeTone } from "../lib/presentation";
 import { formatDate, formatRelativeDate, formatShortDate, getErrorMessage, titleize } from "../lib/utils";
 
 const APPLICATION_STATUSES = ["saved", "applied", "interview", "rejected", "offer", "archived"];
@@ -47,8 +48,8 @@ const QUICK_ACTIONS = {
 
 function getScoreTone(score) {
   if (score >= 80) return "good";
-  if (score >= 60) return "medium";
-  return "low";
+  if (score >= 60) return "warning";
+  return "blocked";
 }
 
 function getSummaryPreview(text, fallback) {
@@ -203,7 +204,7 @@ export function ApplicationsPage() {
         </button>
       }
     >
-      {error ? <div className="notice notice--error">{error}</div> : null}
+      {error ? <div className="notice notice--blocked">{error}</div> : null}
       {feedback ? <div className="notice notice--success">{feedback}</div> : null}
 
       <section className="stats-grid">
@@ -272,7 +273,7 @@ export function ApplicationsPage() {
             </label>
           </div>
 
-          <div className="action-row">
+          <div className="action-row action-row--wrap">
             <button className="button button--primary" type="submit">
               Aplicar filtros
             </button>
@@ -546,8 +547,9 @@ export function ApplicationsPage() {
                       </div>
                     </div>
 
-                    <div className={`notice notice--${getScoreTone(selectedApplication.current_match.match_score) === "low" ? "error" : "success"}`}>
-                      {selectedApplication.current_match.recommendation}
+                    <div className={`notice notice--${getMatchNoticeTone(selectedApplication.current_match.match_score)}`}>
+                      <strong>{selectedApplication.current_match.match_score >= 80 ? "Boa aderencia para priorizar" : selectedApplication.current_match.match_score >= 60 ? "Aderencia promissora, com ajustes" : "Aderencia baixa neste momento"}</strong>
+                      <p>{selectedApplication.current_match.recommendation}</p>
                     </div>
 
                     {selectedApplication.current_match.strengths?.length ? (

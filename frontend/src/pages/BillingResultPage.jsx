@@ -2,26 +2,24 @@ import { Link, useLocation } from "react-router-dom";
 
 import { AppShell } from "../components/AppShell";
 import { SectionCard } from "../components/SectionCard";
+import { getCheckoutResultPresentation } from "../lib/presentation";
 
 export function BillingResultPage({ kind }) {
   const location = useLocation();
-  const isSuccess = kind === "success";
   const sessionId = new URLSearchParams(location.search).get("session_id");
+  const presentation = getCheckoutResultPresentation(kind);
 
   return (
-    <AppShell
-      title={isSuccess ? "Checkout concluído" : "Checkout cancelado"}
-      subtitle="Confirme o resultado do pagamento e volte para o seu plano com segurança."
-    >
-      <SectionCard title={isSuccess ? "Pagamento finalizado" : "Checkout interrompido"}>
+    <AppShell title={presentation.title} subtitle={presentation.subtitle}>
+      <SectionCard title={presentation.heading}>
         <div className="detail-stack">
-          <p>
-            {isSuccess
-              ? "O Stripe concluiu o redirecionamento. Atualize a página de planos para confirmar a assinatura após o processamento do webhook."
-              : "Nenhuma mudança de assinatura foi concluída. Você pode revisar os planos e tentar novamente quando quiser."}
-          </p>
-          {sessionId ? <p className="muted-copy">Sessão de checkout: {sessionId}</p> : null}
-          <div className="action-row">
+          <div className={`notice notice--${presentation.tone}`}>
+            <strong>{presentation.heading}</strong>
+            <p>{presentation.message}</p>
+            <p>{presentation.nextStep}</p>
+          </div>
+          {sessionId ? <p className="muted-copy">Referencia do checkout: {sessionId}</p> : null}
+          <div className="action-row action-row--wrap">
             <Link className="button button--primary" to="/billing">
               Ir para planos
             </Link>

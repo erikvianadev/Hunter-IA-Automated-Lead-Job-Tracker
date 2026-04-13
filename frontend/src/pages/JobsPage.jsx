@@ -6,6 +6,7 @@ import { SectionCard } from "../components/SectionCard";
 import { StatCard } from "../components/StatCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { useAuth } from "../context/AuthContext";
+import { getMatchNoticeTone, getProviderStatusPresentation } from "../lib/presentation";
 import { formatRelativeDate, formatShortDate, getErrorMessage, titleize } from "../lib/utils";
 
 const JOBS_PAGE_SIZE = 12;
@@ -45,17 +46,24 @@ function getProviderBreakdown(payload) {
       return {
         provider: titleize(provider),
         jobsFound,
-        tone: blocked ? "low" : failed ? "medium" : "good",
+        tone: blocked ? "blocked" : failed ? "warning" : "good",
         statusLabel: blocked ? "blocked" : failed ? "issue" : "healthy"
       };
     })
     .sort((left, right) => right.jobsFound - left.jobsFound || left.provider.localeCompare(right.provider));
 }
 
+function getScrapeFeedbackMessage(payload) {
+  if (!payload) return "";
+  const rawScraped = payload.raw_scraped ?? 0;
+  if (!rawScraped) return "A coleta terminou sem vagas aproveitaveis desta vez. Tente um cargo mais amplo ou alivie o filtro de local.";
+  return `Coleta concluida. Encontramos ${rawScraped} vagas, mantivemos ${payload.scraped ?? 0} unicas e salvamos ${payload.saved ?? 0} no workspace.`;
+}
+
 function getScoreTone(score) {
   if (score >= 80) return "good";
-  if (score >= 60) return "medium";
-  return "low";
+  if (score >= 60) return "warning";
+  return "blocked";
 }
 
 function getDescriptionPreview(description) {
@@ -194,7 +202,7 @@ export function JobsPage() {
         body: JSON.stringify({ query: scrapeForm.query, location: scrapeForm.location })
       });
       setScrapeSummary(payload);
-      setFeedback(buildScrapeFeedback(payload));
+      setFeedback(getScrapeFeedbackMessage(payload));
       await Promise.all([refreshJobs(false), loadWorkspaceMeta()]);
     } catch (requestError) {
       setError(getErrorMessage(requestError, "Não foi possível atualizar vagas da web agora."));
@@ -216,7 +224,7 @@ export function JobsPage() {
       subtitle="Transforme vagas coletadas em uma shortlist prática, com filtros claros, sinais de aderência e próximos passos."
       actions={<button className="button button--ghost" type="button" onClick={() => { refreshJobs(false); loadWorkspaceMeta(); }}>Atualizar workspace</button>}
     >
-      {error ? <div className="notice notice--error">{error}</div> : null}
+      {error ? <div className="notice notice--blocked">{error}</div> : null}
       {feedback ? <div className="notice notice--success">{feedback}</div> : null}
       <section className="stats-grid">{overviewCards.map((card) => <StatCard key={card.label} label={card.label} value={card.value} helper={card.helper} />)}</section>
 
@@ -230,7 +238,7 @@ export function JobsPage() {
               <label className="field"><span>Status</span><select value={filters.status} onChange={(event) => setFilters((previous) => ({ ...previous, status: event.target.value }))}>{STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
               <label className="field"><span>Ordenar por</span><select value={filters.ordering} onChange={(event) => setFilters((previous) => ({ ...previous, ordering: event.target.value }))}>{SORT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
             </div>
-            <div className="action-row">
+            <div className="action-row action-row--wrap">
               <button className="button button--primary" type="submit">Aplicar filtros</button>
               <button className="button button--ghost" type="button" onClick={() => {
                 const cleared = { search: "", company_name: "", location: "", status: "all", ordering: "-created_at" };
@@ -337,7 +345,7 @@ export function JobsPage() {
                 {resumes.length ? <label className="field"><span>Currículo usado no match</span><select value={selectedResumeId ?? ""} onChange={(event) => setSelectedResumeId(Number(event.target.value))}>{resumes.map((resume) => <option key={resume.id} value={resume.id}>{resume.label || resume.original_filename}{resume.is_active ? " (Principal)" : ""}</option>)}</select></label> : <div className="notice notice--error">Nenhum currículo está disponível para match ainda. Envie um currículo primeiro para liberar o score de aderência.</div>}
                 {selectedJob.current_match ? <div className="detail-stack">
                   <div className="insight-list insight-list--three"><div><span>Score de aderência</span><strong>{selectedJob.current_match.match_score}/100</strong></div><div><span>Currículo usado</span><strong>{selectedJob.current_match.resume_label}</strong></div><div><span>Atualizado</span><strong>{formatRelativeDate(selectedJob.current_match.updated_at)}</strong></div></div>
-                  <div className={`notice notice--${getScoreTone(selectedJob.current_match.match_score) === "low" ? "error" : "success"}`}>{selectedJob.current_match.recommendation}</div>
+                  <div className={`notice notice--${getMatchNoticeTone(selectedJob.current_match.match_score)}`}><strong>{selectedJob.current_match.match_score >= 80 ? "Boa aderencia para priorizar" : selectedJob.current_match.match_score >= 60 ? "Aderencia promissora, com ajustes" : "Aderencia baixa neste momento"}</strong><p>{selectedJob.current_match.recommendation}</p></div>
                   {selectedJob.current_match.gaps?.length ? <div><strong>Principais lacunas</strong><ul className="plain-list">{selectedJob.current_match.gaps.slice(0, 3).map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}</ul></div> : null}
                   {selectedJob.current_match.strengths?.length ? <div><strong>Pontos fortes</strong><ul className="plain-list">{selectedJob.current_match.strengths.slice(0, 2).map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}</ul></div> : null}
                 </div> : <p className="muted-copy">Ainda não existe match para esta vaga. Rode a análise de aderência para ver score, lacunas e recomendação.</p>}

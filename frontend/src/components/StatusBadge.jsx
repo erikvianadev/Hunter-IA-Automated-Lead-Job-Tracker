@@ -17,21 +17,23 @@ const toneByStatus = {
   missing: "muted",
   free: "muted",
   archived: "muted",
-  issue: "medium",
-  blocked: "low",
+  issue: "warning",
+  blocked: "blocked",
   canceled: "low",
   rejected: "low",
   failed: "low",
-  empty_text: "low",
-  unsupported_structure: "low"
+  empty_text: "warning",
+  unsupported_structure: "warning",
+  locked: "premium"
 };
 
-export function StatusBadge({ value, tone, className }) {
+export function StatusBadge({ value, label, tone, className, title }) {
   const resolvedTone = tone ?? toneByStatus[value] ?? "muted";
+  const resolvedLabel = label ?? titleize(value);
 
   return (
-    <span className={cn("status-badge", `tone-${resolvedTone}`, className)}>
-      {titleize(value)}
+    <span className={cn("status-badge", `tone-${resolvedTone}`, className)} title={title}>
+      {resolvedLabel}
     </span>
   );
 }

@@ -5,57 +5,63 @@ import { EmptyState } from "../components/EmptyState";
 import { SectionCard } from "../components/SectionCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { useAuth } from "../context/AuthContext";
+import { getResumeInsightPresentation, getResumeParsePresentation } from "../lib/presentation";
 import { formatShortDate, getErrorMessage, titleize } from "../lib/utils";
 
 const READY_PARSE_STATUSES = new Set(["completed"]);
-const NOT_READY_PARSE_STATUSES = new Set(["failed", "empty_text", "unsupported_structure", "pending", "processing"]);
+
+function hasResumeUsableText(resume) {
+  const extractedText = (resume?.extracted_text || "").trim();
+  return extractedText.length >= 40 && extractedText.split(/\s+/).length >= 8;
+}
+
+function toNoticeTone(tone) {
+  if (tone === "good") {
+    return "success";
+  }
+
+  if (tone === "warning") {
+    return "warning";
+  }
+
+  if (tone === "blocked") {
+    return "blocked";
+  }
+
+  if (tone === "premium") {
+    return "premium";
+  }
+
+  return "info";
+}
 
 function getResumeReadiness(resume) {
   if (!resume) {
     return {
       canAnalyze: false,
       canAssess: false,
-      parseTone: "muted",
-      statusTitle: "Selecione um currículo",
-      statusDetail: "Escolha um currículo para ver o que já está disponível."
+      badgeLabel: "Selecione um curriculo",
+      badgeTone: "muted",
+      statusTitle: "Selecione um curriculo",
+      statusDetail: "Escolha uma versao da biblioteca para ver o que ja esta pronto.",
+      nextStep: "Depois de selecionar, voce podera acompanhar o preparo do arquivo e abrir os insights disponiveis.",
+      noticeTone: "info"
     };
   }
 
-  const parseStatus = resume.parse_status;
-  const extractedText = (resume.extracted_text || "").trim();
-  const hasUsableText = extractedText.length >= 40 && extractedText.split(/\s+/).length >= 8;
-  const parseReady = READY_PARSE_STATUSES.has(parseStatus);
-
-  if (!parseReady || !hasUsableText) {
-    const detailByStatus = {
-      pending: "Este currículo ainda está sendo preparado. Aguarde o parsing terminar para gerar insights.",
-      processing: "Este currículo ainda está em processamento. Os insights serão liberados quando o texto estiver pronto.",
-      failed: "Não foi possível ler conteúdo suficiente deste arquivo. Envie um PDF ou DOCX mais limpo para continuar.",
-      empty_text: "O arquivo foi enviado, mas nenhum texto utilizável foi encontrado. Tente exportar um PDF ou DOCX com texto selecionável.",
-      unsupported_structure: "A estrutura do arquivo não pôde ser lida bem o suficiente para gerar insights. Tente uma exportação mais limpa."
-    };
-
-    return {
-      canAnalyze: false,
-      canAssess: false,
-      parseTone: "low",
-      statusTitle: "Currículo ainda não está pronto",
-      statusDetail:
-        detailByStatus[parseStatus] ??
-        "Este currículo ainda precisa de texto utilizável para liberar análise e avaliação de senioridade.",
-      hasUsableText,
-      parseReady
-    };
-  }
+  const hasUsableText = hasResumeUsableText(resume);
+  const parsePresentation = getResumeParsePresentation(resume.parse_status, { hasUsableText });
+  const canUseInsights = READY_PARSE_STATUSES.has(resume.parse_status) && hasUsableText;
 
   return {
-    canAnalyze: true,
-    canAssess: true,
-    parseTone: "good",
-    statusTitle: "Pronto para análise",
-    statusDetail: "Este currículo já tem texto suficiente para análise e avaliação de senioridade.",
-    hasUsableText,
-    parseReady
+    canAnalyze: canUseInsights,
+    canAssess: canUseInsights,
+    badgeLabel: parsePresentation.label,
+    badgeTone: parsePresentation.tone,
+    statusTitle: parsePresentation.title,
+    statusDetail: parsePresentation.description,
+    nextStep: parsePresentation.nextStep,
+    noticeTone: parsePresentation.noticeTone
   };
 }
 
@@ -66,24 +72,24 @@ function getInsightStateMessage(kind, error) {
 
   if (error.status === 404) {
     return kind === "analysis"
-      ? "A análise deste currículo ainda não foi gerada."
-      : "A avaliação de senioridade ainda não foi gerada.";
+      ? "A analise ainda nao foi gerada para este curriculo."
+      : "A leitura de senioridade ainda nao foi gerada para este curriculo.";
   }
 
   if (error.status === 400) {
     return getErrorMessage(
       error,
       kind === "analysis"
-        ? "Este currículo precisa de mais texto legível antes da análise."
-        : "Este currículo precisa de conteúdo suficiente antes da estimativa de senioridade.",
+        ? "Ainda nao ha texto suficiente para gerar a analise. Reexporte o arquivo com texto selecionavel e tente de novo."
+        : "Ainda nao ha conteudo suficiente para estimar senioridade com seguranca.",
     );
   }
 
   if (error.status === 403) {
-    return "Esse insight premium está disponível apenas nos planos pagos.";
+    return "Esse insight faz parte do Premium. Faca upgrade para liberar o acesso completo.";
   }
 
-  return getErrorMessage(error, "Não foi possível carregar este insight agora.");
+  return getErrorMessage(error, "Nao foi possivel carregar este insight agora.");
 }
 
 export function ResumesPage() {
@@ -117,6 +123,18 @@ export function ResumesPage() {
     [resumes, selectedIds],
   );
   const readiness = useMemo(() => getResumeReadiness(selectedResume), [selectedResume]);
+  const analysisPresentation = useMemo(
+    () => getResumeInsightPresentation("analysis", analysisState.status),
+    [analysisState.status],
+  );
+  const seniorityPresentation = useMemo(
+    () => getResumeInsightPresentation("seniority", seniorityState.status),
+    [seniorityState.status],
+  );
+  const reportPresentation = useMemo(
+    () => getResumeInsightPresentation("report", reportState.status),
+    [reportState.status],
+  );
 
   async function loadResumes(preserveSelection = true) {
     setLoading(true);
@@ -139,7 +157,7 @@ export function ResumesPage() {
       const activeResume = items.find((item) => item.is_active) ?? items[0];
       setSelectedResumeId(activeResume.id);
     } catch (requestError) {
-      setError(getErrorMessage(requestError, "Não foi possível carregar seus currículos agora."));
+      setError(getErrorMessage(requestError, "Nao foi possivel carregar sua biblioteca de curriculos agora."));
     } finally {
       setLoading(false);
     }
@@ -163,7 +181,7 @@ export function ResumesPage() {
 
     if (analysisResult.status === "fulfilled") {
       setAnalysis(analysisResult.value);
-      setAnalysisState({ status: "ready", message: "A análise do currículo está pronta." });
+      setAnalysisState({ status: "ready", message: "A analise do curriculo ja esta disponivel." });
     } else {
       setAnalysis(null);
       setAnalysisState({
@@ -174,7 +192,7 @@ export function ResumesPage() {
 
     if (seniorityResult.status === "fulfilled") {
       setSeniority(seniorityResult.value);
-      setSeniorityState({ status: "ready", message: "A avaliação de senioridade está pronta." });
+      setSeniorityState({ status: "ready", message: "A leitura de senioridade ja esta disponivel." });
     } else {
       setSeniority(null);
       setSeniorityState({
@@ -195,7 +213,7 @@ export function ResumesPage() {
   async function handleUpload(event) {
     event.preventDefault();
     if (!form.file) {
-      setError("Escolha um currículo em PDF ou DOCX para continuar.");
+      setError("Escolha um arquivo em PDF ou DOCX para continuar.");
       return;
     }
 
@@ -217,7 +235,9 @@ export function ResumesPage() {
         method: "POST",
         body
       });
-      setFeedback(`"${payload.label || payload.original_filename}" foi enviado e já está disponível para revisão.`);
+      setFeedback(
+        `"${payload.label || payload.original_filename}" foi recebido. Agora vamos preparar o texto para liberar analise, senioridade e comparacoes.`,
+      );
       setForm({
         file: null,
         label: "",
@@ -226,7 +246,7 @@ export function ResumesPage() {
       await loadResumes(false);
       setSelectedResumeId(payload.id);
     } catch (requestError) {
-      setError(getErrorMessage(requestError, "Não foi possível enviar esse currículo."));
+      setError(getErrorMessage(requestError, "Nao foi possivel enviar esse curriculo agora."));
     } finally {
       setBusyAction("");
     }
@@ -240,7 +260,7 @@ export function ResumesPage() {
     try {
       await callback();
     } catch (requestError) {
-      setError(getErrorMessage(requestError, "Não foi possível concluir essa ação."));
+      setError(getErrorMessage(requestError, "Nao foi possivel concluir essa acao agora."));
     } finally {
       setBusyAction("");
     }
@@ -255,15 +275,21 @@ export function ResumesPage() {
   }
 
   return (
-    <AppShell title="Currículos" subtitle="Evolua seu currículo, compare versões e acompanhe o que já está pronto para gerar insights.">
-      {error ? <div className="notice notice--error">{error}</div> : null}
+    <AppShell
+      title="Curriculos"
+      subtitle="Evolua seu curriculo, compare versoes e acompanhe com clareza o que ja esta pronto para gerar insights."
+    >
+      {error ? <div className="notice notice--blocked">{error}</div> : null}
       {feedback ? <div className="notice notice--success">{feedback}</div> : null}
 
       <section className="two-column-grid two-column-grid--wide-left">
-        <SectionCard title="Enviar novo currículo" subtitle="Adicione uma nova versão para revisar, pontuar e usar nas análises de aderência.">
+        <SectionCard
+          title="Enviar novo curriculo"
+          subtitle="Adicione uma nova versao para revisar, pontuar e usar nas analises de aderencia."
+        >
           <form className="stack" onSubmit={handleUpload}>
             <label className="field">
-              <span>Arquivo do currículo</span>
+              <span>Arquivo do curriculo</span>
               <input
                 type="file"
                 accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -275,11 +301,11 @@ export function ResumesPage() {
             </label>
 
             <label className="field">
-              <span>Nome da versão</span>
+              <span>Nome da versao</span>
               <input
                 value={form.label}
                 onChange={(event) => setForm((previous) => ({ ...previous, label: event.target.value }))}
-                placeholder="Currículo backend v3"
+                placeholder="Curriculo backend v3"
               />
             </label>
 
@@ -295,14 +321,14 @@ export function ResumesPage() {
             </label>
 
             <button className="button button--primary" type="submit" disabled={busyAction === "upload"}>
-              {busyAction === "upload" ? "Enviando currículo..." : "Enviar currículo"}
+              {busyAction === "upload" ? "Enviando curriculo..." : "Enviar curriculo"}
             </button>
           </form>
         </SectionCard>
 
         <SectionCard
-          title="Comparação premium"
-          subtitle="Compare duas ou três versões para descobrir qual comunica melhor sua experiência."
+          title="Comparacao premium"
+          subtitle="Compare duas ou tres versoes para entender qual comunica melhor sua experiencia."
           actions={
             <button
               className="button button--secondary"
@@ -310,30 +336,40 @@ export function ResumesPage() {
               disabled={selectedIds.length < 2 || busyAction === "compare"}
               onClick={() =>
                 runResumeAction("compare", async () => {
-                  const payload = await request(`/hunter/api/resumes/compare/?ids=${selectedIds.join(",")}`);
-                  setComparison(payload);
-                  setFeedback("Sua comparação de currículos está pronta.");
+                  try {
+                    const payload = await request(`/hunter/api/resumes/compare/?ids=${selectedIds.join(",")}`);
+                    setComparison(payload);
+                    setFeedback("Comparacao pronta. Revise abaixo os principais contrastes entre as versoes.");
+                  } catch (requestError) {
+                    if (requestError.status === 403) {
+                      setError("A comparacao entre versoes faz parte do Premium. Faca upgrade para liberar esse resultado.");
+                      return;
+                    }
+
+                    throw requestError;
+                  }
                 })
               }
             >
-              {busyAction === "compare" ? "Comparando versões..." : "Comparar versões"}
+              {busyAction === "compare" ? "Comparando versoes..." : "Comparar versoes"}
             </button>
           }
         >
           <p className="muted-copy">
-            Selecione duas ou três versões abaixo. O acesso premium continua sendo validado pelas regras do backend.
+            Selecione duas ou tres versoes abaixo. Se o seu plano ainda nao incluir essa comparacao, vamos avisar antes
+            de abrir o resultado.
           </p>
           <div className="selection-pills">
             {selectedCompareResumes.length
               ? selectedCompareResumes.map((resume) => (
                 <span key={resume.id}>{resume.label || resume.original_filename}</span>
               ))
-              : <span>Selecione as versões que deseja comparar</span>}
+              : <span>Selecione as versoes que deseja comparar</span>}
           </div>
           {comparison ? (
             <div className="detail-stack">
               <strong>{comparison.comparison_summary}</strong>
-              <p>Cargo-alvo mais provável: {comparison.likely_target_role ?? "-"}</p>
+              <p>Cargo-alvo mais provavel: {comparison.likely_target_role ?? "-"}</p>
               <div className="list-stack">
                 {comparison.main_differences.map((item, index) => (
                   <article className="list-item" key={`${item}-${index}`}>
@@ -347,120 +383,133 @@ export function ResumesPage() {
       </section>
 
       <section className="two-column-grid two-column-grid--wide-left">
-        <SectionCard title="Biblioteca de currículos" subtitle="Escolha sua versão principal e mantenha versões antigas para comparação.">
-          {loading ? <div className="loading-panel">Carregando sua biblioteca de currículos...</div> : null}
+        <SectionCard
+          title="Biblioteca de curriculos"
+          subtitle="Escolha sua versao principal e mantenha historico suficiente para revisar evolucoes e comparar resultados."
+        >
+          {loading ? <div className="loading-panel">Carregando sua biblioteca de curriculos...</div> : null}
           {!loading && !resumes.length ? (
             <EmptyState
-              title="Nenhum currículo por aqui ainda"
-              description="Envie seu primeiro currículo para começar a melhorar o material e liberar insights premium."
+              title="Nenhum curriculo por aqui ainda"
+              description="Envie seu primeiro curriculo para comecar a melhorar o material e liberar os proximos insights."
             />
           ) : null}
           {!loading && resumes.length ? (
             <div className="list-stack">
-              {resumes.map((resume) => (
-                <article
-                  className={resume.id === selectedResumeId ? "list-item is-selected" : "list-item"}
-                  key={resume.id}
-                >
-                  <div>
-                    <div className="inline-meta">
-                      <button
-                        className="list-item__title-button"
-                        type="button"
-                        onClick={() => setSelectedResumeId(resume.id)}
-                      >
-                        {resume.label || resume.original_filename}
-                      </button>
-                      <StatusBadge value={resume.parse_status} />
-                      {resume.is_active ? <StatusBadge value="active" /> : null}
-                    </div>
-                    <p>{resume.target_role || "Nenhum cargo-alvo definido ainda"}</p>
-                    <p className="muted-copy">Atualizado em {formatShortDate(resume.updated_at)}</p>
-                  </div>
+              {resumes.map((resume) => {
+                const resumePresentation = getResumeParsePresentation(resume.parse_status, {
+                  hasUsableText: hasResumeUsableText(resume)
+                });
 
-                  <div className="action-row">
-                    <label className="checkbox-pill">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.includes(resume.id)}
-                        onChange={() => toggleCompareSelection(resume.id)}
-                      />
-                      Comparar
-                    </label>
-                    <button
-                      className="button button--ghost"
-                      type="button"
-                      onClick={() =>
-                        runResumeAction(`activate-${resume.id}`, async () => {
-                          await request(`/hunter/api/resumes/${resume.id}/activate/`, { method: "POST" });
-                          await loadResumes();
-                          setFeedback("Este agora é o seu currículo principal.");
-                        })
-                      }
-                    >
-                      Tornar principal
-                    </button>
-                    <button
-                      className="button button--ghost"
-                      type="button"
-                      onClick={() =>
-                        runResumeAction(`delete-${resume.id}`, async () => {
-                          if (!window.confirm(`Excluir ${resume.label || resume.original_filename}?`)) {
-                            return;
-                          }
-                          await request(`/hunter/api/resumes/${resume.id}/`, { method: "DELETE" });
-                          await loadResumes(false);
-                          setFeedback("Currículo removido.");
-                        })
-                      }
-                    >
-                      Excluir
-                    </button>
-                  </div>
-                </article>
-              ))}
+                return (
+                  <article
+                    className={resume.id === selectedResumeId ? "list-item is-selected" : "list-item"}
+                    key={resume.id}
+                  >
+                    <div>
+                      <div className="inline-meta">
+                        <button
+                          className="list-item__title-button"
+                          type="button"
+                          onClick={() => setSelectedResumeId(resume.id)}
+                        >
+                          {resume.label || resume.original_filename}
+                        </button>
+                        <StatusBadge value={resume.parse_status} label={resumePresentation.label} tone={resumePresentation.tone} />
+                        {resume.is_active ? <StatusBadge value="active" /> : null}
+                      </div>
+                      <p>{resume.target_role || "Adicione um cargo-alvo para receber orientacoes mais uteis."}</p>
+                      <p className="muted-copy">Atualizado em {formatShortDate(resume.updated_at)}</p>
+                    </div>
+
+                    <div className="action-row action-row--wrap">
+                      <label className="checkbox-pill">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(resume.id)}
+                          onChange={() => toggleCompareSelection(resume.id)}
+                        />
+                        Comparar
+                      </label>
+                      <button
+                        className="button button--ghost"
+                        type="button"
+                        onClick={() =>
+                          runResumeAction(`activate-${resume.id}`, async () => {
+                            await request(`/hunter/api/resumes/${resume.id}/activate/`, { method: "POST" });
+                            await loadResumes();
+                            setFeedback("Este agora e o curriculo principal usado nas analises e nos matches.");
+                          })
+                        }
+                      >
+                        Tornar principal
+                      </button>
+                      <button
+                        className="button button--ghost"
+                        type="button"
+                        onClick={() =>
+                          runResumeAction(`delete-${resume.id}`, async () => {
+                            if (!window.confirm(`Excluir ${resume.label || resume.original_filename}?`)) {
+                              return;
+                            }
+                            await request(`/hunter/api/resumes/${resume.id}/`, { method: "DELETE" });
+                            await loadResumes(false);
+                            setFeedback("Curriculo removido da sua biblioteca.");
+                          })
+                        }
+                      >
+                        Excluir
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           ) : null}
         </SectionCard>
 
         <SectionCard
-          title="Insights do currículo"
-          subtitle="Veja o que já está pronto, o que ainda depende de texto utilizável e o que faz parte do premium."
+          title="Insights do curriculo"
+          subtitle="Entenda o que ja esta pronto, o que ainda depende de texto utilizavel e o que faz parte do Premium."
           actions={
             selectedResume ? (
-              <div className="action-row">
+              <div className="action-row action-row--wrap">
                 <button
                   className="button button--secondary"
                   type="button"
                   disabled={!readiness.canAnalyze || busyAction === "analyze"}
-                  title={!readiness.canAnalyze ? readiness.statusDetail : "Gerar análise do currículo"}
+                  title={!readiness.canAnalyze ? `${readiness.statusDetail} ${readiness.nextStep}` : "Gerar analise do curriculo"}
                   onClick={() =>
                     runResumeAction("analyze", async () => {
                       const payload = await request(`/hunter/api/resumes/${selectedResume.id}/analyze/`, {
                         method: "POST"
                       });
                       setAnalysis(payload);
-                      setAnalysisState({ status: "ready", message: "A análise do currículo está pronta." });
+                      setAnalysisState({ status: "ready", message: "A analise do curriculo ja esta pronta." });
                       await loadResumes();
-                      setFeedback("A análise do currículo está pronta.");
+                      setFeedback("Analise concluida. Revise abaixo os pontos fortes e os proximos ajustes.");
                     })
                   }
                 >
-                  {busyAction === "analyze" ? "Analisando..." : "Analisar currículo"}
+                  {busyAction === "analyze" ? "Analisando..." : "Analisar curriculo"}
                 </button>
                 <button
                   className="button button--secondary"
                   type="button"
                   disabled={!readiness.canAssess || busyAction === "seniority"}
-                  title={!readiness.canAssess ? readiness.statusDetail : "Gerar avaliação de senioridade"}
+                  title={
+                    !readiness.canAssess
+                      ? `${readiness.statusDetail} ${readiness.nextStep}`
+                      : "Gerar leitura de senioridade"
+                  }
                   onClick={() =>
                     runResumeAction("seniority", async () => {
                       const payload = await request(`/hunter/api/resumes/${selectedResume.id}/assess-seniority/`, {
                         method: "POST"
                       });
                       setSeniority(payload);
-                      setSeniorityState({ status: "ready", message: "A avaliação de senioridade está pronta." });
-                      setFeedback("A avaliação de senioridade está pronta.");
+                      setSeniorityState({ status: "ready", message: "A leitura de senioridade ja esta pronta." });
+                      setFeedback("Leitura de senioridade pronta. Agora voce pode revisar o nivel mais aderente.");
                     })
                   }
                 >
@@ -475,16 +524,16 @@ export function ResumesPage() {
                       try {
                         const payload = await request(`/hunter/api/resumes/${selectedResume.id}/report/`);
                         setReport(payload);
-                        setReportState({ status: "ready", message: "O insight premium foi liberado." });
-                        setFeedback("O insight premium foi liberado.");
+                        setReportState({ status: "ready", message: "O insight premium ja esta disponivel." });
+                        setFeedback("Insight premium aberto com sucesso.");
                       } catch (requestError) {
                         setReport(null);
                         setReportState({
                           status: requestError.status === 403 ? "locked" : "blocked",
                           message:
                             requestError.status === 403
-                              ? "Esse insight premium está disponível apenas nos planos pagos."
-                              : getErrorMessage(requestError, "Não foi possível abrir o relatório premium.")
+                              ? "Esse insight faz parte do Premium. Faca upgrade para liberar a visao completa."
+                              : getErrorMessage(requestError, "Nao foi possivel abrir o insight premium agora.")
                         });
 
                         if (requestError.status !== 403) {
@@ -494,7 +543,7 @@ export function ResumesPage() {
                     })
                   }
                 >
-                  {busyAction === "report" ? "Abrindo relatório..." : "Abrir insight premium"}
+                  {busyAction === "report" ? "Abrindo insight..." : "Abrir insight premium"}
                 </button>
               </div>
             ) : null
@@ -504,59 +553,72 @@ export function ResumesPage() {
             <div className="detail-stack">
               <div className="inline-meta">
                 <strong>{selectedResume.label || selectedResume.original_filename}</strong>
-                <StatusBadge value={selectedResume.parse_status} />
+                <StatusBadge
+                  value={selectedResume.parse_status}
+                  label={readiness.badgeLabel}
+                  tone={readiness.badgeTone}
+                />
               </div>
 
               {selectedResume.file_url ? (
                 <a href={selectedResume.file_url} target="_blank" rel="noreferrer">
-                  Abrir currículo enviado
+                  Abrir curriculo enviado
                 </a>
               ) : null}
 
-              <p>{selectedResume.target_role || "Adicione um cargo-alvo para receber orientações mais úteis."}</p>
+              <p>{selectedResume.target_role || "Adicione um cargo-alvo para receber orientacoes mais uteis."}</p>
 
               <div className="insight-list">
                 <div>
-                  <span>Status do currículo</span>
-                  <strong>{readiness.statusTitle}</strong>
+                  <span>Status do curriculo</span>
+                  <strong>{readiness.badgeLabel}</strong>
                 </div>
                 <div>
-                  <span>Análise</span>
-                  <strong>{analysis ? `${analysis.overall_score}/100` : titleize(analysisState.status)}</strong>
+                  <span>Analise</span>
+                  <strong>{analysis ? `${analysis.overall_score}/100` : analysisPresentation.label}</strong>
                 </div>
                 <div>
                   <span>Senioridade</span>
-                  <strong>{seniority ? titleize(seniority.recommended_track) : titleize(seniorityState.status)}</strong>
+                  <strong>{seniority ? titleize(seniority.recommended_track) : seniorityPresentation.label}</strong>
                 </div>
               </div>
 
-              <div className={`notice ${readiness.canAnalyze ? "notice--success" : "notice--error"}`}>
-                {readiness.statusDetail}
+              <div className={`notice notice--${readiness.noticeTone}`}>
+                <strong>{readiness.statusTitle}</strong>
+                <p>{readiness.statusDetail}</p>
+                <p>{readiness.nextStep}</p>
               </div>
 
               {!analysis && analysisState.message ? (
-                <div className={`notice ${analysisState.status === "missing" ? "notice--info" : "notice--error"}`}>
-                  {analysisState.message}
+                <div className={`notice notice--${toNoticeTone(analysisPresentation.tone)}`}>
+                  <strong>{analysisPresentation.title}</strong>
+                  <p>{analysisState.message}</p>
+                  <p>{analysisPresentation.nextStep}</p>
                 </div>
               ) : null}
 
               {!seniority && seniorityState.message ? (
-                <div className={`notice ${seniorityState.status === "missing" ? "notice--info" : "notice--error"}`}>
-                  {seniorityState.message}
+                <div className={`notice notice--${toNoticeTone(seniorityPresentation.tone)}`}>
+                  <strong>{seniorityPresentation.title}</strong>
+                  <p>{seniorityState.message}</p>
+                  <p>{seniorityPresentation.nextStep}</p>
                 </div>
               ) : null}
 
               {!report && reportState.message ? (
-                <div className={`notice ${reportState.status === "locked" ? "notice--info" : "notice--error"}`}>
-                  {reportState.message}
+                <div className={`notice notice--${toNoticeTone(reportPresentation.tone)}`}>
+                  <strong>{reportPresentation.title}</strong>
+                  <p>{reportState.message}</p>
+                  <p>{reportPresentation.nextStep}</p>
                 </div>
               ) : null}
 
               {analysis ? (
                 <div className="detail-stack">
-                  <strong>Destaques da análise</strong>
+                  <strong>Destaques da analise</strong>
                   <p>
-                    Estrutura {analysis.structure_score} | Clareza {analysis.clarity_score} | Aderência {analysis.market_fit_score} | Projetos {analysis.project_score}
+                    Estrutura {analysis.structure_score} | Clareza {analysis.clarity_score} | Aderencia{" "}
+                    {analysis.market_fit_score} | Projetos {analysis.project_score}
                   </p>
                   <ul className="plain-list">
                     {(analysis.recommendations ?? []).map((item, index) => (
@@ -571,7 +633,7 @@ export function ResumesPage() {
                   <strong>Leitura de senioridade</strong>
                   <p>{titleize(seniority.recommended_track)}</p>
                   <p className="muted-copy">
-                    Júnior {seniority.junior_score} | Pleno {seniority.mid_score} | Sênior {seniority.senior_score}
+                    Junior {seniority.junior_score} | Pleno {seniority.mid_score} | Senior {seniority.senior_score}
                   </p>
                 </div>
               ) : null}
@@ -590,8 +652,8 @@ export function ResumesPage() {
             </div>
           ) : (
             <EmptyState
-              title="Selecione um currículo"
-              description="Escolha uma versão da sua biblioteca para ver feedback, senioridade e opções premium."
+              title="Selecione um curriculo"
+              description="Escolha uma versao da sua biblioteca para ver feedback, senioridade e recursos premium."
             />
           )}
         </SectionCard>
