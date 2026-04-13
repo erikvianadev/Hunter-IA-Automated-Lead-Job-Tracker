@@ -440,6 +440,77 @@ class ResumeApiTests(TestCase):
         self.assertEqual(response.data["compared_resumes"][0]["market_fit_score"], 83)
         self.assertEqual(response.data["compared_resumes"][0]["id"], second_resume.id)
 
+    def test_compare_ignores_matches_owned_by_another_user_on_same_resume(self) -> None:
+        self._subscribe_user_to_pro()
+        from hunter.models.models import ResumeAnalysis
+
+        resume = Resume.objects.create(
+            owner=self.user,
+            file="resumes/user_1/compare-safe.docx",
+            label="Compare Safe",
+            target_role="Backend Engineer",
+            original_filename="compare-safe.docx",
+            extracted_text="owned",
+            parse_status=ResumeParseStatus.COMPLETED,
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            is_active=True,
+        )
+        ResumeAnalysis.objects.create(
+            resume=resume,
+            overall_score=72,
+            structure_score=70,
+            clarity_score=74,
+            market_fit_score=68,
+            project_score=66,
+            strengths=[],
+            weaknesses=[],
+            recommendations=[],
+            raw_summary={},
+        )
+        owned_job = Job.objects.create(
+            owner=self.user,
+            title="Owned Role",
+            company_name="Acme",
+            location="Remote",
+            description="Owned",
+            url="https://example.com/jobs/owned-compare",
+        )
+        foreign_job = Job.objects.create(
+            owner=self.other_user,
+            title="Foreign Role",
+            company_name="OtherCo",
+            location="Remote",
+            description="Foreign",
+            url="https://example.com/jobs/foreign-compare",
+        )
+        JobMatch.objects.create(
+            owner=self.user,
+            resume=resume,
+            job=owned_job,
+            match_score=61,
+            strengths=["Owned match."],
+            gaps=["Owned gap."],
+            recommendation="Owned recommendation.",
+            reasoning={},
+        )
+        JobMatch.objects.create(
+            owner=self.other_user,
+            resume=resume,
+            job=foreign_job,
+            match_score=99,
+            strengths=["Foreign match."],
+            gaps=["Foreign gap."],
+            recommendation="Foreign recommendation.",
+            reasoning={},
+        )
+
+        response = self.client.get(f"/hunter/api/resumes/compare/?ids={resume.id}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["compared_resumes"]), 1)
+        self.assertEqual(response.data["compared_resumes"][0]["average_match_score"], 61.0)
+        self.assertEqual(response.data["compared_resumes"][0]["best_match_score"], 61)
+
     def test_resume_report_returns_rich_deterministic_fields(self) -> None:
         self._subscribe_user_to_pro()
         from hunter.models.models import ResumeAnalysis, SeniorityAssessment
@@ -512,6 +583,81 @@ class ResumeApiTests(TestCase):
         self.assertEqual(response.data["recent_match_summary"]["best_match_score"], 88)
         self.assertIn("Backend Premium", response.data["executive_summary"])
         self.assertIn("recommended track is mid", response.data["profile_summary"].lower())
+
+    def test_resume_report_ignores_foreign_matches_attached_to_owned_resume(self) -> None:
+        self._subscribe_user_to_pro()
+        from hunter.models.models import ResumeAnalysis
+
+        resume = Resume.objects.create(
+            owner=self.user,
+            file="resumes/user_1/report-safe.docx",
+            label="Report Safe",
+            target_role="Backend Engineer",
+            original_filename="report-safe.docx",
+            extracted_text="Python Django APIs",
+            parse_status=ResumeParseStatus.COMPLETED,
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            is_active=True,
+        )
+        ResumeAnalysis.objects.create(
+            resume=resume,
+            overall_score=77,
+            structure_score=75,
+            clarity_score=73,
+            market_fit_score=70,
+            project_score=68,
+            strengths=["Owned strength."],
+            weaknesses=["Owned weakness."],
+            recommendations=["Owned recommendation."],
+            raw_summary={},
+        )
+        owned_job = Job.objects.create(
+            owner=self.user,
+            title="Owned Report Role",
+            company_name="Acme",
+            location="Remote",
+            description="Owned report role",
+            url="https://example.com/jobs/owned-report",
+        )
+        foreign_job = Job.objects.create(
+            owner=self.other_user,
+            title="Foreign Report Role",
+            company_name="OtherCo",
+            location="Remote",
+            description="Foreign report role",
+            url="https://example.com/jobs/foreign-report",
+        )
+        JobMatch.objects.create(
+            owner=self.user,
+            resume=resume,
+            job=owned_job,
+            match_score=58,
+            strengths=["Owned strength."],
+            gaps=["Owned gap should appear."],
+            recommendation="Owned recommendation.",
+            reasoning={},
+        )
+        JobMatch.objects.create(
+            owner=self.other_user,
+            resume=resume,
+            job=foreign_job,
+            match_score=99,
+            strengths=["Foreign strength."],
+            gaps=["Foreign gap should stay hidden."],
+            recommendation="Foreign recommendation.",
+            reasoning={},
+        )
+
+        response = self.client.get(f"/hunter/api/resumes/{resume.id}/report/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["recent_match_summary"]["total_matches"], 1)
+        self.assertEqual(response.data["recent_match_summary"]["average_match_score"], 58.0)
+        self.assertEqual(response.data["recent_match_summary"]["best_match_score"], 58)
+        self.assertNotIn(
+            "Foreign gap should stay hidden.",
+            response.data["top_gaps"],
+        )
 
     def test_resume_report_is_scoped_to_owner(self) -> None:
         self._subscribe_user_to_pro()

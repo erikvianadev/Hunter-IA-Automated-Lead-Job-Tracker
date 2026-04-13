@@ -71,6 +71,14 @@ class JobWorkflowApiTests(TestCase):
         self.assertEqual(response.data["count"], 1)
         self.assertEqual(response.data["results"][0]["job"]["id"], self.job.id)
 
+    def test_listing_saved_jobs_hides_rows_linked_to_another_users_job(self) -> None:
+        SavedJob.objects.create(owner=self.user, job=self.other_job)
+
+        response = self.client.get("/hunter/api/saved-jobs/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 0)
+
     def test_creating_application_from_job(self) -> None:
         response = self.client.post(
             f"/hunter/api/jobs/{self.job.id}/apply/",
@@ -155,6 +163,21 @@ class JobWorkflowApiTests(TestCase):
         self.assertEqual(response.data["id"], application.id)
         self.assertEqual(response.data["job_title"], self.job.title)
         self.assertEqual(response.data["job_source"], "example.com")
+
+    def test_application_endpoints_hide_rows_linked_to_another_users_job(self) -> None:
+        application = JobApplication.objects.create(
+            owner=self.user,
+            job=self.other_job,
+            status=JobApplicationStatus.APPLIED,
+            notes="Should stay hidden",
+        )
+
+        list_response = self.client.get("/hunter/api/applications/")
+        retrieve_response = self.client.get(f"/hunter/api/applications/{application.id}/")
+
+        self.assertEqual(list_response.status_code, 200)
+        self.assertEqual(list_response.data["count"], 0)
+        self.assertEqual(retrieve_response.status_code, 404)
 
     def test_applications_listing_supports_filtering_by_status_and_job(self) -> None:
         second_job = Job.objects.create(

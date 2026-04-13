@@ -15,9 +15,26 @@ class ResumeParseStatus(models.TextChoices):
     PENDING = 'pending', _('Pending')
     PROCESSING = 'processing', _('Processing')
     COMPLETED = 'completed', _('Completed')
-    FAILED = 'failed', _('Failed')
+    UPLOAD_TOO_LARGE = 'upload_too_large', _('Upload Too Large')
+    INVALID_FILE = 'invalid_file', _('Invalid File')
+    UNSUPPORTED_FILE_TYPE = 'unsupported_file_type', _('Unsupported File Type')
+    PARSING_FAILED = 'parsing_failed', _('Parsing Failed')
+    PARSING_TIMEOUT_OR_BUDGET_EXCEEDED = (
+        'parsing_timeout_or_budget_exceeded',
+        _('Parsing Timeout Or Budget Exceeded'),
+    )
     EMPTY_TEXT = 'empty_text', _('Empty Text')
+    INSUFFICIENT_TEXT = 'insufficient_text', _('Insufficient Text')
     SCANNED_OR_IMAGE_PDF = 'scanned_or_image_pdf', _('Scanned Or Image PDF')
+    UNSUPPORTED_OR_UNSAFE_STRUCTURE = (
+        'unsupported_or_unsafe_structure',
+        _('Unsupported Or Unsafe Structure'),
+    )
+    QUARANTINED_OR_BLOCKED_BY_POLICY = (
+        'quarantined_or_blocked_by_policy',
+        _('Quarantined Or Blocked By Policy'),
+    )
+    FAILED = 'failed', _('Failed')
     UNSUPPORTED_STRUCTURE = 'unsupported_structure', _('Unsupported Structure')
 
 

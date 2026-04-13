@@ -3,6 +3,7 @@ from __future__ import annotations
 from hunter.models.models import Resume, ResumeAnalysis
 
 from .resume_parser_service import ResumeParserService
+from .resume_security_service import ResumeSecurityService, ResumeTrustError
 from .resume_scoring_service import ResumeScoringService
 
 
@@ -16,16 +17,24 @@ class ResumeAnalysisService:
         *,
         parser_service: ResumeParserService | None = None,
         scoring_service: ResumeScoringService | None = None,
+        security_service: ResumeSecurityService | None = None,
     ) -> None:
         self.parser_service = parser_service or ResumeParserService()
         self.scoring_service = scoring_service or ResumeScoringService()
+        self.security_service = security_service or ResumeSecurityService()
 
     def analyze(self, *, resume: Resume) -> ResumeAnalysis:
+        try:
+            decision = self.security_service.assert_trusted(
+                resume=resume,
+                action="Resume analysis is blocked",
+            )
+        except ResumeTrustError as exc:
+            raise ResumeAnalysisError(exc.decision.message) from exc
+
         text = (resume.extracted_text or "").strip()
         if len(text) < 40 or len(text.split()) < 8:
-            raise ResumeAnalysisError(
-                "Resume text is missing or insufficient for analysis. Upload a clearer PDF or DOCX file first."
-            )
+            raise ResumeAnalysisError(decision.message)
 
         parsed_resume = self.parser_service.parse(text=text)
         scores = self.scoring_service.score(parsed_resume=parsed_resume, text=text)

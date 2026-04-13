@@ -207,6 +207,33 @@ REST_FRAMEWORK = {
     ],
 }
 
+RESUME_INGESTION = {
+    'MAX_UPLOAD_SIZE_BYTES': env.int('RESUME_MAX_UPLOAD_SIZE_BYTES', default=5 * 1024 * 1024),
+    'MIN_TRUSTED_TEXT_CHARACTERS': env.int('RESUME_MIN_TRUSTED_TEXT_CHARACTERS', default=80),
+    'MIN_TRUSTED_WORDS': env.int('RESUME_MIN_TRUSTED_WORDS', default=12),
+    'ALLOWED_EXTENSIONS': ['.pdf', '.docx'],
+    'ALLOWED_CONTENT_TYPES': {
+        '.pdf': ['application/pdf'],
+        '.docx': [
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/zip',
+        ],
+    },
+    'ENABLE_CONTENT_TYPE_VALIDATION': env.bool('RESUME_ENABLE_CONTENT_TYPE_VALIDATION', default=True),
+    'ENABLE_PDF_PARSING': env.bool('RESUME_ENABLE_PDF_PARSING', default=True),
+    'ENABLE_DOCX_PARSING': env.bool('RESUME_ENABLE_DOCX_PARSING', default=True),
+    'ENABLE_PYPDF': env.bool('RESUME_ENABLE_PYPDF', default=True),
+    'ENABLE_PDF_REGEX_FALLBACK': env.bool('RESUME_ENABLE_PDF_REGEX_FALLBACK', default=True),
+    'ENABLE_PYTHON_DOCX': env.bool('RESUME_ENABLE_PYTHON_DOCX', default=False),
+    'PDF_MAX_PAGES': env.int('RESUME_PDF_MAX_PAGES', default=25),
+    'PDF_MAX_IMAGES': env.int('RESUME_PDF_MAX_IMAGES', default=128),
+    'PDF_MAX_CHARACTERS': env.int('RESUME_PDF_MAX_CHARACTERS', default=120000),
+    'DOCX_MAX_ARCHIVE_FILES': env.int('RESUME_DOCX_MAX_ARCHIVE_FILES', default=200),
+    'DOCX_MAX_UNCOMPRESSED_BYTES': env.int('RESUME_DOCX_MAX_UNCOMPRESSED_BYTES', default=8 * 1024 * 1024),
+    'DOCX_MAX_XML_BYTES': env.int('RESUME_DOCX_MAX_XML_BYTES', default=4 * 1024 * 1024),
+    'DOCX_MAX_COMPRESSION_RATIO': env.int('RESUME_DOCX_MAX_COMPRESSION_RATIO', default=100),
+}
+
 LOG_LEVEL = env("LOG_LEVEL", default="INFO")
 DJANGO_LOG_LEVEL = env("DJANGO_LOG_LEVEL", default="INFO")
 

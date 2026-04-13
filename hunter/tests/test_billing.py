@@ -188,6 +188,40 @@ class BillingApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["subscription"]["plan_code"], BillingService.PLAN_FREE)
 
+    def test_subscription_overview_ignores_invoice_owned_by_another_user(self) -> None:
+        subscription = BillingSubscription.objects.create(
+            owner=self.user,
+            plan_code=BillingService.PLAN_PRO,
+            billing_cycle="monthly",
+            status="active",
+            price_amount="29.90",
+            currency="BRL",
+            stripe_customer_id="cus_test_456",
+            stripe_subscription_id="sub_test_456",
+            auto_renew=True,
+            started_at="2026-04-10T10:00:00Z",
+            current_period_end="2026-05-10T10:00:00Z",
+        )
+        BillingInvoice.objects.create(
+            owner=self.other_user,
+            subscription=subscription,
+            plan_code=BillingService.PLAN_PRO,
+            billing_cycle="monthly",
+            status="paid",
+            amount="29.90",
+            currency="BRL",
+            stripe_invoice_id="in_foreign_123",
+            issued_at="2026-04-10T10:00:00Z",
+            paid_at="2026-04-10T10:05:00Z",
+            external_reference="foreign-invoice",
+        )
+
+        response = self.client.get("/hunter/api/billing/subscription/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["subscription"]["id"], subscription.id)
+        self.assertIsNone(response.data["subscription"]["last_invoice"])
+
     @patch("hunter.services.billing_service.StripeBillingGatewayService.retrieve_subscription")
     def test_webhook_checkout_completion_creates_local_subscription(
         self,

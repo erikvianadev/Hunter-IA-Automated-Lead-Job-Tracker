@@ -6,18 +6,42 @@ from django.db.models import Avg, Max
 
 from hunter.models.models import JobMatch, Resume
 
+from .resume_security_service import ResumeSecurityService
+
 
 class ResumeReportService:
+    def __init__(self, *, security_service: ResumeSecurityService | None = None) -> None:
+        self.security_service = security_service or ResumeSecurityService()
+
     def build(self, *, resume: Resume) -> dict[str, object]:
-        analysis = resume.analysis if hasattr(resume, 'analysis') else None
-        seniority = resume.seniority_assessment if hasattr(resume, 'seniority_assessment') else None
+        decision = self.security_service.evaluate(resume=resume)
+        analysis = (
+            resume.analysis
+            if decision.trusted and hasattr(resume, 'analysis')
+            else None
+        )
+        seniority = (
+            resume.seniority_assessment
+            if decision.trusted and hasattr(resume, 'seniority_assessment')
+            else None
+        )
         match_summary = self._build_match_summary(resume=resume)
-        strengths = self._build_strengths(analysis=analysis, seniority=seniority)
-        top_gaps = self._build_top_gaps(resume=resume, analysis=analysis, seniority=seniority)
+        strengths = self._build_strengths(
+            analysis=analysis,
+            seniority=seniority,
+            trust_decision=decision,
+        )
+        top_gaps = self._build_top_gaps(
+            resume=resume,
+            analysis=analysis,
+            seniority=seniority,
+            trust_decision=decision,
+        )
         priority_actions = self._build_priority_actions(
             analysis=analysis,
             seniority=seniority,
             top_gaps=top_gaps,
+            trust_decision=decision,
         )
 
         return {
@@ -25,6 +49,9 @@ class ResumeReportService:
             "label": resume.label,
             "target_role": resume.target_role,
             "parse_status": resume.parse_status,
+            "ingestion_status": decision.normalized_status,
+            "ingestion_trusted": decision.trusted,
+            "ingestion_diagnostics": decision.diagnostics,
             "is_active": resume.is_active,
             "category_scores": {
                 "overall": analysis.overall_score if analysis is not None else None,
@@ -45,16 +72,21 @@ class ResumeReportService:
                 analysis=analysis,
                 seniority=seniority,
                 match_summary=match_summary,
+                trust_decision=decision,
             ),
             "profile_summary": self._build_profile_summary(
                 resume=resume,
                 analysis=analysis,
                 seniority=seniority,
+                trust_decision=decision,
             ),
         }
 
     def _build_match_summary(self, *, resume: Resume) -> dict[str, object]:
-        queryset = JobMatch.objects.filter(resume=resume).order_by('-match_score', '-created_at')
+        queryset = JobMatch.objects.filter(
+            owner=resume.owner,
+            resume=resume,
+        ).order_by('-match_score', '-created_at')
         aggregate = queryset.aggregate(
             average_match_score=Avg('match_score'),
             best_match_score=Max('match_score'),
@@ -72,8 +104,10 @@ class ResumeReportService:
             "top_recommendation": top_match.recommendation if top_match is not None else None,
         }
 
-    def _build_strengths(self, *, analysis, seniority) -> list[str]:
+    def _build_strengths(self, *, analysis, seniority, trust_decision) -> list[str]:
         strengths: list[str] = []
+        if not trust_decision.trusted:
+            return strengths
         if analysis is not None:
             strengths.extend(analysis.strengths[:3])
             if analysis.overall_score >= 75:
@@ -86,8 +120,14 @@ class ResumeReportService:
             )
         return self._deduplicate(strengths)[:5]
 
-    def _build_top_gaps(self, *, resume: Resume, analysis, seniority) -> list[str]:
+    def _build_top_gaps(self, *, resume: Resume, analysis, seniority, trust_decision) -> list[str]:
         gaps: list[str] = []
+        if not trust_decision.trusted:
+            gaps.append(trust_decision.message)
+            suggestion = trust_decision.diagnostics.get("suggestion")
+            if isinstance(suggestion, str) and suggestion:
+                gaps.append(suggestion)
+            return self._deduplicate(gaps)[:5]
         if analysis is None:
             gaps.append("Resume analysis has not been generated yet.")
         else:
@@ -105,7 +145,10 @@ class ResumeReportService:
             gaps.append("Recommended track is not available yet.")
 
         match_gaps = list(
-            JobMatch.objects.filter(resume=resume)
+            JobMatch.objects.filter(
+                owner=resume.owner,
+                resume=resume,
+            )
             .order_by('-created_at')
             .values_list('gaps', flat=True)[:3]
         )
@@ -113,8 +156,14 @@ class ResumeReportService:
             gaps.extend(gap_list[:2])
         return self._deduplicate(gaps)[:5]
 
-    def _build_priority_actions(self, *, analysis, seniority, top_gaps: list[str]) -> list[str]:
+    def _build_priority_actions(self, *, analysis, seniority, top_gaps: list[str], trust_decision) -> list[str]:
         actions: list[str] = []
+        if not trust_decision.trusted:
+            actions.append("Upload a cleaner PDF or DOCX file before running analysis, seniority, or matching.")
+            suggestion = trust_decision.diagnostics.get("suggestion")
+            if isinstance(suggestion, str) and suggestion:
+                actions.append(suggestion)
+            return self._deduplicate(actions)[:5]
         if analysis is None:
             actions.append("Run resume analysis to unlock score-based recommendations.")
         else:
@@ -133,7 +182,12 @@ class ResumeReportService:
             actions.append(f"Address this first: {top_gaps[0]}")
         return self._deduplicate(actions)[:5]
 
-    def _build_executive_summary(self, *, resume: Resume, analysis, seniority, match_summary) -> str:
+    def _build_executive_summary(self, *, resume: Resume, analysis, seniority, match_summary, trust_decision) -> str:
+        if not trust_decision.trusted:
+            return (
+                f"{resume.label or resume.original_filename} is currently blocked from downstream processing because "
+                f"{trust_decision.message.lower()}"
+            )
         score = analysis.overall_score if analysis is not None else None
         score_text = (
             f"with an overall score of {score}/100"
@@ -156,7 +210,14 @@ class ResumeReportService:
             f"{match_text}"
         )
 
-    def _build_profile_summary(self, *, resume: Resume, analysis, seniority) -> str:
+    def _build_profile_summary(self, *, resume: Resume, analysis, seniority, trust_decision) -> str:
+        if not trust_decision.trusted:
+            suggestion = trust_decision.diagnostics.get("suggestion")
+            suggestion_text = f" {suggestion}" if isinstance(suggestion, str) and suggestion else ""
+            return (
+                f"This resume is preserved for diagnostics, but its ingestion state is not trusted for scoring or matching."
+                f"{suggestion_text}"
+            )
         if analysis is None:
             return (
                 f"{resume.label or resume.original_filename} has been uploaded and parsed, but still needs analysis "

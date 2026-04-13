@@ -43,7 +43,11 @@ class DashboardService:
         )
         match_queryset = (
             JobMatch.objects
-            .filter(owner=owner)
+            .filter(
+                owner=owner,
+                resume__owner=owner,
+                job__owner=owner,
+            )
             .select_related('job', 'resume')
             .order_by('-match_score', '-created_at')
         )

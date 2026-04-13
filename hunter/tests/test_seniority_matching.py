@@ -174,3 +174,34 @@ class SeniorityAndMatchingApiTests(TestCase):
         response = self.client.get(f"/hunter/api/matches/{other_match.id}/")
 
         self.assertEqual(response.status_code, 404)
+
+    def test_match_endpoints_hide_rows_with_cross_owned_links(self) -> None:
+        foreign_job_match = JobMatch.objects.create(
+            owner=self.user,
+            resume=self.resume,
+            job=self.other_job,
+            match_score=91,
+            strengths=["Should stay hidden."],
+            gaps=["Foreign job linkage."],
+            recommendation="Hidden malformed match.",
+            reasoning={"source": "test"},
+        )
+        foreign_resume_match = JobMatch.objects.create(
+            owner=self.user,
+            resume=self.other_resume,
+            job=self.job,
+            match_score=73,
+            strengths=["Should also stay hidden."],
+            gaps=["Foreign resume linkage."],
+            recommendation="Hidden malformed match.",
+            reasoning={"source": "test"},
+        )
+
+        list_response = self.client.get("/hunter/api/matches/")
+        retrieve_job_response = self.client.get(f"/hunter/api/matches/{foreign_job_match.id}/")
+        retrieve_resume_response = self.client.get(f"/hunter/api/matches/{foreign_resume_match.id}/")
+
+        self.assertEqual(list_response.status_code, 200)
+        self.assertEqual(list_response.data["count"], 0)
+        self.assertEqual(retrieve_job_response.status_code, 404)
+        self.assertEqual(retrieve_resume_response.status_code, 404)

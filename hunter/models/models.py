@@ -182,7 +182,7 @@ class Resume(BaseModel):
     extraction_diagnostics = models.JSONField(_('extraction diagnostics'), default=dict, blank=True)
     parse_status = models.CharField(
         _('parse status'),
-        max_length=32,
+        max_length=48,
         choices=ResumeParseStatus.choices,
         default=ResumeParseStatus.PENDING,
     )

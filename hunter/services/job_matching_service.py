@@ -5,7 +5,8 @@ import re
 from hunter.models.models import Job, JobMatch, Resume
 
 from .resume_analysis_service import ResumeAnalysisService
-from .seniority_assessment_service import SeniorityAssessmentService
+from .resume_security_service import ResumeSecurityService, ResumeTrustError
+from .seniority_assessment_service import SeniorityAssessmentError, SeniorityAssessmentService
 
 
 class JobMatchingError(Exception):
@@ -18,22 +19,34 @@ class JobMatchingService:
         *,
         analysis_service: ResumeAnalysisService | None = None,
         seniority_service: SeniorityAssessmentService | None = None,
+        security_service: ResumeSecurityService | None = None,
     ) -> None:
         self.analysis_service = analysis_service or ResumeAnalysisService()
         self.seniority_service = seniority_service or SeniorityAssessmentService(
             analysis_service=self.analysis_service
         )
+        self.security_service = security_service or ResumeSecurityService()
 
     def match(self, *, owner, resume: Resume, job: Job) -> JobMatch:
         if resume.owner_id != owner.id or job.owner_id != owner.id:
             raise JobMatchingError("Resume and job must belong to the authenticated user.")
+        try:
+            self.security_service.assert_trusted(
+                resume=resume,
+                action="Resume matching is blocked",
+            )
+        except ResumeTrustError as exc:
+            raise JobMatchingError(exc.decision.message) from exc
 
         analysis = resume.analysis if hasattr(resume, 'analysis') else self.analysis_service.analyze(resume=resume)
-        seniority = (
-            resume.seniority_assessment
-            if hasattr(resume, 'seniority_assessment')
-            else self.seniority_service.assess(resume=resume)
-        )
+        try:
+            seniority = (
+                resume.seniority_assessment
+                if hasattr(resume, 'seniority_assessment')
+                else self.seniority_service.assess(resume=resume)
+            )
+        except SeniorityAssessmentError as exc:
+            raise JobMatchingError(str(exc)) from exc
         parsed_resume = analysis.raw_summary.get("parsed_resume", {})
         resume_skills = {skill.lower() for skill in parsed_resume.get("skills", [])}
         resume_projects = parsed_resume.get("projects", [])

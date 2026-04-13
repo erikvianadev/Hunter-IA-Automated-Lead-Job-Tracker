@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 from io import BytesIO
 from xml.etree import ElementTree
 
+from django.conf import settings
+
 try:
     from docx import Document
 except ImportError:  # pragma: no cover - optional dependency
@@ -17,13 +19,18 @@ try:
 except ImportError:  # pragma: no cover - optional dependency
     PdfReader = None
 
+from hunter.choices import ResumeParseStatus
+
 
 logger = logging.getLogger(__name__)
 
-EXTRACTION_REASON_FAILED = "failed"
-EXTRACTION_REASON_EMPTY_TEXT = "empty_text"
-EXTRACTION_REASON_SCANNED_OR_IMAGE_PDF = "scanned_or_image_pdf"
-EXTRACTION_REASON_UNSUPPORTED_STRUCTURE = "unsupported_structure"
+EXTRACTION_REASON_FAILED = ResumeParseStatus.PARSING_FAILED
+EXTRACTION_REASON_EMPTY_TEXT = ResumeParseStatus.EMPTY_TEXT
+EXTRACTION_REASON_INSUFFICIENT_TEXT = ResumeParseStatus.INSUFFICIENT_TEXT
+EXTRACTION_REASON_SCANNED_OR_IMAGE_PDF = ResumeParseStatus.SCANNED_OR_IMAGE_PDF
+EXTRACTION_REASON_UNSUPPORTED_STRUCTURE = ResumeParseStatus.UNSUPPORTED_OR_UNSAFE_STRUCTURE
+EXTRACTION_REASON_BUDGET_EXCEEDED = ResumeParseStatus.PARSING_TIMEOUT_OR_BUDGET_EXCEEDED
+EXTRACTION_REASON_BLOCKED_BY_POLICY = ResumeParseStatus.QUARANTINED_OR_BLOCKED_BY_POLICY
 
 
 @dataclass(slots=True)
@@ -40,30 +47,74 @@ class ResumeTextExtractionError(Exception):
         *,
         reason: str = EXTRACTION_REASON_FAILED,
         diagnostics: dict[str, object] | None = None,
+        extracted_text: str = "",
     ) -> None:
         super().__init__(message)
         self.reason = reason
         self.diagnostics = diagnostics or {}
+        self.extracted_text = extracted_text
 
 
 class ResumeTextExtractionService:
     supported_content_types = {
         "application/pdf",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/zip",
     }
     supported_extensions = {".pdf", ".docx"}
+
+    def __init__(self) -> None:
+        config = getattr(settings, "RESUME_INGESTION", {})
+        self.enable_pdf_parsing = bool(config.get("ENABLE_PDF_PARSING", True))
+        self.enable_docx_parsing = bool(config.get("ENABLE_DOCX_PARSING", True))
+        self.enable_pypdf = bool(config.get("ENABLE_PYPDF", True))
+        self.enable_pdf_regex_fallback = bool(config.get("ENABLE_PDF_REGEX_FALLBACK", True))
+        self.enable_python_docx = bool(config.get("ENABLE_PYTHON_DOCX", False))
+        self.pdf_max_pages = int(config.get("PDF_MAX_PAGES", 25))
+        self.pdf_max_images = int(config.get("PDF_MAX_IMAGES", 128))
+        self.pdf_max_characters = int(config.get("PDF_MAX_CHARACTERS", 120000))
+        self.docx_max_archive_files = int(config.get("DOCX_MAX_ARCHIVE_FILES", 200))
+        self.docx_max_uncompressed_bytes = int(config.get("DOCX_MAX_UNCOMPRESSED_BYTES", 8 * 1024 * 1024))
+        self.docx_max_xml_bytes = int(config.get("DOCX_MAX_XML_BYTES", 4 * 1024 * 1024))
+        self.docx_max_compression_ratio = max(
+            1,
+            int(config.get("DOCX_MAX_COMPRESSION_RATIO", 100)),
+        )
+        self.min_trusted_text_characters = int(config.get("MIN_TRUSTED_TEXT_CHARACTERS", 80))
+        self.min_trusted_words = int(config.get("MIN_TRUSTED_WORDS", 12))
 
     def extract(self, *, file_bytes: bytes, content_type: str, filename: str) -> ResumeExtractionResult:
         normalized_name = filename.lower()
         if content_type == "application/pdf" or normalized_name.endswith(".pdf"):
+            if not self.enable_pdf_parsing:
+                raise self._policy_error(
+                    content_kind="pdf",
+                    suggestion="PDF parsing is disabled by configuration. Upload DOCX or re-enable PDF parsing.",
+                )
             return self._extract_pdf(file_bytes)
         if (
             content_type
-            == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            in {
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                "application/zip",
+            }
             or normalized_name.endswith(".docx")
         ):
+            if not self.enable_docx_parsing:
+                raise self._policy_error(
+                    content_kind="docx",
+                    suggestion="DOCX parsing is disabled by configuration. Upload PDF or re-enable DOCX parsing.",
+                )
             return self._extract_docx(file_bytes)
-        raise ResumeTextExtractionError("Unsupported resume format.")
+        raise ResumeTextExtractionError(
+            "Unsupported resume format.",
+            reason=ResumeParseStatus.UNSUPPORTED_FILE_TYPE,
+            diagnostics={
+                "content_kind": "unknown",
+                "blocked_by_policy": False,
+                "suggestion": "Upload a PDF or DOCX resume.",
+            },
+        )
 
     def extract_text(self, *, file_bytes: bytes, content_type: str, filename: str) -> str:
         return self.extract(
@@ -73,12 +124,31 @@ class ResumeTextExtractionService:
         ).text
 
     def _extract_docx(self, file_bytes: bytes) -> ResumeExtractionResult:
-        diagnostics: dict[str, object] = {
+        diagnostics = {
             "content_kind": "docx",
             "parser_used": None,
+            "blocked_by_policy": False,
+            "structurally_safe": False,
             "suggestion": None,
         }
-        if Document is not None:
+        archive_info = self._inspect_docx_archive(file_bytes)
+        diagnostics.update(archive_info)
+        diagnostics["structurally_safe"] = True
+
+        document_xml = archive_info["document_xml"]
+        text = self._extract_docx_xml_text(document_xml)
+        diagnostics.update(
+            {
+                "parser_used": "xml_fallback",
+                "normalized_character_count": len(text),
+                "word_count": self._count_words(text),
+                "paragraph_count": text.count("\n") + (1 if text else 0),
+            }
+        )
+        if text:
+            return self._finalize_result(text=text, diagnostics=diagnostics)
+
+        if self.enable_python_docx and Document is not None:
             try:
                 document = Document(BytesIO(file_bytes))
                 paragraphs = [
@@ -87,56 +157,156 @@ class ResumeTextExtractionService:
                     if (normalized := self._normalize_extracted_text(paragraph.text))
                 ]
                 text = "\n".join(paragraphs).strip()
-                if text:
-                    diagnostics.update(
-                        {
-                            "parser_used": "python_docx",
-                            "paragraph_count": len(paragraphs),
-                            "normalized_character_count": len(text),
-                        }
-                    )
-                    return ResumeExtractionResult(text=text, status="completed", diagnostics=diagnostics)
-                logger.warning("resume_docx_empty_text parser=python_docx")
-                raise ResumeTextExtractionError(
-                    "DOCX file did not contain readable text.",
-                    reason=EXTRACTION_REASON_EMPTY_TEXT,
-                    diagnostics={
-                        **diagnostics,
+                diagnostics.update(
+                    {
                         "parser_used": "python_docx",
-                        "paragraph_count": len(document.paragraphs),
-                        "suggestion": "Re-export the resume as a DOCX with selectable text.",
-                    },
+                        "normalized_character_count": len(text),
+                        "word_count": self._count_words(text),
+                        "paragraph_count": len(paragraphs),
+                    }
                 )
-            except ResumeTextExtractionError:
-                raise
-            except Exception as exc:
+                if text:
+                    return self._finalize_result(text=text, diagnostics=diagnostics)
+            except Exception as exc:  # pragma: no cover - defensive fallback
                 logger.warning("resume_docx_python_docx_failed error=%s", exc)
+                diagnostics["python_docx_error"] = str(exc)
+
+        logger.warning("resume_docx_empty_text parser=%s", diagnostics["parser_used"])
+        raise ResumeTextExtractionError(
+            "DOCX file did not contain readable text.",
+            reason=EXTRACTION_REASON_EMPTY_TEXT,
+            diagnostics={
+                **diagnostics,
+                "suggestion": "Open the file, confirm the text is selectable, then export a fresh DOCX or PDF.",
+            },
+        )
+
+    def _inspect_docx_archive(self, file_bytes: bytes) -> dict[str, object]:
+        if not file_bytes.startswith(b"PK"):
+            raise ResumeTextExtractionError(
+                "The DOCX file is not a valid OpenXML archive.",
+                reason=ResumeParseStatus.INVALID_FILE,
+                diagnostics={
+                    "content_kind": "docx",
+                    "structurally_safe": False,
+                    "suggestion": "Upload a standard DOCX file exported from your editor.",
+                },
+            )
 
         try:
             with zipfile.ZipFile(BytesIO(file_bytes)) as archive:
+                members = archive.infolist()
+                if len(members) > self.docx_max_archive_files:
+                    raise ResumeTextExtractionError(
+                        "DOCX archive contains too many entries.",
+                        reason=EXTRACTION_REASON_BUDGET_EXCEEDED,
+                        diagnostics={
+                            "content_kind": "docx",
+                            "archive_member_count": len(members),
+                            "max_archive_member_count": self.docx_max_archive_files,
+                            "structurally_safe": False,
+                            "suggestion": "Re-export the file as a clean DOCX with standard document contents only.",
+                        },
+                    )
+
+                total_uncompressed = 0
+                max_ratio = 0
+                for member in members:
+                    total_uncompressed += int(member.file_size or 0)
+                    compressed_size = int(member.compress_size or 0)
+                    if compressed_size > 0:
+                        max_ratio = max(max_ratio, round(member.file_size / compressed_size, 2))
+                    elif member.file_size:
+                        max_ratio = max(max_ratio, float(member.file_size))
+
+                if total_uncompressed > self.docx_max_uncompressed_bytes:
+                    raise ResumeTextExtractionError(
+                        "DOCX archive expands beyond the safe parsing budget.",
+                        reason=EXTRACTION_REASON_BUDGET_EXCEEDED,
+                        diagnostics={
+                            "content_kind": "docx",
+                            "archive_member_count": len(members),
+                            "total_uncompressed_bytes": total_uncompressed,
+                            "max_uncompressed_bytes": self.docx_max_uncompressed_bytes,
+                            "structurally_safe": False,
+                            "suggestion": "Re-save the document without embedded assets or template bloat.",
+                        },
+                    )
+
+                if max_ratio > self.docx_max_compression_ratio:
+                    raise ResumeTextExtractionError(
+                        "DOCX archive compression ratio looks unsafe.",
+                        reason=EXTRACTION_REASON_UNSUPPORTED_STRUCTURE,
+                        diagnostics={
+                            "content_kind": "docx",
+                            "archive_member_count": len(members),
+                            "max_compression_ratio": max_ratio,
+                            "allowed_compression_ratio": self.docx_max_compression_ratio,
+                            "structurally_safe": False,
+                            "suggestion": "Re-export the resume as a clean DOCX or PDF before uploading it again.",
+                        },
+                    )
+
+                try:
+                    document_info = archive.getinfo("word/document.xml")
+                except KeyError as exc:
+                    raise ResumeTextExtractionError(
+                        "DOCX file is missing the main document body.",
+                        reason=EXTRACTION_REASON_UNSUPPORTED_STRUCTURE,
+                        diagnostics={
+                            "content_kind": "docx",
+                            "archive_member_count": len(members),
+                            "structurally_safe": False,
+                            "suggestion": "Upload a standard DOCX file with a normal document body.",
+                        },
+                    ) from exc
+
+                if document_info.file_size > self.docx_max_xml_bytes:
+                    raise ResumeTextExtractionError(
+                        "DOCX document XML exceeds the safe parsing budget.",
+                        reason=EXTRACTION_REASON_BUDGET_EXCEEDED,
+                        diagnostics={
+                            "content_kind": "docx",
+                            "document_xml_bytes": document_info.file_size,
+                            "max_document_xml_bytes": self.docx_max_xml_bytes,
+                            "structurally_safe": False,
+                            "suggestion": "Remove excessive embedded content and re-export the document.",
+                        },
+                    )
+
                 document_xml = archive.read("word/document.xml")
-        except (KeyError, zipfile.BadZipFile) as exc:
-            logger.warning("resume_docx_read_failed error=%s", exc)
+        except ResumeTextExtractionError:
+            raise
+        except zipfile.BadZipFile as exc:
             raise ResumeTextExtractionError(
-                "Unable to read DOCX file.",
+                "Unable to read DOCX archive safely.",
+                reason=ResumeParseStatus.INVALID_FILE,
                 diagnostics={
-                    **diagnostics,
-                    "parser_used": "zip_fallback",
-                    "suggestion": "Re-save the document as a standard DOCX and upload it again.",
+                    "content_kind": "docx",
+                    "structurally_safe": False,
+                    "suggestion": "Upload a valid DOCX file exported from your editor.",
                 },
             ) from exc
 
+        return {
+            "archive_member_count": len(members),
+            "total_uncompressed_bytes": total_uncompressed,
+            "max_compression_ratio": max_ratio,
+            "document_xml": document_xml,
+            "document_xml_bytes": len(document_xml),
+        }
+
+    def _extract_docx_xml_text(self, document_xml: bytes) -> str:
         try:
             root = ElementTree.fromstring(document_xml)
         except ElementTree.ParseError as exc:
-            logger.warning("resume_docx_parse_failed error=%s", exc)
             raise ResumeTextExtractionError(
-                "Unable to parse DOCX content.",
+                "Unable to parse DOCX content safely.",
                 reason=EXTRACTION_REASON_UNSUPPORTED_STRUCTURE,
                 diagnostics={
-                    **diagnostics,
-                    "parser_used": "xml_fallback",
-                    "suggestion": "Re-export the document as a standard DOCX or PDF with selectable text.",
+                    "content_kind": "docx",
+                    "structurally_safe": False,
+                    "suggestion": "Re-export the document as a standard DOCX or PDF.",
                 },
             ) from exc
 
@@ -147,47 +317,75 @@ class ResumeTextExtractionService:
             line = self._normalize_extracted_text("".join(texts))
             if line:
                 paragraphs.append(line)
-        text = "\n".join(paragraphs).strip()
-        if not text:
-            logger.warning("resume_docx_empty_text parser=xml_fallback")
-            raise ResumeTextExtractionError(
-                "DOCX file did not contain readable text.",
-                reason=EXTRACTION_REASON_EMPTY_TEXT,
-                diagnostics={
-                    **diagnostics,
-                    "parser_used": "xml_fallback",
-                    "paragraph_count": len(paragraphs),
-                    "suggestion": "Open the file, confirm the text is selectable, then export a fresh DOCX or PDF.",
-                },
-            )
-        diagnostics.update(
-            {
-                "parser_used": "xml_fallback",
-                "paragraph_count": len(paragraphs),
-                "normalized_character_count": len(text),
-            }
-        )
-        return ResumeExtractionResult(text=text, status="completed", diagnostics=diagnostics)
+        return "\n".join(paragraphs).strip()
 
     def _extract_pdf(self, file_bytes: bytes) -> ResumeExtractionResult:
         is_pdf_signature = file_bytes.lstrip().startswith(b"%PDF")
         decoded = file_bytes.decode("latin-1", errors="ignore")
-        fallback_page_count = max(len(re.findall(r"/Type\s*/Page\b", decoded)), 1) if is_pdf_signature else 0
-        base_diagnostics: dict[str, object] = {
+        fallback_page_count = len(re.findall(r"/Type\s*/Page\b", decoded)) if is_pdf_signature else 0
+        image_object_count = decoded.count("/Subtype /Image")
+        diagnostics: dict[str, object] = {
             "content_kind": "pdf",
             "parser_used": None,
-            "page_count": 0,
+            "page_count": fallback_page_count,
             "pages_with_text": 0,
-            "image_object_count": decoded.count("/Subtype /Image"),
+            "image_object_count": image_object_count,
             "has_text_operators": bool(re.search(r"\b(Tj|TJ|BT|ET)\b", decoded)),
+            "blocked_by_policy": False,
+            "structurally_safe": is_pdf_signature,
             "suggestion": None,
         }
 
-        if PdfReader is not None:
+        if not is_pdf_signature:
+            raise ResumeTextExtractionError(
+                "The uploaded PDF does not have a valid PDF signature.",
+                reason=ResumeParseStatus.INVALID_FILE,
+                diagnostics={
+                    **diagnostics,
+                    "structurally_safe": False,
+                    "suggestion": "Upload a real PDF file exported from your editor.",
+                },
+            )
+
+        if fallback_page_count > self.pdf_max_pages:
+            raise ResumeTextExtractionError(
+                "PDF exceeds the configured page parsing budget.",
+                reason=EXTRACTION_REASON_BUDGET_EXCEEDED,
+                diagnostics={
+                    **diagnostics,
+                    "max_page_count": self.pdf_max_pages,
+                    "suggestion": "Upload a shorter PDF or export only the resume pages.",
+                },
+            )
+
+        if image_object_count > self.pdf_max_images:
+            raise ResumeTextExtractionError(
+                "PDF contains too many embedded image objects for safe parsing.",
+                reason=EXTRACTION_REASON_UNSUPPORTED_STRUCTURE,
+                diagnostics={
+                    **diagnostics,
+                    "max_image_object_count": self.pdf_max_images,
+                    "suggestion": "Export the resume as a text PDF or DOCX with fewer embedded assets.",
+                },
+            )
+
+        if self.enable_pypdf and PdfReader is not None:
             try:
                 reader = PdfReader(BytesIO(file_bytes))
-                pages: list[str] = []
                 page_count = len(reader.pages)
+                if page_count > self.pdf_max_pages:
+                    raise ResumeTextExtractionError(
+                        "PDF exceeds the configured page parsing budget.",
+                        reason=EXTRACTION_REASON_BUDGET_EXCEEDED,
+                        diagnostics={
+                            **diagnostics,
+                            "page_count": page_count,
+                            "max_page_count": self.pdf_max_pages,
+                            "suggestion": "Upload a shorter PDF or export only the resume pages.",
+                        },
+                    )
+
+                pages: list[str] = []
                 for index, page in enumerate(reader.pages):
                     extracted = page.extract_text() or ""
                     normalized = self._normalize_extracted_text(extracted)
@@ -195,23 +393,45 @@ class ResumeTextExtractionService:
                         pages.append(normalized)
                     else:
                         logger.info("resume_pdf_empty_page page=%d", index)
+                    combined_length = sum(len(value) for value in pages)
+                    if combined_length > self.pdf_max_characters:
+                        raise ResumeTextExtractionError(
+                            "PDF text extraction exceeded the configured parsing budget.",
+                            reason=EXTRACTION_REASON_BUDGET_EXCEEDED,
+                            diagnostics={
+                                **diagnostics,
+                                "page_count": page_count,
+                                "normalized_character_count": combined_length,
+                                "max_normalized_character_count": self.pdf_max_characters,
+                                "suggestion": "Trim the PDF to the resume pages before uploading it again.",
+                            },
+                        )
+
                 text = "\n\n".join(pages).strip()
-                if text:
-                    base_diagnostics.update(
-                        {
-                            "parser_used": "pypdf",
-                            "page_count": page_count,
-                            "pages_with_text": len(pages),
-                            "normalized_character_count": len(text),
-                        }
-                    )
-                    return ResumeExtractionResult(text=text, status="completed", diagnostics=base_diagnostics)
-                logger.warning(
-                    "resume_pdf_empty_text parser=pypdf page_count=%d",
-                    page_count,
+                diagnostics.update(
+                    {
+                        "parser_used": "pypdf",
+                        "page_count": page_count,
+                        "pages_with_text": len(pages),
+                        "normalized_character_count": len(text),
+                        "word_count": self._count_words(text),
+                    }
                 )
-            except Exception as exc:
+                if text:
+                    return self._finalize_result(text=text, diagnostics=diagnostics)
+                logger.warning("resume_pdf_empty_text parser=pypdf page_count=%d", page_count)
+            except ResumeTextExtractionError:
+                raise
+            except Exception as exc:  # pragma: no cover - defensive fallback
                 logger.warning("resume_pdf_pypdf_failed error=%s", exc)
+                diagnostics["pypdf_error"] = str(exc)
+
+        if not self.enable_pdf_regex_fallback:
+            raise self._policy_error(
+                content_kind="pdf",
+                suggestion="PDF regex fallback parsing is disabled by configuration.",
+                diagnostics=diagnostics,
+            )
 
         text_segments = re.findall(r"\((.*?)(?<!\\)\)\s*Tj", decoded, flags=re.DOTALL)
         text_segments.extend(
@@ -232,55 +452,76 @@ class ResumeTextExtractionService:
         ]
         unique_segments = [segment for segment in cleaned if segment]
         text = "\n".join(unique_segments).strip()
-        if text:
-            base_diagnostics.update(
-                {
-                    "parser_used": "regex_fallback",
-                    "page_count": fallback_page_count,
-                    "pages_with_text": 1,
-                    "normalized_character_count": len(text),
-                }
-            )
-            return ResumeExtractionResult(text=text, status="completed", diagnostics=base_diagnostics)
-
-        reason = self._classify_pdf_failure(
-            is_pdf_signature=is_pdf_signature,
-            diagnostics=base_diagnostics,
+        diagnostics.update(
+            {
+                "parser_used": "regex_fallback",
+                "pages_with_text": 1 if text else 0,
+                "normalized_character_count": len(text),
+                "word_count": self._count_words(text),
+            }
         )
+        if text:
+            return self._finalize_result(text=text, diagnostics=diagnostics)
+
+        reason = self._classify_pdf_failure(diagnostics=diagnostics)
         logger.warning(
             "resume_pdf_empty_text parser=fallback image_object_count=%d has_text_operators=%s",
-            base_diagnostics["image_object_count"],
-            base_diagnostics["has_text_operators"],
+            image_object_count,
+            diagnostics["has_text_operators"],
         )
         raise ResumeTextExtractionError(
             self._build_pdf_failure_message(reason),
             reason=reason,
             diagnostics={
-                **base_diagnostics,
-                "parser_used": base_diagnostics["parser_used"] or "regex_fallback",
-                "page_count": fallback_page_count,
-                "pages_with_text": 0,
+                **diagnostics,
                 "likely_scanned_pdf": reason == EXTRACTION_REASON_SCANNED_OR_IMAGE_PDF,
                 "suggestion": self._build_pdf_suggestion(reason),
             },
         )
 
-    def _classify_pdf_failure(self, *, is_pdf_signature: bool, diagnostics: dict[str, object]) -> str:
-        if not is_pdf_signature:
-            return EXTRACTION_REASON_UNSUPPORTED_STRUCTURE
+    def _finalize_result(self, *, text: str, diagnostics: dict[str, object]) -> ResumeExtractionResult:
+        normalized_text = text.strip()
+        character_count = len(normalized_text)
+        word_count = self._count_words(normalized_text)
+        diagnostics = {
+            **diagnostics,
+            "normalized_character_count": character_count,
+            "word_count": word_count,
+            "minimum_trusted_characters": self.min_trusted_text_characters,
+            "minimum_trusted_words": self.min_trusted_words,
+        }
+        if (
+            character_count < self.min_trusted_text_characters
+            or word_count < self.min_trusted_words
+        ):
+            diagnostics["suggestion"] = (
+                "Upload a clearer resume export with more selectable text before analysis or matching."
+            )
+            return ResumeExtractionResult(
+                text=normalized_text,
+                status=ResumeParseStatus.INSUFFICIENT_TEXT,
+                diagnostics=diagnostics,
+            )
+        return ResumeExtractionResult(
+            text=normalized_text,
+            status=ResumeParseStatus.COMPLETED,
+            diagnostics=diagnostics,
+        )
+
+    def _classify_pdf_failure(self, *, diagnostics: dict[str, object]) -> str:
         image_objects = int(diagnostics.get("image_object_count", 0) or 0)
         has_text_operators = bool(diagnostics.get("has_text_operators"))
-        if image_objects > 0 and not has_text_operators:
-            return EXTRACTION_REASON_SCANNED_OR_IMAGE_PDF
         if image_objects > 0:
             return EXTRACTION_REASON_SCANNED_OR_IMAGE_PDF
+        if not has_text_operators:
+            return EXTRACTION_REASON_UNSUPPORTED_STRUCTURE
         return EXTRACTION_REASON_EMPTY_TEXT
 
     def _build_pdf_failure_message(self, reason: str) -> str:
         if reason == EXTRACTION_REASON_SCANNED_OR_IMAGE_PDF:
             return "PDF appears to be scanned or image-based and does not contain selectable text."
         if reason == EXTRACTION_REASON_UNSUPPORTED_STRUCTURE:
-            return "PDF structure could not be parsed."
+            return "PDF structure could not be parsed safely."
         return "PDF file did not contain extractable text."
 
     def _build_pdf_suggestion(self, reason: str) -> str:
@@ -289,6 +530,28 @@ class ResumeTextExtractionService:
         if reason == EXTRACTION_REASON_UNSUPPORTED_STRUCTURE:
             return "Re-export the file as a standard PDF or DOCX and try again."
         return "Confirm the PDF contains selectable text, then re-export it as a text PDF or DOCX."
+
+    def _policy_error(
+        self,
+        *,
+        content_kind: str,
+        suggestion: str,
+        diagnostics: dict[str, object] | None = None,
+    ) -> ResumeTextExtractionError:
+        base = {
+            "content_kind": content_kind,
+            "blocked_by_policy": True,
+            "suggestion": suggestion,
+        }
+        if diagnostics:
+            base.update(diagnostics)
+            base["blocked_by_policy"] = True
+            base["suggestion"] = suggestion
+        return ResumeTextExtractionError(
+            "Resume parsing was blocked by policy.",
+            reason=EXTRACTION_REASON_BLOCKED_BY_POLICY,
+            diagnostics=base,
+        )
 
     def _decode_pdf_literal_text(self, value: str) -> str:
         replacements = {
@@ -313,6 +576,7 @@ class ResumeTextExtractionService:
     def _normalize_extracted_text(self, value: str) -> str:
         replacements = {
             "\x00": " ",
+            "\u00a0": " ",
             "\u00ad": "",
             "\uf0b7": " ",
             "\uf0a7": " ",
@@ -342,3 +606,6 @@ class ResumeTextExtractionService:
         value = "".join(ch for ch in value if ch == "\n" or ch.isprintable())
         value = re.sub(r" ?\n ?", "\n", value)
         return value.strip()
+
+    def _count_words(self, text: str) -> int:
+        return len(re.findall(r"\b\w+\b", text))

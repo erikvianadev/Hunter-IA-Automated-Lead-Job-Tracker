@@ -13,6 +13,7 @@ from .resume_ingestion_service import ResumeIngestionService, ResumeValidationEr
 from .resume_profile_service import ResumeProfileService
 from .resume_report_service import ResumeReportService
 from .resume_parser_service import ResumeParserService
+from .resume_security_service import ResumeSecurityService, ResumeTrustError
 from .resume_scoring_service import ResumeScoringService
 from .seniority_assessment_service import (
     SeniorityAssessmentError,
@@ -47,6 +48,8 @@ __all__ = [
     "ResumeProfileService",
     "ResumeReportService",
     "ResumeParserService",
+    "ResumeSecurityService",
+    "ResumeTrustError",
     "ResumeScoringService",
     "ResumeTextExtractionError",
     "ResumeTextExtractionService",

@@ -3,6 +3,7 @@ from __future__ import annotations
 from hunter.models.models import Resume, SeniorityAssessment
 
 from .resume_analysis_service import ResumeAnalysisService
+from .resume_security_service import ResumeSecurityService, ResumeTrustError
 
 
 class SeniorityAssessmentError(Exception):
@@ -10,10 +11,24 @@ class SeniorityAssessmentError(Exception):
 
 
 class SeniorityAssessmentService:
-    def __init__(self, *, analysis_service: ResumeAnalysisService | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        analysis_service: ResumeAnalysisService | None = None,
+        security_service: ResumeSecurityService | None = None,
+    ) -> None:
         self.analysis_service = analysis_service or ResumeAnalysisService()
+        self.security_service = security_service or ResumeSecurityService()
 
     def assess(self, *, resume: Resume) -> SeniorityAssessment:
+        try:
+            self.security_service.assert_trusted(
+                resume=resume,
+                action="Resume seniority assessment is blocked",
+            )
+        except ResumeTrustError as exc:
+            raise SeniorityAssessmentError(exc.decision.message) from exc
+
         if not hasattr(resume, 'analysis'):
             analysis = self.analysis_service.analyze(resume=resume)
         else:

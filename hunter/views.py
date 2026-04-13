@@ -228,7 +228,10 @@ class JobApplicationViewSet(
     def get_queryset(self):
         return (
             JobApplication.objects
-            .filter(owner=self.request.user)
+            .filter(
+                owner=self.request.user,
+                job__owner=self.request.user,
+            )
             .select_related('owner', 'job')
             .prefetch_related(
                 Prefetch(
@@ -447,7 +450,11 @@ class JobMatchViewSet(ListModelMixin, RetrieveModelMixin, viewsets.GenericViewSe
     def get_queryset(self):
         return (
             JobMatch.objects
-            .filter(owner=self.request.user)
+            .filter(
+                owner=self.request.user,
+                resume__owner=self.request.user,
+                job__owner=self.request.user,
+            )
             .select_related('owner', 'resume', 'job')
         )
 
@@ -461,7 +468,10 @@ class SavedJobViewSet(ListModelMixin, viewsets.GenericViewSet):
     def get_queryset(self):
         return (
             SavedJob.objects
-            .filter(owner=self.request.user)
+            .filter(
+                owner=self.request.user,
+                job__owner=self.request.user,
+            )
             .select_related('owner', 'job')
             .prefetch_related('job__tags')
         )

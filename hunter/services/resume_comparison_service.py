@@ -41,7 +41,10 @@ class ResumeComparisonService:
     def _serialize_resume(self, resume: Resume) -> dict[str, object]:
         analysis = resume.analysis if hasattr(resume, 'analysis') else None
         seniority = resume.seniority_assessment if hasattr(resume, 'seniority_assessment') else None
-        match_summary = JobMatch.objects.filter(resume=resume).aggregate(
+        match_summary = JobMatch.objects.filter(
+            owner=resume.owner,
+            resume=resume,
+        ).aggregate(
             average_match_score=Avg('match_score'),
             best_match_score=Max('match_score'),
         )

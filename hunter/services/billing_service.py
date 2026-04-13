@@ -250,7 +250,12 @@ class BillingService:
 
     def _serialize_subscription(self, *, record: BillingSubscription) -> dict[str, object]:
         plan = self._get_plan(plan_code=record.plan_code, billing_cycle=record.billing_cycle)
-        last_invoice = record.invoices.order_by('-issued_at', '-created_at').first()
+        last_invoice = (
+            record.invoices
+            .filter(owner=record.owner)
+            .order_by('-issued_at', '-created_at')
+            .first()
+        )
         return {
             "id": record.id,
             "plan_code": record.plan_code,
