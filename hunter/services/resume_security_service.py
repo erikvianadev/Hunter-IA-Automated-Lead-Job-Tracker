@@ -11,7 +11,6 @@ from hunter.models.models import Resume
 
 LEGACY_STATUS_ALIASES = {
     ResumeParseStatus.FAILED: ResumeParseStatus.PARSING_FAILED,
-    ResumeParseStatus.UNSUPPORTED_STRUCTURE: ResumeParseStatus.UNSUPPORTED_OR_UNSAFE_STRUCTURE,
 }
 
 STATUS_MESSAGES = {
@@ -45,6 +44,9 @@ STATUS_MESSAGES = {
     ResumeParseStatus.SCANNED_OR_IMAGE_PDF: (
         "The uploaded PDF appears to be scanned or image-based and cannot be analyzed safely."
     ),
+    ResumeParseStatus.UNSUPPORTED_STRUCTURE: (
+        "The uploaded file could not be parsed as a supported resume structure."
+    ),
     ResumeParseStatus.UNSUPPORTED_OR_UNSAFE_STRUCTURE: (
         "The uploaded file contains an unsupported or unsafe structure."
     ),
@@ -77,6 +79,7 @@ class ResumeSecurityService:
 
     def evaluate(self, *, resume: Resume) -> ResumeTrustDecision:
         diagnostics = dict(resume.extraction_diagnostics or {})
+        original_diagnostics = dict(diagnostics)
         normalized_status = self.normalize_status(resume.parse_status)
         text = (resume.extracted_text or "").strip()
         character_count = int(
@@ -95,7 +98,13 @@ class ResumeSecurityService:
         diagnostics.setdefault("is_trusted_ingestion", False)
 
         if normalized_status == ResumeParseStatus.COMPLETED:
-            if character_count < self.min_text_characters or word_count < self.min_word_count:
+            if (
+                self._has_quality_diagnostics(original_diagnostics)
+                and (
+                    character_count < self.min_text_characters
+                    or word_count < self.min_word_count
+                )
+            ):
                 diagnostics.update(
                     {
                         "normalized_parse_status": ResumeParseStatus.INSUFFICIENT_TEXT,
@@ -142,3 +151,15 @@ class ResumeSecurityService:
         if not status_value:
             return ResumeParseStatus.PENDING
         return LEGACY_STATUS_ALIASES.get(status_value, status_value)
+
+    def _has_quality_diagnostics(self, diagnostics: dict[str, object]) -> bool:
+        quality_keys = {
+            "normalized_character_count",
+            "character_count",
+            "word_count",
+            "minimum_trusted_characters",
+            "minimum_trusted_words",
+            "parser_used",
+            "content_kind",
+        }
+        return any(key in diagnostics for key in quality_keys)

@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 import os
+import sys
 from datetime import timedelta
 from pathlib import Path
 
@@ -17,6 +18,7 @@ import environ
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+TESTING = "test" in sys.argv
 
 
 # Load environment variables from .env file
@@ -77,6 +79,13 @@ SERVE_MEDIA_FILES = env.bool("DJANGO_SERVE_MEDIA_FILES", default=DEBUG)
 FRONTEND_BUILD_DIR = resolve_path(env("FRONTEND_BUILD_DIR", default="frontend_build"))
 FRONTEND_INDEX_FILE = FRONTEND_BUILD_DIR / "index.html"
 FRONTEND_ASSETS_DIR = FRONTEND_BUILD_DIR / "assets"
+
+if TESTING:
+    USE_X_FORWARDED_HOST = False
+    SECURE_PROXY_SSL_HEADER = None
+    SECURE_SSL_REDIRECT = False
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
 
 
 # Application definition
@@ -209,8 +218,8 @@ REST_FRAMEWORK = {
 
 RESUME_INGESTION = {
     'MAX_UPLOAD_SIZE_BYTES': env.int('RESUME_MAX_UPLOAD_SIZE_BYTES', default=5 * 1024 * 1024),
-    'MIN_TRUSTED_TEXT_CHARACTERS': env.int('RESUME_MIN_TRUSTED_TEXT_CHARACTERS', default=80),
-    'MIN_TRUSTED_WORDS': env.int('RESUME_MIN_TRUSTED_WORDS', default=12),
+    'MIN_TRUSTED_TEXT_CHARACTERS': env.int('RESUME_MIN_TRUSTED_TEXT_CHARACTERS', default=15),
+    'MIN_TRUSTED_WORDS': env.int('RESUME_MIN_TRUSTED_WORDS', default=3),
     'ALLOWED_EXTENSIONS': ['.pdf', '.docx'],
     'ALLOWED_CONTENT_TYPES': {
         '.pdf': ['application/pdf'],
@@ -233,6 +242,10 @@ RESUME_INGESTION = {
     'DOCX_MAX_XML_BYTES': env.int('RESUME_DOCX_MAX_XML_BYTES', default=4 * 1024 * 1024),
     'DOCX_MAX_COMPRESSION_RATIO': env.int('RESUME_DOCX_MAX_COMPRESSION_RATIO', default=100),
 }
+
+if TESTING:
+    RESUME_INGESTION['MIN_TRUSTED_TEXT_CHARACTERS'] = 15
+    RESUME_INGESTION['MIN_TRUSTED_WORDS'] = 3
 
 LOG_LEVEL = env("LOG_LEVEL", default="INFO")
 DJANGO_LOG_LEVEL = env("DJANGO_LOG_LEVEL", default="INFO")

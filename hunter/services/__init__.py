@@ -10,7 +10,7 @@ from .job_persistence_service import JobPersistenceService, PersistenceResult
 from .resume_analysis_service import ResumeAnalysisError, ResumeAnalysisService
 from .resume_comparison_service import ResumeComparisonService
 from .resume_ingestion_service import ResumeIngestionService, ResumeValidationError
-from .resume_profile_service import ResumeProfileService
+from .resume_profile_service import ResumeProfileError, ResumeProfileService
 from .resume_report_service import ResumeReportService
 from .resume_parser_service import ResumeParserService
 from .resume_security_service import ResumeSecurityService, ResumeTrustError
@@ -45,6 +45,7 @@ __all__ = [
     "ResumeAnalysisService",
     "ResumeComparisonService",
     "ResumeIngestionService",
+    "ResumeProfileError",
     "ResumeProfileService",
     "ResumeReportService",
     "ResumeParserService",

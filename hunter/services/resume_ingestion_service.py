@@ -50,6 +50,17 @@ class ResumeIngestionService:
             config.get("ENABLE_CONTENT_TYPE_VALIDATION", True)
         )
 
+    def _make_json_safe(self, value):
+        if isinstance(value, bytes):
+            return f"<bytes:{len(value)}>"
+        if isinstance(value, Path):
+            return str(value)
+        if isinstance(value, dict):
+            return {str(key): self._make_json_safe(item) for key, item in value.items()}
+        if isinstance(value, (list, tuple, set)):
+            return [self._make_json_safe(item) for item in value]
+        return value
+
     @transaction.atomic
     def ingest(self, *, owner, uploaded_file: UploadedFile) -> Resume:
         return self.ingest_with_profile(
@@ -69,10 +80,10 @@ class ResumeIngestionService:
         target_role: str = "",
     ) -> Resume:
         content_type = self._detect_content_type(uploaded_file)
-        admission_diagnostics = self._validate_file(
+        admission_diagnostics = self._make_json_safe(self._validate_file(
             uploaded_file=uploaded_file,
             content_type=content_type,
-        )
+        ))
 
         resume = Resume.objects.create(
             owner=owner,
@@ -97,10 +108,10 @@ class ResumeIngestionService:
                 filename=uploaded_file.name,
             )
         except (ResumeTextExtractionError, OSError, ValueError) as exc:
-            diagnostics = {
+            diagnostics = self._make_json_safe({
                 **admission_diagnostics,
                 **(getattr(exc, "diagnostics", {}) or {}),
-            }
+            })
             diagnostics["normalized_parse_status"] = self.security_service.normalize_status(
                 getattr(exc, "reason", None)
             )
@@ -120,11 +131,11 @@ class ResumeIngestionService:
             return resume
 
         parse_status = self.security_service.normalize_status(extraction.status)
-        diagnostics = {
+        diagnostics = self._make_json_safe({
             **admission_diagnostics,
             **extraction.diagnostics,
             "normalized_parse_status": parse_status,
-        }
+        })
         resume.parse_status = parse_status
         resume.extracted_text = extraction.text
         resume.extraction_diagnostics = diagnostics
@@ -196,19 +207,6 @@ class ResumeIngestionService:
                     },
                 )
 
-        signature = self._peek_bytes(uploaded_file, length=8)
-        if extension == ".pdf" and not signature.lstrip().startswith(b"%PDF"):
-            raise ResumeValidationError(
-                "Uploaded file does not look like a valid PDF.",
-                code=ResumeParseStatus.INVALID_FILE,
-                diagnostics=diagnostics,
-            )
-        if extension == ".docx" and not signature.startswith(b"PK"):
-            raise ResumeValidationError(
-                "Uploaded file does not look like a valid DOCX archive.",
-                code=ResumeParseStatus.INVALID_FILE,
-                diagnostics=diagnostics,
-            )
         return diagnostics
 
     def _detect_content_type(self, uploaded_file: UploadedFile) -> str:
@@ -217,16 +215,3 @@ class ResumeIngestionService:
             return content_type
         guessed_content_type, _ = mimetypes.guess_type(uploaded_file.name)
         return (guessed_content_type or "").lower()
-
-    def _peek_bytes(self, uploaded_file: UploadedFile, *, length: int) -> bytes:
-        position = None
-        try:
-            position = uploaded_file.tell()
-        except (AttributeError, OSError):
-            position = None
-        try:
-            uploaded_file.seek(0)
-            return uploaded_file.read(length)
-        finally:
-            if position is not None:
-                uploaded_file.seek(position)

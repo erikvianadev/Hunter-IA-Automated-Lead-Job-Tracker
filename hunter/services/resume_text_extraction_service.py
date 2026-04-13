@@ -132,10 +132,10 @@ class ResumeTextExtractionService:
             "suggestion": None,
         }
         archive_info = self._inspect_docx_archive(file_bytes)
+        document_xml = archive_info.pop("document_xml")
         diagnostics.update(archive_info)
         diagnostics["structurally_safe"] = True
 
-        document_xml = archive_info["document_xml"]
         text = self._extract_docx_xml_text(document_xml)
         diagnostics.update(
             {
@@ -339,11 +339,11 @@ class ResumeTextExtractionService:
         if not is_pdf_signature:
             raise ResumeTextExtractionError(
                 "The uploaded PDF does not have a valid PDF signature.",
-                reason=ResumeParseStatus.INVALID_FILE,
+                reason=ResumeParseStatus.UNSUPPORTED_STRUCTURE,
                 diagnostics={
                     **diagnostics,
                     "structurally_safe": False,
-                    "suggestion": "Upload a real PDF file exported from your editor.",
+                    "suggestion": "Export the resume again as a standard PDF or upload a DOCX version.",
                 },
             )
 
@@ -510,11 +510,8 @@ class ResumeTextExtractionService:
 
     def _classify_pdf_failure(self, *, diagnostics: dict[str, object]) -> str:
         image_objects = int(diagnostics.get("image_object_count", 0) or 0)
-        has_text_operators = bool(diagnostics.get("has_text_operators"))
         if image_objects > 0:
             return EXTRACTION_REASON_SCANNED_OR_IMAGE_PDF
-        if not has_text_operators:
-            return EXTRACTION_REASON_UNSUPPORTED_STRUCTURE
         return EXTRACTION_REASON_EMPTY_TEXT
 
     def _build_pdf_failure_message(self, reason: str) -> str:

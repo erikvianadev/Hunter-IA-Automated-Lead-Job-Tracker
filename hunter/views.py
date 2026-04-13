@@ -55,6 +55,7 @@ from .services import (
     ResumeAnalysisService,
     ResumeIngestionService,
     ResumeProfileService,
+    ResumeProfileError,
     ResumeReportService,
     ResumeValidationError,
     SeniorityAssessmentService,
@@ -375,10 +376,13 @@ class ResumeViewSet(
     @action(detail=True, methods=['post'], url_path='activate')
     def activate(self, request, pk=None):
         resume = self.get_object()
-        activated_resume = ResumeProfileService().activate(
-            owner=request.user,
-            resume=resume,
-        )
+        try:
+            activated_resume = ResumeProfileService().activate(
+                owner=request.user,
+                resume=resume,
+            )
+        except ResumeProfileError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         serializer = ResumeSerializer(
             activated_resume,
             context=self.get_serializer_context(),
