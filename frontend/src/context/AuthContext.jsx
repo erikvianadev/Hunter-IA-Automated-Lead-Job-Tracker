@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
-import { decodeJwtPayload } from "../lib/utils";
+import { decodeJwtPayload, looksLikeHtmlDocument } from "../lib/utils";
 
 const STORAGE_KEY = "hunter-ia-auth";
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
@@ -18,11 +18,28 @@ async function parseResponse(response) {
   const contentType = response.headers.get("content-type") ?? "";
 
   if (contentType.includes("application/json")) {
-    return response.json();
+    try {
+      return await response.json();
+    } catch (error) {
+      return {
+        code: "invalid_json_response",
+        detail: "",
+        response_content_type: contentType,
+        response_is_invalid_json: true
+      };
+    }
   }
 
   const text = await response.text();
-  return text ? { detail: text } : null;
+  if (!text) {
+    return null;
+  }
+
+  return {
+    detail: text,
+    response_content_type: contentType,
+    response_is_html: contentType.includes("text/html") || looksLikeHtmlDocument(text)
+  };
 }
 
 function normalizeErrorPayload(payload) {
@@ -54,6 +71,23 @@ function normalizeErrorPayload(payload) {
 
 function buildHttpError(response, payload, fallbackMessage) {
   const normalized = normalizeErrorPayload(payload);
+  const isStructuredPayload = normalized && typeof normalized === "object" && !Array.isArray(normalized);
+  const responseIsHtml = Boolean(isStructuredPayload && normalized.response_is_html);
+  const responseIsInvalidJson = Boolean(isStructuredPayload && normalized.response_is_invalid_json);
+  const shouldHideRawDetail =
+    responseIsHtml ||
+    responseIsInvalidJson ||
+    (response.status >= 500 && !(isStructuredPayload && normalized.code));
+
+  if (shouldHideRawDetail) {
+    return {
+      status: response.status,
+      code: normalized?.code ?? (responseIsHtml ? "html_error_response" : "invalid_json_response"),
+      detail: fallbackMessage,
+      message: fallbackMessage
+    };
+  }
+
   if (normalized && typeof normalized === "object" && !Array.isArray(normalized)) {
     return {
       status: response.status,

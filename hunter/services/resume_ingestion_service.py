@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import mimetypes
+import zipfile
+from io import BytesIO
 from pathlib import Path
 
 from django.conf import settings
@@ -28,6 +30,11 @@ class ResumeValidationError(Exception):
 
 
 class ResumeIngestionService:
+    CONTENT_TYPE_ALIASES = {
+        "application/x-pdf": "application/pdf",
+        "application/x-zip-compressed": "application/zip",
+    }
+
     def __init__(
         self,
         *,
@@ -80,10 +87,13 @@ class ResumeIngestionService:
         target_role: str = "",
     ) -> Resume:
         content_type = self._detect_content_type(uploaded_file)
+        file_bytes = self._read_file_bytes(uploaded_file)
         admission_diagnostics = self._make_json_safe(self._validate_file(
             uploaded_file=uploaded_file,
             content_type=content_type,
+            file_bytes=file_bytes,
         ))
+        uploaded_file.seek(0)
 
         resume = Resume.objects.create(
             owner=owner,
@@ -100,8 +110,6 @@ class ResumeIngestionService:
         resume.save(update_fields=["parse_status", "updated_at"])
 
         try:
-            uploaded_file.seek(0)
-            file_bytes = uploaded_file.read()
             extraction = self.extraction_service.extract(
                 file_bytes=file_bytes,
                 content_type=content_type,
@@ -153,17 +161,29 @@ class ResumeIngestionService:
             Resume.objects.filter(owner=owner, is_active=True).exclude(id=resume.id).update(is_active=False)
         return resume
 
-    def _validate_file(self, *, uploaded_file: UploadedFile, content_type: str) -> dict[str, object]:
+    def _validate_file(
+        self,
+        *,
+        uploaded_file: UploadedFile,
+        content_type: str,
+        file_bytes: bytes,
+    ) -> dict[str, object]:
         if not uploaded_file or not uploaded_file.name:
             raise ResumeValidationError("Resume file is required.")
 
         extension = Path(uploaded_file.name).suffix.lower()
         file_size = int(getattr(uploaded_file, "size", 0) or 0)
+        reported_content_type = self._normalize_content_type(
+            (getattr(uploaded_file, "content_type", "") or "").strip().lower()
+        )
+        detected_signature = self._detect_file_signature(file_bytes)
         diagnostics = {
             "file_name": uploaded_file.name,
             "file_size_bytes": file_size,
             "file_extension": extension,
+            "reported_content_type": reported_content_type,
             "detected_content_type": content_type,
+            "detected_file_signature": detected_signature,
             "admission_validated": True,
             "blocked_by_policy": False,
         }
@@ -197,7 +217,12 @@ class ResumeIngestionService:
 
         if self.enable_content_type_validation:
             allowed_content_types = self.allowed_content_types.get(extension, set())
-            if content_type not in allowed_content_types:
+            should_validate_reported_type = reported_content_type not in {
+                "",
+                "application/octet-stream",
+                "binary/octet-stream",
+            }
+            if should_validate_reported_type and reported_content_type not in allowed_content_types:
                 raise ResumeValidationError(
                     "Unsupported resume content type.",
                     code=ResumeParseStatus.UNSUPPORTED_FILE_TYPE,
@@ -207,11 +232,82 @@ class ResumeIngestionService:
                     },
                 )
 
+        self._validate_file_signature(
+            extension=extension,
+            file_bytes=file_bytes,
+            diagnostics=diagnostics,
+        )
+
         return diagnostics
 
     def _detect_content_type(self, uploaded_file: UploadedFile) -> str:
         content_type = (uploaded_file.content_type or "").strip().lower()
         if content_type:
-            return content_type
+            return self._normalize_content_type(content_type)
         guessed_content_type, _ = mimetypes.guess_type(uploaded_file.name)
-        return (guessed_content_type or "").lower()
+        return self._normalize_content_type((guessed_content_type or "").lower())
+
+    def _read_file_bytes(self, uploaded_file: UploadedFile) -> bytes:
+        uploaded_file.seek(0)
+        file_bytes = uploaded_file.read()
+        uploaded_file.seek(0)
+        return file_bytes
+
+    def _normalize_content_type(self, content_type: str) -> str:
+        normalized = (content_type or "").strip().lower()
+        return self.CONTENT_TYPE_ALIASES.get(normalized, normalized)
+
+    def _detect_file_signature(self, file_bytes: bytes) -> str:
+        stripped = file_bytes.lstrip()
+        if stripped.startswith(b"%PDF"):
+            return "pdf"
+        if file_bytes.startswith(b"PK"):
+            return "zip"
+        return "unknown"
+
+    def _validate_file_signature(
+        self,
+        *,
+        extension: str,
+        file_bytes: bytes,
+        diagnostics: dict[str, object],
+    ) -> None:
+        if extension == ".pdf":
+            if not file_bytes.lstrip().startswith(b"%PDF"):
+                raise ResumeValidationError(
+                    "The uploaded file does not contain a valid PDF signature.",
+                    code=ResumeParseStatus.INVALID_FILE,
+                    diagnostics=diagnostics,
+                )
+            diagnostics["signature_matches_extension"] = True
+            return
+
+        if extension == ".docx":
+            if not file_bytes.startswith(b"PK"):
+                raise ResumeValidationError(
+                    "The uploaded file does not contain a valid DOCX archive signature.",
+                    code=ResumeParseStatus.INVALID_FILE,
+                    diagnostics=diagnostics,
+                )
+            try:
+                with zipfile.ZipFile(BytesIO(file_bytes)) as archive:
+                    members = set(archive.namelist())
+            except zipfile.BadZipFile as exc:
+                raise ResumeValidationError(
+                    "The uploaded file is not a readable DOCX archive.",
+                    code=ResumeParseStatus.INVALID_FILE,
+                    diagnostics=diagnostics,
+                ) from exc
+
+            required_members = {"[Content_Types].xml", "word/document.xml"}
+            missing_members = sorted(required_members - members)
+            if missing_members:
+                raise ResumeValidationError(
+                    "The uploaded file is not a supported DOCX document.",
+                    code=ResumeParseStatus.INVALID_FILE,
+                    diagnostics={
+                        **diagnostics,
+                        "missing_docx_members": missing_members,
+                    },
+                )
+            diagnostics["signature_matches_extension"] = True

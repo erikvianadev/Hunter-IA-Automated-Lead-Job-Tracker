@@ -15,6 +15,11 @@ from hunter.services.job_persistence_service import JobPersistenceService
 
 logger = logging.getLogger(__name__)
 
+SCRAPE_FAILURE_CODE = "job_search_failed"
+SCRAPE_FAILURE_DETAIL = (
+    "Nao foi possivel atualizar a busca de vagas agora. Tente novamente em instantes."
+)
+
 
 @method_decorator(csrf_exempt, name='dispatch')
 class ScrapeJobsView(APIView):
@@ -73,13 +78,21 @@ class ScrapeJobsView(APIView):
                 aggregation.provider_job_counts,
             )
 
-            return Response(
-                build_scrape_summary(
-                    aggregation=aggregation,
-                    saved=persistence.saved,
-                ),
-                status=status.HTTP_200_OK,
+            payload = build_scrape_summary(
+                aggregation=aggregation,
+                saved=persistence.saved,
             )
+            if aggregation.status == "error":
+                return Response(
+                    {
+                        **payload,
+                        "code": SCRAPE_FAILURE_CODE,
+                        "detail": SCRAPE_FAILURE_DETAIL,
+                    },
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                )
+
+            return Response(payload, status=status.HTTP_200_OK)
 
         except Exception as exc:
             logger.exception(
@@ -92,7 +105,8 @@ class ScrapeJobsView(APIView):
             return Response(
                 {
                     "status": "error",
-                    "detail": "An error occurred while scraping jobs. Please try again later.",
+                    "code": SCRAPE_FAILURE_CODE,
+                    "detail": SCRAPE_FAILURE_DETAIL,
                 },
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )

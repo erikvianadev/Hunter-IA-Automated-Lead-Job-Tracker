@@ -5,7 +5,8 @@ const SECURITY_PARSE_STATUSES = new Set([
   "unsafe",
   "blocked_security",
   "security_blocked",
-  "malicious"
+  "malicious",
+  "quarantined_or_blocked_by_policy"
 ]);
 
 const RESUME_PARSE_PRESENTATIONS = {
@@ -33,12 +34,44 @@ const RESUME_PARSE_PRESENTATIONS = {
     nextStep: "Aguarde um instante e atualize a pagina para acompanhar o progresso.",
     noticeTone: "info"
   },
+  upload_too_large: {
+    label: "Arquivo grande demais",
+    tone: "warning",
+    title: "O arquivo passou do limite permitido",
+    description: "Recebemos o envio, mas o arquivo esta acima do tamanho aceito para curriculos.",
+    nextStep: "Gere uma versao menor em PDF ou DOCX e tente novamente.",
+    noticeTone: "warning"
+  },
+  invalid_file: {
+    label: "Arquivo invalido",
+    tone: "warning",
+    title: "Nao conseguimos validar esse arquivo",
+    description: "O arquivo enviado nao se comporta como um curriculo PDF ou DOCX confiavel.",
+    nextStep: "Exporte novamente o curriculo em PDF ou DOCX e envie uma nova versao.",
+    noticeTone: "warning"
+  },
+  unsupported_file_type: {
+    label: "Formato nao suportado",
+    tone: "warning",
+    title: "Esse formato nao entra na analise",
+    description: "Aceitamos apenas curriculos em PDF ou DOCX no fluxo atual.",
+    nextStep: "Converta o arquivo para PDF ou DOCX antes de tentar novamente.",
+    noticeTone: "warning"
+  },
   failed: {
     label: "Precisa de correcao",
     tone: "warning",
     title: "Nao conseguimos aproveitar este arquivo",
     description: "A leitura nao ficou boa o bastante para gerar insights com confianca.",
     nextStep: "Exporte novamente em PDF ou DOCX com estrutura mais limpa e envie outra versao.",
+    noticeTone: "warning"
+  },
+  parsing_failed: {
+    label: "Precisa de correcao",
+    tone: "warning",
+    title: "Nao conseguimos concluir a leitura",
+    description: "O arquivo foi recebido, mas a leitura nao ficou estavel o bastante para liberar os proximos insights.",
+    nextStep: "Exporte novamente em PDF ou DOCX com texto selecionavel e tente outra versao.",
     noticeTone: "warning"
   },
   empty_text: {
@@ -49,12 +82,44 @@ const RESUME_PARSE_PRESENTATIONS = {
     nextStep: "Reexporte em PDF ou DOCX com texto selecionavel e tente novamente.",
     noticeTone: "warning"
   },
+  insufficient_text: {
+    label: "Texto insuficiente",
+    tone: "warning",
+    title: "Ainda falta texto confiavel",
+    description: "A leitura encontrou pouco conteudo util para liberar analise, senioridade e match com seguranca.",
+    nextStep: "Adicione mais texto selecionavel ao curriculo e envie uma nova exportacao.",
+    noticeTone: "warning"
+  },
+  scanned_or_image_pdf: {
+    label: "PDF escaneado",
+    tone: "warning",
+    title: "Esse PDF parece ser uma imagem",
+    description: "O arquivo nao trouxe texto selecionavel suficiente para leitura automatica.",
+    nextStep: "Exporte o curriculo como PDF com texto selecionavel ou envie uma versao DOCX.",
+    noticeTone: "warning"
+  },
   unsupported_structure: {
     label: "Formato nao suportado",
     tone: "warning",
     title: "Esse arquivo precisa de uma nova exportacao",
     description: "A estrutura do documento nao ficou estavel o bastante para extrair o conteudo corretamente.",
     nextStep: "Salve uma nova versao em PDF ou DOCX simples e envie novamente.",
+    noticeTone: "warning"
+  },
+  unsupported_or_unsafe_structure: {
+    label: "Estrutura nao suportada",
+    tone: "warning",
+    title: "O arquivo nao passou na validacao estrutural",
+    description: "Bloqueamos a leitura porque a estrutura do documento nao ficou confiavel para processamento seguro.",
+    nextStep: "Reexporte o curriculo a partir do editor original e tente novamente.",
+    noticeTone: "warning"
+  },
+  parsing_timeout_or_budget_exceeded: {
+    label: "Arquivo complexo demais",
+    tone: "warning",
+    title: "Interrompemos a leitura para manter o processamento seguro",
+    description: "O arquivo ultrapassou os limites seguros de leitura definidos para esse fluxo.",
+    nextStep: "Simplifique o documento, remova excesso de paginas ou elementos embutidos e envie outra exportacao.",
     noticeTone: "warning"
   },
   blocked_security: {
@@ -64,6 +129,14 @@ const RESUME_PARSE_PRESENTATIONS = {
     description: "Interrompemos o processamento para proteger sua conta e os proximos passos da plataforma.",
     nextStep: "Revise o arquivo, gere uma nova exportacao confiavel e tente novamente.",
     noticeTone: "blocked"
+  },
+  quarantined_or_blocked_by_policy: {
+    label: "Bloqueado por seguranca",
+    tone: "blocked",
+    title: "Arquivo bloqueado por politica de seguranca",
+    description: "O processamento foi interrompido antes dos insights para preservar a seguranca da ingestao.",
+    nextStep: "Gere uma nova exportacao limpa e tente novamente.",
+    noticeTone: "blocked"
   }
 };
 
@@ -71,6 +144,23 @@ const INSIGHT_LABELS = {
   analysis: "a analise do curriculo",
   seniority: "a leitura de senioridade",
   report: "o insight premium"
+};
+
+const BILLING_FEATURE_LABELS = {
+  dashboard: "Painel com progresso e prioridades",
+  job_matching: "Match com vagas",
+  multiple_resume_versions: "Multiplas versoes de curriculo",
+  premium_reports: "Relatorios premium",
+  priority_support: "Atendimento prioritario",
+  resume_analysis: "Analise de curriculo",
+  resume_comparison: "Comparacao entre versoes",
+  resume_upload: "Envio de curriculo",
+  seniority_assessment: "Leitura de senioridade"
+};
+
+const BILLING_PLAN_LABELS = {
+  free: "Plano gratuito",
+  "pro annual": "Pro anual"
 };
 
 export function getResumeParsePresentation(parseStatus, options = {}) {
@@ -125,7 +215,7 @@ export function getResumeInsightPresentation(kind, state) {
       tone: "premium",
       title: "Recurso premium",
       description: `O acesso a ${noun} faz parte do plano Premium.`,
-      nextStep: "Faça upgrade para liberar a visao completa quando quiser."
+      nextStep: "Faca upgrade para liberar a visao completa quando quiser."
     };
   }
 
@@ -163,17 +253,39 @@ export function getProviderStatusPresentation(state) {
 export function getBillingStatusPresentation(status) {
   const map = {
     active: { label: "Ativo", tone: "good" },
-    paid: { label: "Pago", tone: "good" },
-    trialing: { label: "Em teste", tone: "warning" },
+    canceled: { label: "Encerrado", tone: "muted" },
+    expired: { label: "Expirado", tone: "muted" },
+    free: { label: "Gratis", tone: "muted" },
     incomplete: { label: "Pagamento pendente", tone: "warning" },
     incomplete_expired: { label: "Checkout expirado", tone: "warning" },
+    paid: { label: "Pago", tone: "good" },
     past_due: { label: "Pagamento pendente", tone: "warning" },
-    canceled: { label: "Encerrado", tone: "muted" },
-    unpaid: { label: "Sem pagamento", tone: "blocked" },
-    free: { label: "Gratis", tone: "muted" }
+    trialing: { label: "Em teste", tone: "warning" },
+    unpaid: { label: "Sem pagamento", tone: "blocked" }
   };
 
   return map[status] ?? { label: titleize(status), tone: "muted" };
+}
+
+export function getBillingFeatureLabel(feature) {
+  return BILLING_FEATURE_LABELS[feature] ?? titleize(feature);
+}
+
+export function getBillingPlanLabel(plan) {
+  if (!plan) {
+    return "-";
+  }
+
+  const explicitName = String(plan.name ?? "").trim().toLowerCase();
+  if (BILLING_PLAN_LABELS[explicitName]) {
+    return BILLING_PLAN_LABELS[explicitName];
+  }
+
+  if (plan.code === "free") {
+    return "Plano gratuito";
+  }
+
+  return titleize(plan.name || plan.code);
 }
 
 export function getMatchNoticeTone(score) {

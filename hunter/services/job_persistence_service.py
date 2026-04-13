@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from urllib.parse import urlsplit, urlunsplit
 
 from django.db import transaction
 
@@ -24,6 +25,14 @@ class PersistenceResult:
 
 
 class JobPersistenceService:
+    def __init__(self) -> None:
+        self.field_max_lengths = {
+            "title": Job._meta.get_field("title").max_length,
+            "company_name": Job._meta.get_field("company_name").max_length,
+            "location": Job._meta.get_field("location").max_length,
+            "url": Job._meta.get_field("url").max_length,
+        }
+
     @transaction.atomic
     def save_jobs(self, *, owner, jobs: list[JobResult]) -> PersistenceResult:
         persisted_jobs: list[Job] = []
@@ -32,12 +41,12 @@ class JobPersistenceService:
         unchanged = 0
 
         for job in jobs:
-            normalized_url = job.canonical_url()
+            normalized_url = self._normalize_url_for_storage(job.canonical_url())
             defaults = {
-                "title": job.title,
-                "company_name": job.company,
-                "location": job.location,
-                "description": job.description,
+                "title": self._normalize_text_for_storage(job.title, "title"),
+                "company_name": self._normalize_text_for_storage(job.company, "company_name"),
+                "location": self._normalize_text_for_storage(job.location, "location"),
+                "description": (job.description or "").strip(),
             }
 
             if normalized_url:
@@ -116,3 +125,43 @@ class JobPersistenceService:
             unchanged=unchanged,
             jobs=persisted_jobs,
         )
+
+    def _normalize_text_for_storage(self, value: str, field_name: str) -> str:
+        normalized = (value or "").strip()
+        max_length = self.field_max_lengths.get(field_name)
+        if not max_length or len(normalized) <= max_length:
+            return normalized
+
+        trimmed = normalized[:max_length].rstrip()
+        logger.warning(
+            "persistence_text_trimmed field=%s original_length=%d stored_length=%d",
+            field_name,
+            len(normalized),
+            len(trimmed),
+        )
+        return trimmed
+
+    def _normalize_url_for_storage(self, value: str) -> str:
+        normalized = (value or "").strip()
+        max_length = self.field_max_lengths["url"]
+        if not normalized or len(normalized) <= max_length:
+            return normalized
+
+        parts = urlsplit(normalized)
+        without_query = urlunsplit(
+            (parts.scheme, parts.netloc, parts.path, "", "")
+        )
+        if without_query and len(without_query) <= max_length:
+            logger.warning(
+                "persistence_url_shortened original_length=%d stored_length=%d",
+                len(normalized),
+                len(without_query),
+            )
+            return without_query
+
+        logger.warning(
+            "persistence_url_dropped original_length=%d max_length=%d",
+            len(normalized),
+            max_length,
+        )
+        return ""

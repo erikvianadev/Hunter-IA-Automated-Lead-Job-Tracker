@@ -5,7 +5,11 @@ import { EmptyState } from "../components/EmptyState";
 import { SectionCard } from "../components/SectionCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { useAuth } from "../context/AuthContext";
-import { getBillingStatusPresentation } from "../lib/presentation";
+import {
+  getBillingFeatureLabel,
+  getBillingPlanLabel,
+  getBillingStatusPresentation
+} from "../lib/presentation";
 import { formatCurrency, formatDate, getErrorMessage, titleize } from "../lib/utils";
 
 export function BillingPage() {
@@ -77,6 +81,9 @@ export function BillingPage() {
 
   const subscription = overview?.subscription;
   const subscriptionStatus = subscription ? getBillingStatusPresentation(subscription.status || subscription.plan_code) : null;
+  const lastInvoiceStatus = subscription?.last_invoice
+    ? getBillingStatusPresentation(subscription.last_invoice.status)
+    : null;
 
   return (
     <AppShell
@@ -112,7 +119,7 @@ export function BillingPage() {
           {!loading && subscription ? (
             <div className="detail-stack">
               <div className="inline-meta">
-                <strong>{subscription.plan_name}</strong>
+                <strong>{getBillingPlanLabel(subscription)}</strong>
                 <StatusBadge
                   value={subscription.status || subscription.plan_code}
                   label={subscriptionStatus.label}
@@ -141,7 +148,7 @@ export function BillingPage() {
               {subscription.features?.length ? (
                 <div className="selection-pills">
                   {subscription.features.map((feature) => (
-                    <span key={feature}>{feature}</span>
+                    <span key={feature}>{getBillingFeatureLabel(feature)}</span>
                   ))}
                 </div>
               ) : null}
@@ -150,7 +157,7 @@ export function BillingPage() {
                   <strong>Ultima fatura</strong>
                   <p>
                     {formatCurrency(subscription.last_invoice.amount, subscription.last_invoice.currency)} |{" "}
-                    {titleize(subscription.last_invoice.status)}
+                    {lastInvoiceStatus?.label ?? titleize(subscription.last_invoice.status)}
                   </p>
                 </div>
               ) : null}
@@ -204,14 +211,14 @@ export function BillingPage() {
             {overview.plans.map((plan) => (
               <article className={plan.highlighted ? "plan-card is-highlighted" : "plan-card"} key={`${plan.code}-${plan.billing_cycle}`}>
                 <div className="inline-meta">
-                  <strong>{plan.name}</strong>
+                  <strong>{getBillingPlanLabel(plan)}</strong>
                   {plan.is_current ? <StatusBadge value="active" label="Plano atual" /> : null}
                 </div>
                 <h3>{formatCurrency(plan.price_amount, plan.currency)}</h3>
                 <p>{titleize(plan.billing_cycle)}</p>
                 <ul className="plain-list">
                   {plan.features.map((feature) => (
-                    <li key={feature}>{feature}</li>
+                    <li key={feature}>{getBillingFeatureLabel(feature)}</li>
                   ))}
                 </ul>
                 <button

@@ -715,9 +715,38 @@ class ResumeApiTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("file", response.data)
+        self.assertEqual(response.data["code"], ResumeParseStatus.UNSUPPORTED_FILE_TYPE)
+        self.assertEqual(
+            response.data["detail"],
+            "Envie um curriculo em PDF ou DOCX.",
+        )
+        self.assertEqual(
+            response.data["field_errors"]["file"][0],
+            "Envie um curriculo em PDF ou DOCX.",
+        )
 
-    def test_failed_extraction_marks_resume_as_failed(self) -> None:
+    def test_fake_pdf_is_rejected_during_backend_admission(self) -> None:
+        upload = SimpleUploadedFile(
+            "resume.pdf",
+            b"plain text pretending to be pdf",
+            content_type="application/pdf",
+        )
+
+        response = self.client.post(
+            "/hunter/api/resumes/",
+            {"file": upload},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["code"], ResumeParseStatus.INVALID_FILE)
+        self.assertEqual(
+            response.data["detail"],
+            "Nao conseguimos validar esse arquivo como um curriculo PDF ou DOCX confiavel.",
+        )
+        self.assertFalse(Resume.objects.filter(owner=self.user, original_filename="resume.pdf").exists())
+
+    def test_invalid_pdf_is_rejected_before_ingestion(self) -> None:
         upload = SimpleUploadedFile(
             "broken.pdf",
             b"not-a-real-pdf",
@@ -730,9 +759,9 @@ class ResumeApiTests(TestCase):
             format="multipart",
         )
 
-        self.assertEqual(response.status_code, 201)
-        self.assertEqual(response.data["parse_status"], ResumeParseStatus.UNSUPPORTED_STRUCTURE)
-        self.assertEqual(response.data["extracted_text"], "")
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["code"], ResumeParseStatus.INVALID_FILE)
+        self.assertFalse(Resume.objects.filter(owner=self.user, original_filename="broken.pdf").exists())
 
     def test_scanned_like_pdf_sets_actionable_status_and_diagnostics(self) -> None:
         upload = SimpleUploadedFile(

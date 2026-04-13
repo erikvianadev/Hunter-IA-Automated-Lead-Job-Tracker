@@ -9,10 +9,20 @@ import { getResumeInsightPresentation, getResumeParsePresentation } from "../lib
 import { formatShortDate, getErrorMessage, titleize } from "../lib/utils";
 
 const READY_PARSE_STATUSES = new Set(["completed"]);
+const ALLOWED_RESUME_EXTENSIONS = new Set(["pdf", "docx"]);
 
 function hasResumeUsableText(resume) {
   const extractedText = (resume?.extracted_text || "").trim();
   return extractedText.length >= 40 && extractedText.split(/\s+/).length >= 8;
+}
+
+function isAllowedResumeFile(file) {
+  if (!file?.name) {
+    return false;
+  }
+
+  const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+  return ALLOWED_RESUME_EXTENSIONS.has(extension);
 }
 
 function toNoticeTone(tone) {
@@ -216,6 +226,10 @@ export function ResumesPage() {
       setError("Escolha um arquivo em PDF ou DOCX para continuar.");
       return;
     }
+    if (!isAllowedResumeFile(form.file)) {
+      setError("Esse arquivo nao pode ser usado como curriculo. Envie um PDF ou DOCX.");
+      return;
+    }
 
     setBusyAction("upload");
     setError("");
@@ -292,7 +306,7 @@ export function ResumesPage() {
               <span>Arquivo do curriculo</span>
               <input
                 type="file"
-                accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 onChange={(event) =>
                   setForm((previous) => ({ ...previous, file: event.target.files?.[0] ?? null }))
                 }

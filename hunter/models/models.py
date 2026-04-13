@@ -49,7 +49,7 @@ class Job(BaseModel):
     company_name = models.CharField(_('company name'), max_length=255)
     location = models.CharField(_('location'), max_length=255)
     description = models.TextField(_('description'))
-    url = models.URLField(_('url'), blank=True)
+    url = models.URLField(_('url'), blank=True, max_length=1000)
     salary = models.DecimalField(
         _('salary'),
         max_digits=12,

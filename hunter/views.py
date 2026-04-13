@@ -62,6 +62,13 @@ from .services import (
 )
 
 
+RESUME_UPLOAD_ERROR_DETAILS = {
+    "unsupported_file_type": "Envie um curriculo em PDF ou DOCX.",
+    "invalid_file": "Nao conseguimos validar esse arquivo como um curriculo PDF ou DOCX confiavel.",
+    "upload_too_large": "O arquivo enviado passou do limite permitido para curriculos.",
+}
+
+
 class TagViewSet(viewsets.ModelViewSet):
     serializer_class = TagSerializer
     permission_classes = [IsAuthenticated]
@@ -310,7 +317,20 @@ class ResumeViewSet(
                 target_role=serializer.validated_data.get('target_role', ''),
             )
         except ResumeValidationError as exc:
-            raise serializers.ValidationError({"file": [str(exc)]}) from exc
+            detail = RESUME_UPLOAD_ERROR_DETAILS.get(
+                exc.code,
+                "Nao foi possivel validar o arquivo enviado como curriculo.",
+            )
+            return Response(
+                {
+                    "code": exc.code,
+                    "detail": detail,
+                    "field_errors": {
+                        "file": [detail],
+                    },
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         response_serializer = ResumeSerializer(
             resume,

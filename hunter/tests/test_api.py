@@ -91,6 +91,40 @@ class ScrapeJobsApiTests(TestCase):
         self.assertEqual(response.data["saved"], 2)
         self.assertEqual(response.data["duplicates_removed"], 2)
 
+    @patch("hunter.api.views.JobPersistenceService.save_jobs")
+    @patch("hunter.api.views.JobAggregationService.aggregate")
+    def test_returns_product_safe_failure_when_all_providers_fail(self, aggregate_mock, save_jobs_mock) -> None:
+        aggregate_mock.return_value = AggregationResult(
+            jobs=[],
+            provider_results=[
+                ProviderRunResult(
+                    provider="remotive",
+                    success=False,
+                    failure_type="invalid_response",
+                ),
+                ProviderRunResult(
+                    provider="greenhouse",
+                    success=False,
+                    failure_type="blocked",
+                    blocked=True,
+                ),
+            ],
+        )
+        save_jobs_mock.return_value = PersistenceResult(created=0, updated=0, unchanged=0)
+
+        response = self.client.post(
+            "/hunter/api/scrape/?query=Backend+Engineer&location=Remote",
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.data["code"], "job_search_failed")
+        self.assertEqual(
+            response.data["detail"],
+            "Nao foi possivel atualizar a busca de vagas agora. Tente novamente em instantes.",
+        )
+        self.assertEqual(response.data["status"], "error")
+
 
 class ProjectHealthEndpointsTests(TestCase):
     @override_settings(SERVE_FRONTEND=False)
