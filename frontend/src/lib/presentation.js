@@ -300,6 +300,38 @@ export function getMatchNoticeTone(score) {
   return "blocked";
 }
 
+export function getJobsOverviewCardsPresentation(input = {}) {
+  const jobsCount = Number.isFinite(input.jobsCount) ? input.jobsCount : 0;
+  const metaLoading = Boolean(input.metaLoading);
+  const workspaceStats = input.workspaceStats ?? {};
+  const savedCount = Number.isFinite(workspaceStats.savedCount) ? workspaceStats.savedCount : 0;
+  const applicationCount = Number.isFinite(workspaceStats.applicationCount) ? workspaceStats.applicationCount : 0;
+  const matchCount = Number.isFinite(workspaceStats.matchCount) ? workspaceStats.matchCount : 0;
+
+  return [
+    {
+      label: "Vagas no workspace",
+      value: jobsCount,
+      helper: jobsCount ? "Dentro dos filtros atuais" : "Busque vagas para montar sua shortlist inicial."
+    },
+    {
+      label: "Vagas salvas",
+      value: metaLoading ? "..." : savedCount,
+      helper: savedCount ? "Prontas para revisao" : "Salve oportunidades para comparar com calma."
+    },
+    {
+      label: "Candidaturas",
+      value: metaLoading ? "..." : applicationCount,
+      helper: applicationCount ? "Ja em andamento" : "Marque vagas como aplicadas para acompanhar as etapas."
+    },
+    {
+      label: "Matches gerados",
+      value: metaLoading ? "..." : matchCount,
+      helper: matchCount ? "Com visibilidade de aderencia" : "Atualize a aderencia para descobrir onde vale focar."
+    }
+  ];
+}
+
 export function getCheckoutResultPresentation(kind) {
   if (kind === "success") {
     return {

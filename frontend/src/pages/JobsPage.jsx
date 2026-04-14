@@ -6,7 +6,7 @@ import { SectionCard } from "../components/SectionCard";
 import { StatCard } from "../components/StatCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { useAuth } from "../context/AuthContext";
-import { getMatchNoticeTone } from "../lib/presentation";
+import { getJobsOverviewCardsPresentation, getMatchNoticeTone } from "../lib/presentation";
 import { formatRelativeDate, formatShortDate, getErrorMessage, titleize } from "../lib/utils";
 
 const JOBS_PAGE_SIZE = 12;
@@ -71,6 +71,36 @@ function getDescriptionPreview(description) {
   return description.length <= 190 ? description : `${description.slice(0, 190).trim()}...`;
 }
 
+function buildJobsOverviewCardsFallback({ jobsCount = 0, metaLoading = false, workspaceStats = {} } = {}) {
+  const safeStats = workspaceStats ?? {};
+  const savedCount = Number.isFinite(safeStats.savedCount) ? safeStats.savedCount : 0;
+  const applicationCount = Number.isFinite(safeStats.applicationCount) ? safeStats.applicationCount : 0;
+  const matchCount = Number.isFinite(safeStats.matchCount) ? safeStats.matchCount : 0;
+
+  return [
+    {
+      label: "Vagas no workspace",
+      value: Number.isFinite(jobsCount) ? jobsCount : 0,
+      helper: jobsCount ? "Dentro dos filtros atuais" : "Busque vagas para montar sua shortlist inicial."
+    },
+    {
+      label: "Vagas salvas",
+      value: metaLoading ? "..." : savedCount,
+      helper: savedCount ? "Prontas para revisao" : "Salve oportunidades para comparar com calma."
+    },
+    {
+      label: "Candidaturas",
+      value: metaLoading ? "..." : applicationCount,
+      helper: applicationCount ? "Ja em andamento" : "Marque vagas como aplicadas para acompanhar as etapas."
+    },
+    {
+      label: "Matches gerados",
+      value: metaLoading ? "..." : matchCount,
+      helper: matchCount ? "Com visibilidade de aderencia" : "Atualize a aderencia para descobrir onde vale focar."
+    }
+  ];
+}
+
 function ExpandableDescription({ text, collapsedChars = 560 }) {
   const [expanded, setExpanded] = useState(false);
   const content = (text || "").trim();
@@ -81,29 +111,6 @@ function ExpandableDescription({ text, collapsedChars = 560 }) {
 
   const canCollapse = content.length > collapsedChars;
   const visibleText = expanded || !canCollapse ? content : `${content.slice(0, collapsedChars).trim()}...`;
-
-  const overviewCardsPresentation = [
-    {
-      label: "Vagas no workspace",
-      value: jobsState.count,
-      helper: jobsState.count ? "Dentro dos filtros atuais" : "Busque vagas para montar sua shortlist inicial."
-    },
-    {
-      label: "Vagas salvas",
-      value: metaLoading ? "..." : workspaceStats.savedCount,
-      helper: workspaceStats.savedCount ? "Prontas para revisao" : "Salve oportunidades para comparar com calma."
-    },
-    {
-      label: "Candidaturas",
-      value: metaLoading ? "..." : workspaceStats.applicationCount,
-      helper: workspaceStats.applicationCount ? "Ja em andamento" : "Marque vagas como aplicadas para acompanhar as etapas."
-    },
-    {
-      label: "Matches gerados",
-      value: metaLoading ? "..." : workspaceStats.matchCount,
-      helper: workspaceStats.matchCount ? "Com visibilidade de aderencia" : "Atualize a aderencia para descobrir onde vale focar."
-    }
-  ];
 
   return (
     <div className="job-description-block">
@@ -156,6 +163,16 @@ export function JobsPage() {
   const providerSummary = useMemo(() => getProviderSummary(scrapeSummary), [scrapeSummary]);
   const providerBreakdown = useMemo(() => getProviderBreakdown(scrapeSummary), [scrapeSummary]);
   const searchSummary = useMemo(() => buildSearchSummary(jobsState.count, jobsState.items.length, appliedFilters), [appliedFilters, jobsState.count, jobsState.items.length]);
+  const overviewCardsPresentation = useMemo(() => {
+    const input = { jobsCount: jobsState.count, metaLoading, workspaceStats };
+
+    try {
+      const cards = getJobsOverviewCardsPresentation?.(input);
+      return Array.isArray(cards) && cards.length ? cards : buildJobsOverviewCardsFallback(input);
+    } catch {
+      return buildJobsOverviewCardsFallback(input);
+    }
+  }, [jobsState.count, metaLoading, workspaceStats]);
 
   async function loadWorkspaceMeta() {
     setMetaLoading(true);
@@ -256,13 +273,6 @@ export function JobsPage() {
       setScrapeLoading(false);
     }
   }
-
-  const overviewCards = [
-    { label: "Vagas no workspace", value: jobsState.count, helper: "Dentro dos filtros atuais" },
-    { label: "Vagas salvas", value: metaLoading ? "..." : workspaceStats.savedCount, helper: "Prontas para revisão" },
-    { label: "Candidaturas", value: metaLoading ? "..." : workspaceStats.applicationCount, helper: "Já em andamento" },
-    { label: "Matches gerados", value: metaLoading ? "..." : workspaceStats.matchCount, helper: "Com visibilidade de aderência" }
-  ];
 
   return (
     <AppShell
