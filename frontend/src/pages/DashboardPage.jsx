@@ -7,6 +7,7 @@ import { SectionCard } from "../components/SectionCard";
 import { StatCard } from "../components/StatCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { useAuth } from "../context/AuthContext";
+import { getActivationStepPresentation } from "../lib/activation";
 import { getResumeParsePresentation } from "../lib/presentation";
 import { formatShortDate, getErrorMessage, titleize } from "../lib/utils";
 
@@ -42,6 +43,9 @@ export function DashboardPage() {
   const summary = dashboard?.summary ?? {};
   const profileInsights = dashboard?.profile_insights ?? {};
   const priorityActions = dashboard?.priority_actions ?? [];
+  const activation = dashboard?.activation;
+  const activationChecklist = activation?.checklist ?? [];
+  const nextBestAction = activation?.next_best_action;
   const preview = dashboard?.resume_report_preview;
   const activeResumePresentation = dashboard?.active_resume
     ? getResumeParsePresentation(dashboard.active_resume.parse_status, {
@@ -103,6 +107,74 @@ export function DashboardPage() {
             />
           </section>
 
+          {activation ? (
+            <section className="two-column-grid">
+              <SectionCard
+                title="Ativacao inicial"
+                subtitle="Um caminho curto para chegar ao primeiro valor com clareza."
+                actions={
+                  nextBestAction ? (
+                    <Link className="button button--primary" to={nextBestAction.cta_href}>
+                      {nextBestAction.cta_label}
+                    </Link>
+                  ) : null
+                }
+              >
+                <div className="activation-summary">
+                  <div className="inline-meta">
+                    <strong>{activation.headline}</strong>
+                    <StatusBadge
+                      value={`activation-${activation.progress_percent}`}
+                      label={`${activation.completed_steps}/${activation.total_steps} etapas`}
+                      tone={activation.is_complete ? "good" : "warning"}
+                    />
+                  </div>
+                  <p>{activation.summary}</p>
+                  <div className="activation-progress" aria-hidden="true">
+                    <span style={{ width: `${activation.progress_percent}%` }} />
+                  </div>
+                  <p className="muted-copy">{activation.progress_percent}% do caminho inicial concluido.</p>
+                  {nextBestAction ? (
+                    <div className="notice notice--info">
+                      <strong>{nextBestAction.title}</strong>
+                      <p>{nextBestAction.detail}</p>
+                    </div>
+                  ) : null}
+                </div>
+              </SectionCard>
+
+              <SectionCard
+                title="Checklist de ativacao"
+                subtitle="Veja o que ja foi destravado e o que falta para consolidar seu fluxo inicial."
+              >
+                <div className="activation-checklist">
+                  {activationChecklist.map((step) => {
+                    const stepPresentation = getActivationStepPresentation(step);
+
+                    return (
+                      <article
+                        className={step.completed ? "activation-checklist__item is-complete" : "activation-checklist__item"}
+                        key={step.id}
+                      >
+                        <div>
+                          <div className="inline-meta">
+                            <strong>{step.title}</strong>
+                            <StatusBadge
+                              value={step.id}
+                              label={stepPresentation.label}
+                              tone={stepPresentation.tone}
+                            />
+                          </div>
+                          <p>{step.detail}</p>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              </SectionCard>
+            </section>
+          ) : null}
+
           <section className="two-column-grid">
             <SectionCard
               title="Curriculo em foco"
@@ -128,8 +200,10 @@ export function DashboardPage() {
                 </div>
               ) : (
                 <EmptyState
+                  eyebrow="Sem base para os insights"
                   title="Adicione seu primeiro curriculo"
-                  description="Envie um curriculo para comecar a receber analises, scores de aderencia e orientacoes mais profundas."
+                  description="Sem um curriculo principal, o produto ainda nao consegue gerar analise, senioridade ou aderencia com vagas."
+                  nextStep="Abra Curriculos, envie uma versao em PDF ou DOCX e use esse arquivo como base do seu fluxo inicial."
                   action={<Link className="button button--secondary" to="/resumes">Enviar curriculo</Link>}
                 />
               )}
@@ -178,9 +252,12 @@ export function DashboardPage() {
                 </div>
               ) : (
                 <EmptyState
+                  eyebrow="Sem prioridades abertas"
                   title="Tudo sob controle por aqui"
-                  description="Seu setup atual ja cobre os proximos passos mais importantes."
+                  description="Seu setup atual ja cobre os passos essenciais da ativacao e nao ha nenhum bloqueio imediato visivel."
+                  nextStep="Use Vagas para ampliar a shortlist ou acompanhe Candidaturas para manter o ritmo."
                   action={<Link className="button button--ghost" to="/jobs">Buscar vagas</Link>}
+                  secondaryAction={<Link className="button button--ghost" to="/applications">Ver candidaturas</Link>}
                 />
               )}
             </SectionCard>
@@ -206,8 +283,14 @@ export function DashboardPage() {
                 </div>
               ) : (
                 <EmptyState
+                  eyebrow="Insight ainda indisponivel"
                   title="Nenhuma previa premium ainda"
-                  description="Gere a analise do curriculo e a leitura de senioridade para liberar uma visao mais rica aqui."
+                  description="A previa premium aparece quando seu curriculo ja passou por analise e leitura de senioridade."
+                  nextStep={
+                    dashboard.active_resume
+                      ? "Abra Curriculos e gere a analise e a senioridade da versao principal para liberar uma orientacao mais rica."
+                      : "Envie um curriculo primeiro e depois gere analise e senioridade para desbloquear esta camada."
+                  }
                   action={
                     <Link className="button button--ghost" to={dashboard.active_resume ? "/resumes" : "/billing"}>
                       {dashboard.active_resume ? "Abrir curriculos" : "Ver planos"}
