@@ -6,7 +6,7 @@ import { SectionCard } from "../components/SectionCard";
 import { StatCard } from "../components/StatCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { useAuth } from "../context/AuthContext";
-import { getMatchNoticeTone, getProviderStatusPresentation } from "../lib/presentation";
+import { getMatchNoticeTone } from "../lib/presentation";
 import { formatRelativeDate, formatShortDate, getErrorMessage, titleize } from "../lib/utils";
 
 const JOBS_PAGE_SIZE = 12;
@@ -69,6 +69,52 @@ function getScoreTone(score) {
 function getDescriptionPreview(description) {
   if (!description) return "Nenhuma descrição detalhada foi capturada para esta vaga ainda.";
   return description.length <= 190 ? description : `${description.slice(0, 190).trim()}...`;
+}
+
+function ExpandableDescription({ text, collapsedChars = 560 }) {
+  const [expanded, setExpanded] = useState(false);
+  const content = (text || "").trim();
+
+  if (!content) {
+    return <p className="job-description">Nenhuma descricao detalhada foi capturada para esta vaga ainda.</p>;
+  }
+
+  const canCollapse = content.length > collapsedChars;
+  const visibleText = expanded || !canCollapse ? content : `${content.slice(0, collapsedChars).trim()}...`;
+
+  const overviewCardsPresentation = [
+    {
+      label: "Vagas no workspace",
+      value: jobsState.count,
+      helper: jobsState.count ? "Dentro dos filtros atuais" : "Busque vagas para montar sua shortlist inicial."
+    },
+    {
+      label: "Vagas salvas",
+      value: metaLoading ? "..." : workspaceStats.savedCount,
+      helper: workspaceStats.savedCount ? "Prontas para revisao" : "Salve oportunidades para comparar com calma."
+    },
+    {
+      label: "Candidaturas",
+      value: metaLoading ? "..." : workspaceStats.applicationCount,
+      helper: workspaceStats.applicationCount ? "Ja em andamento" : "Marque vagas como aplicadas para acompanhar as etapas."
+    },
+    {
+      label: "Matches gerados",
+      value: metaLoading ? "..." : workspaceStats.matchCount,
+      helper: workspaceStats.matchCount ? "Com visibilidade de aderencia" : "Atualize a aderencia para descobrir onde vale focar."
+    }
+  ];
+
+  return (
+    <div className="job-description-block">
+      <p className={expanded ? "job-description is-expanded" : "job-description"}>{visibleText}</p>
+      {canCollapse ? (
+        <button className="button button--ghost button--inline" type="button" onClick={() => setExpanded((value) => !value)}>
+          {expanded ? "Ler menos" : "Ler mais"}
+        </button>
+      ) : null}
+    </div>
+  );
 }
 
 function getJobRecencyLabel(job) {
@@ -226,7 +272,7 @@ export function JobsPage() {
     >
       {error ? <div className="notice notice--blocked">{error}</div> : null}
       {feedback ? <div className="notice notice--success">{feedback}</div> : null}
-      <section className="stats-grid">{overviewCards.map((card) => <StatCard key={card.label} label={card.label} value={card.value} helper={card.helper} />)}</section>
+      <section className="stats-grid">{overviewCardsPresentation.map((card) => <StatCard key={card.label} label={card.label} value={card.value} helper={card.helper} />)}</section>
 
       <section className="two-column-grid">
         <SectionCard title="Filtrar workspace" subtitle="Encontre a vaga certa com mais rapidez usando filtros operacionais e ordenação por recência.">

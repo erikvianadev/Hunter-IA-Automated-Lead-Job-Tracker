@@ -72,17 +72,17 @@ class ResumeAnalysisService:
     ) -> list[str]:
         strengths: list[str] = []
         if parsed_resume.get("summary"):
-            strengths.append("Includes a professional summary that gives quick context.")
+            strengths.append("Traz um resumo profissional que contextualiza voce logo no inicio.")
         if parsed_resume.get("experience"):
-            strengths.append("Lists professional experience, which improves recruiter readability.")
+            strengths.append("Apresenta experiencia profissional de forma facil de ler.")
         if parsed_resume.get("skills"):
-            strengths.append("Highlights concrete skills that support market positioning.")
+            strengths.append("Destaca habilidades concretas que ajudam no posicionamento para vagas.")
         if parsed_resume.get("projects"):
-            strengths.append("Includes project evidence that helps demonstrate execution.")
+            strengths.append("Inclui projetos que ajudam a demonstrar capacidade de execucao.")
         if parsed_resume.get("links"):
-            strengths.append("Provides links that can help validate portfolio or profile details.")
+            strengths.append("Oferece links que ajudam a validar portfolio, GitHub ou perfil profissional.")
         if scores["clarity_score"] >= 70:
-            strengths.append("Resume content is concise enough to be scanned quickly.")
+            strengths.append("O conteudo esta objetivo o bastante para uma leitura rapida.")
         return strengths[:5]
 
     def _build_weaknesses(
@@ -93,15 +93,15 @@ class ResumeAnalysisService:
     ) -> list[str]:
         weaknesses: list[str] = []
         if not parsed_resume.get("summary"):
-            weaknesses.append("Missing a clear summary or profile section.")
+            weaknesses.append("Falta um resumo claro ou uma secao inicial de perfil.")
         if not parsed_resume.get("skills"):
-            weaknesses.append("Skills are not clearly grouped into a dedicated section.")
+            weaknesses.append("As habilidades ainda nao aparecem agrupadas em uma secao dedicada.")
         if not parsed_resume.get("projects"):
-            weaknesses.append("Project evidence is limited or missing.")
+            weaknesses.append("Projetos com evidencia de execucao ainda estao ausentes ou muito fracos.")
         if not parsed_resume.get("links"):
-            weaknesses.append("No portfolio, GitHub, LinkedIn, or other supporting links were detected.")
+            weaknesses.append("Nao encontramos links de portfolio, GitHub, LinkedIn ou provas complementares.")
         if scores["structure_score"] < 60:
-            weaknesses.append("Section structure is thin, which can make the resume harder to scan.")
+            weaknesses.append("A estrutura de secoes ainda esta fraca e dificulta a leitura rapida.")
         return weaknesses[:5]
 
     def _build_recommendations(
@@ -112,13 +112,13 @@ class ResumeAnalysisService:
     ) -> list[str]:
         recommendations: list[str] = []
         if not parsed_resume.get("summary"):
-            recommendations.append("Add a 2-3 sentence summary tailored to your target role.")
+            recommendations.append("Adicione um resumo de 2 a 3 frases alinhado ao cargo que voce quer conquistar.")
         if not parsed_resume.get("skills"):
-            recommendations.append("Create a dedicated skills section with tools, languages, and frameworks.")
+            recommendations.append("Crie uma secao de habilidades com ferramentas, linguagens e frameworks relevantes.")
         if not parsed_resume.get("projects"):
-            recommendations.append("Add 1-3 projects with outcomes, stack, and scope.")
+            recommendations.append("Inclua de 1 a 3 projetos com impacto, stack usada e escopo de entrega.")
         if not parsed_resume.get("links"):
-            recommendations.append("Include links to GitHub, LinkedIn, or a portfolio.")
+            recommendations.append("Inclua links para GitHub, LinkedIn ou portfolio.")
         if scores["clarity_score"] < 70:
-            recommendations.append("Tighten wording and favor short bullet points with measurable outcomes.")
+            recommendations.append("Deixe a redacao mais enxuta e prefira bullets curtos com resultados mensuraveis.")
         return recommendations[:5]

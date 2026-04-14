@@ -8,6 +8,28 @@ from hunter.models.models import JobMatch, Resume
 
 from .resume_security_service import ResumeSecurityService
 
+AREA_LABELS = {
+    "structure": "estrutura",
+    "clarity": "clareza",
+    "market_fit": "aderencia ao mercado",
+    "projects": "projetos",
+}
+TRACK_LABELS = {
+    "internship": "estagio",
+    "junior": "junior",
+    "mid": "pleno",
+    "senior": "senior",
+    "freelance": "freelancer",
+}
+
+
+def get_area_label(value: str) -> str:
+    return AREA_LABELS.get(value, value.replace("_", " "))
+
+
+def get_track_label(value: str | None) -> str:
+    return TRACK_LABELS.get(value or "", value or "seu nivel atual")
+
 
 class ResumeReportService:
     def __init__(self, *, security_service: ResumeSecurityService | None = None) -> None:
@@ -111,12 +133,12 @@ class ResumeReportService:
         if analysis is not None:
             strengths.extend(analysis.strengths[:3])
             if analysis.overall_score >= 75:
-                strengths.append("Overall resume quality is already competitive for screening.")
+                strengths.append("A qualidade geral do curriculo ja esta competitiva para triagens iniciais.")
             if analysis.market_fit_score >= 70:
-                strengths.append("Market-fit signals are strong enough to support targeted applications.")
+                strengths.append("Os sinais de aderencia ao mercado estao fortes o bastante para candidaturas mais direcionadas.")
         if seniority is not None:
             strengths.append(
-                f"Current evidence aligns best with {seniority.recommended_track} opportunities."
+                f"As evidencias atuais se alinham melhor a vagas de nivel {get_track_label(seniority.recommended_track)}."
             )
         return self._deduplicate(strengths)[:5]
 
@@ -129,7 +151,7 @@ class ResumeReportService:
                 gaps.append(suggestion)
             return self._deduplicate(gaps)[:5]
         if analysis is None:
-            gaps.append("Resume analysis has not been generated yet.")
+            gaps.append("A analise do curriculo ainda nao foi gerada.")
         else:
             score_map = {
                 "structure": analysis.structure_score,
@@ -138,11 +160,11 @@ class ResumeReportService:
                 "projects": analysis.project_score,
             }
             weakest_area = min(score_map, key=score_map.get)
-            gaps.append(f"Lowest scoring area is {weakest_area.replace('_', ' ')}.")
+            gaps.append(f"A area com menor score hoje e {get_area_label(weakest_area)}.")
             gaps.extend(analysis.weaknesses[:3])
 
         if seniority is None:
-            gaps.append("Recommended track is not available yet.")
+            gaps.append("A leitura de senioridade ainda nao esta disponivel.")
 
         match_gaps = list(
             JobMatch.objects.filter(
@@ -159,54 +181,54 @@ class ResumeReportService:
     def _build_priority_actions(self, *, analysis, seniority, top_gaps: list[str], trust_decision) -> list[str]:
         actions: list[str] = []
         if not trust_decision.trusted:
-            actions.append("Upload a cleaner PDF or DOCX file before running analysis, seniority, or matching.")
+            actions.append("Envie um PDF ou DOCX mais limpo antes de rodar analise, senioridade ou aderencia.")
             suggestion = trust_decision.diagnostics.get("suggestion")
             if isinstance(suggestion, str) and suggestion:
                 actions.append(suggestion)
             return self._deduplicate(actions)[:5]
         if analysis is None:
-            actions.append("Run resume analysis to unlock score-based recommendations.")
+            actions.append("Gere a analise do curriculo para liberar recomendacoes com score.")
         else:
             actions.extend(analysis.recommendations[:3])
             if analysis.market_fit_score < 60:
-                actions.append("Refine the resume toward a clearer target role and keyword coverage.")
+                actions.append("Ajuste o curriculo para um cargo-alvo mais claro e com melhor cobertura de palavras-chave.")
             if analysis.project_score < 60:
-                actions.append("Add stronger project outcomes with stack, scope, and measurable impact.")
+                actions.append("Reforce os projetos com stack, escopo e impacto mensuravel.")
         if seniority is None:
-            actions.append("Run seniority assessment to focus applications at the right level.")
+            actions.append("Gere a leitura de senioridade para focar candidaturas no nivel certo.")
         else:
             actions.append(
-                f"Prioritize {seniority.recommended_track} roles while strengthening weaker signals."
+                f"Priorize vagas de nivel {get_track_label(seniority.recommended_track)} enquanto fortalece os sinais mais fracos."
             )
         if not actions and top_gaps:
-            actions.append(f"Address this first: {top_gaps[0]}")
+            actions.append(f"Comece por aqui: {top_gaps[0]}")
         return self._deduplicate(actions)[:5]
 
     def _build_executive_summary(self, *, resume: Resume, analysis, seniority, match_summary, trust_decision) -> str:
         if not trust_decision.trusted:
             return (
-                f"{resume.label or resume.original_filename} is currently blocked from downstream processing because "
+                f"{resume.label or resume.original_filename} esta bloqueado para as proximas etapas porque "
                 f"{trust_decision.message.lower()}"
             )
         score = analysis.overall_score if analysis is not None else None
         score_text = (
-            f"with an overall score of {score}/100"
+            f"com score geral de {score}/100"
             if score is not None
-            else "without a completed analysis score yet"
+            else "ainda sem score completo de analise"
         )
-        target_text = resume.target_role or "the current target role"
+        target_text = resume.target_role or "o cargo-alvo atual"
         track_text = (
-            f"best aligned to {seniority.recommended_track} opportunities"
+            f"mais alinhado a oportunidades de nivel {get_track_label(seniority.recommended_track)}"
             if seniority is not None
-            else "pending seniority guidance"
+            else "com a leitura de senioridade ainda pendente"
         )
         match_text = (
-            f"Recent matches average {match_summary['average_match_score']}/100 with a best score of {match_summary['best_match_score']}/100."
+            f"Seus matches recentes tem media de {match_summary['average_match_score']}/100 e melhor score de {match_summary['best_match_score']}/100."
             if match_summary["total_matches"] > 0
-            else "No job match history is available yet."
+            else "Voce ainda nao tem historico de aderencia com vagas."
         )
         return (
-            f"{resume.label or resume.original_filename} is positioned for {target_text} {score_text} and is {track_text}. "
+            f"{resume.label or resume.original_filename} hoje esta posicionado para {target_text}, {score_text}, e aparece {track_text}. "
             f"{match_text}"
         )
 
@@ -215,13 +237,13 @@ class ResumeReportService:
             suggestion = trust_decision.diagnostics.get("suggestion")
             suggestion_text = f" {suggestion}" if isinstance(suggestion, str) and suggestion else ""
             return (
-                f"This resume is preserved for diagnostics, but its ingestion state is not trusted for scoring or matching."
+                "Este curriculo foi preservado para diagnostico, mas o estado de ingestao ainda nao e confiavel para scoring ou aderencia."
                 f"{suggestion_text}"
             )
         if analysis is None:
             return (
-                f"{resume.label or resume.original_filename} has been uploaded and parsed, but still needs analysis "
-                "before a profile summary can be fully scored."
+                f"{resume.label or resume.original_filename} ja foi enviado e lido, mas ainda precisa de analise "
+                "antes de receber um resumo completo de perfil."
             )
 
         strengths = []
@@ -234,14 +256,16 @@ class ResumeReportService:
         if analysis.project_score >= 70:
             strengths.append("credible project evidence")
         strengths_text = ", ".join(strengths) if strengths else "several foundational gaps"
+        if strengths_text == "several foundational gaps":
+            strengths_text = "algumas lacunas estruturais importantes"
 
         track_text = (
-            f" The recommended track is {seniority.recommended_track}."
+            f" O nivel mais aderente hoje e {get_track_label(seniority.recommended_track)}."
             if seniority is not None
             else ""
         )
         return (
-            f"This resume currently shows {strengths_text}, with the strongest value coming from deterministic scoring of its existing sections and signals."
+            f"Neste momento, o curriculo mostra {strengths_text}, com maior valor vindo dos sinais objetivos encontrados nas secoes atuais."
             f"{track_text}"
         )
 

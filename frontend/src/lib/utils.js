@@ -45,6 +45,9 @@ const DIRECT_LABELS = {
   past_due: "Pagamento pendente",
   partial_success: "Sucesso parcial",
   pending: "Pendente",
+  priority_1: "Prioridade 1",
+  priority_2: "Prioridade 2",
+  priority_3: "Prioridade 3",
   premium_reports: "Relatorios premium",
   priority_high: "Prioridade alta",
   priority_medium: "Prioridade media",
@@ -147,6 +150,10 @@ const USER_MESSAGE_PATTERNS = [
   {
     pattern: /(permission denied|forbidden|not enough permissions)/i,
     message: "Voce nao tem acesso a essa acao agora."
+  },
+  {
+    pattern: /(already exists|already taken|username.*not available)/i,
+    message: "Esse nome de usuario nao esta disponivel no momento. Tente outra variacao."
   }
 ];
 

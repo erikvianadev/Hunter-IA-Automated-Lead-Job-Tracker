@@ -181,8 +181,8 @@ class DashboardApiTests(TestCase):
                 "priority_actions": [
                     {
                         "action_type": "resume_upload",
-                        "title": "Upload your active resume",
-                        "detail": "A current resume unlocks analysis, matching, and dashboard guidance.",
+                        "title": "Envie seu curriculo principal",
+                        "detail": "Um curriculo atualizado libera analise, aderencia com vagas e orientacoes mais uteis no painel.",
                         "priority": 1,
                     }
                 ],

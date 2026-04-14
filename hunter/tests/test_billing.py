@@ -107,7 +107,7 @@ class BillingApiTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("does not require stripe", response.data["detail"].lower())
+        self.assertIn("nao precisa de checkout", response.data["detail"].lower())
 
     @patch("hunter.services.billing_service.StripeBillingGatewayService.cancel_subscription")
     def test_cancel_marks_remote_subscription_as_canceled_but_keeps_access_window(
@@ -166,7 +166,7 @@ class BillingApiTests(TestCase):
         response = self.client.post("/hunter/api/billing/cancel/", {}, format="json")
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("no paid subscription", response.data["detail"].lower())
+        self.assertIn("nao existe uma assinatura paga ativa", response.data["detail"].lower())
 
     def test_billing_is_scoped_to_authenticated_user(self) -> None:
         BillingSubscription.objects.create(

@@ -29,11 +29,11 @@ class JobMatchingService:
 
     def match(self, *, owner, resume: Resume, job: Job) -> JobMatch:
         if resume.owner_id != owner.id or job.owner_id != owner.id:
-            raise JobMatchingError("Resume and job must belong to the authenticated user.")
+            raise JobMatchingError("O curriculo e a vaga precisam pertencer a sua conta.")
         try:
             self.security_service.assert_trusted(
                 resume=resume,
-                action="Resume matching is blocked",
+                action="A atualizacao de aderencia foi bloqueada",
             )
         except ResumeTrustError as exc:
             raise JobMatchingError(exc.decision.message) from exc
@@ -66,19 +66,19 @@ class JobMatchingService:
 
         strengths: list[str] = []
         if overlap:
-            strengths.append(f"Overlapping skills: {', '.join(overlap[:5])}.")
+            strengths.append(f"Habilidades em comum: {', '.join(overlap[:5])}.")
         if analysis.project_score >= 60:
-            strengths.append("Project evidence strengthens practical fit.")
+            strengths.append("Os projetos ajudam a sustentar a aderencia pratica para essa vaga.")
         if analysis.structure_score >= 70:
-            strengths.append("Resume structure is clear enough for screening.")
+            strengths.append("A estrutura do curriculo esta clara o bastante para uma triagem inicial.")
 
         gaps: list[str] = []
         if missing:
-            gaps.append(f"Potential missing signals: {', '.join(missing)}.")
+            gaps.append(f"Sinais que ainda podem estar faltando: {', '.join(missing)}.")
         if analysis.project_score < 50:
-            gaps.append("Project evidence is limited for this role.")
+            gaps.append("A evidencia de projetos ainda esta fraca para este tipo de vaga.")
         if seniority_fit < 10:
-            gaps.append("Resume track may not align closely with the job seniority signals.")
+            gaps.append("Seu nivel atual pode nao estar tao alinhado aos sinais de senioridade dessa vaga.")
 
         recommendation = self._build_recommendation(match_score=match_score)
         reasoning = {
@@ -153,9 +153,9 @@ class JobMatchingService:
 
     def _build_recommendation(self, *, match_score: int) -> str:
         if match_score >= 80:
-            return "Strong match. Prioritize this application."
+            return "Boa aderencia. Vale priorizar esta candidatura."
         if match_score >= 60:
-            return "Promising match. Apply after tightening resume alignment."
+            return "Aderencia promissora. Vale aplicar depois de alguns ajustes finos no curriculo."
         if match_score >= 40:
-            return "Moderate match. Address the main skill gaps before applying."
-        return "Low match. Focus on skill-building or choose a closer role."
+            return "Aderencia moderada. Feche as principais lacunas antes de aplicar."
+        return "Aderencia baixa agora. Talvez valha fortalecer sinais-chave ou focar em uma vaga mais proxima."

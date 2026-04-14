@@ -8,6 +8,18 @@ from hunter.models.models import JobApplication, JobMatch, Resume, SavedJob
 from .resume_comparison_service import ResumeComparisonService
 from .resume_report_service import ResumeReportService
 
+TRACK_LABELS = {
+    "internship": "estagio",
+    "junior": "junior",
+    "mid": "pleno",
+    "senior": "senior",
+    "freelance": "freelancer",
+}
+
+
+def get_track_label(value: str | None) -> str:
+    return TRACK_LABELS.get(value or "", value or "seu nivel atual")
+
 
 class DashboardService:
     TOP_MATCHES_LIMIT = 5
@@ -172,8 +184,8 @@ class DashboardService:
             return [
                 {
                     "action_type": "resume_upload",
-                    "title": "Upload your active resume",
-                    "detail": "A current resume unlocks analysis, matching, and dashboard guidance.",
+                    "title": "Envie seu curriculo principal",
+                    "detail": "Um curriculo atualizado libera analise, aderencia com vagas e orientacoes mais uteis no painel.",
                     "priority": 1,
                 }
             ]
@@ -183,8 +195,8 @@ class DashboardService:
             actions.append(
                 {
                     "action_type": "resume_analysis",
-                    "title": "Run resume analysis",
-                    "detail": "Generate score-based feedback before prioritizing opportunities.",
+                    "title": "Gerar a analise do curriculo",
+                    "detail": "Libere um diagnostico com score antes de priorizar as proximas oportunidades.",
                     "priority": 1,
                 }
             )
@@ -193,7 +205,7 @@ class DashboardService:
                 actions.append(
                     {
                         "action_type": "resume_improvement",
-                        "title": "Improve resume quality",
+                        "title": "Melhorar a qualidade do curriculo",
                         "detail": recommendation,
                         "priority": 2,
                     }
@@ -203,8 +215,8 @@ class DashboardService:
                 actions.append(
                     {
                         "action_type": "project_signal",
-                        "title": "Add project evidence",
-                        "detail": "Projects are missing from the parsed resume and can improve credibility.",
+                        "title": "Adicionar evidencia de projetos",
+                        "detail": "Projetos ainda nao apareceram com clareza e podem reforcar sua credibilidade.",
                         "priority": 1,
                     }
                 )
@@ -212,8 +224,8 @@ class DashboardService:
                 actions.append(
                     {
                         "action_type": "link_signal",
-                        "title": "Add portfolio or profile links",
-                        "detail": "Links are missing from the parsed resume and can strengthen recruiter trust.",
+                        "title": "Adicionar links de portfolio ou perfil",
+                        "detail": "Links de portfolio, GitHub ou LinkedIn ajudam a aumentar a confianca no seu perfil.",
                         "priority": 2,
                     }
                 )
@@ -221,8 +233,8 @@ class DashboardService:
             actions.append(
                 {
                     "action_type": "seniority_assessment",
-                    "title": "Assess your target track",
-                    "detail": "Run seniority assessment to focus applications on the right level.",
+                    "title": "Avaliar seu nivel-alvo",
+                    "detail": "Gere a leitura de senioridade para concentrar candidaturas no nivel mais aderente.",
                     "priority": 2,
                 }
             )
@@ -230,8 +242,8 @@ class DashboardService:
             actions.append(
                 {
                     "action_type": "target_roles",
-                    "title": "Prioritize the right role level",
-                    "detail": f"Focus on {seniority_assessment.recommended_track} opportunities first.",
+                    "title": "Priorizar o nivel certo de vaga",
+                    "detail": f"Comece pelas oportunidades mais alinhadas ao nivel {get_track_label(seniority_assessment.recommended_track)}.",
                     "priority": 3,
                 }
             )
@@ -241,8 +253,8 @@ class DashboardService:
             actions.append(
                 {
                     "action_type": "match_gap",
-                    "title": "Close the top matching gaps",
-                    "detail": "Current top matches are moderate or low. Address the key missing signals before applying broadly.",
+                    "title": "Fechar as principais lacunas de aderencia",
+                    "detail": "Seus melhores matches ainda estao medianos ou baixos. Ajuste os sinais mais importantes antes de aplicar em volume.",
                     "priority": 1,
                 }
             )

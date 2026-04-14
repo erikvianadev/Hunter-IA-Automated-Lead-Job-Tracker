@@ -129,7 +129,7 @@ export function AuthProvider({ children }) {
   async function refreshAccessToken(currentRefreshToken) {
     const refreshToken = currentRefreshToken ?? auth.refresh;
     if (!refreshToken) {
-      throw new Error("Sua sessão expirou.");
+      throw new Error("Sua sessao expirou.");
     }
 
     const response = await fetch(buildUrl("/api/token/refresh/"), {
@@ -141,7 +141,7 @@ export function AuthProvider({ children }) {
 
     if (!response.ok || !payload?.access) {
       setAuth({ access: null, refresh: null, username: "" });
-      throw buildHttpError(response, payload, "Não foi possível renovar a sessão.");
+      throw buildHttpError(response, payload, "Nao foi possivel renovar a sessao.");
     }
 
     setAuth((previous) => ({
@@ -185,14 +185,14 @@ export function AuthProvider({ children }) {
       });
       const retriedPayload = await parseResponse(retriedResponse);
       if (!retriedResponse.ok) {
-        throw buildHttpError(retriedResponse, retriedPayload, "A requisição falhou.");
+        throw buildHttpError(retriedResponse, retriedPayload, "A requisicao falhou.");
       }
       return retriedPayload;
     }
 
     const payload = await parseResponse(response);
     if (!response.ok) {
-      throw buildHttpError(response, payload, "A requisição falhou.");
+      throw buildHttpError(response, payload, "A requisicao falhou.");
     }
     return payload;
   }
@@ -206,13 +206,33 @@ export function AuthProvider({ children }) {
 
     const payload = await parseResponse(response);
     if (!response.ok || !payload?.access || !payload?.refresh) {
-      throw buildHttpError(response, payload, "Credenciais inválidas.");
+      throw buildHttpError(response, payload, "Credenciais invalidas.");
     }
 
     setAuth({
       access: payload.access,
       refresh: payload.refresh,
-      username
+      username: payload.user?.username ?? username
+    });
+    return payload;
+  }
+
+  async function signup({ username, password, password_confirm }) {
+    const response = await fetch(buildUrl("/api/auth/signup/"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password, password_confirm })
+    });
+
+    const payload = await parseResponse(response);
+    if (!response.ok || !payload?.access || !payload?.refresh) {
+      throw buildHttpError(response, payload, "Nao foi possivel concluir seu cadastro.");
+    }
+
+    setAuth({
+      access: payload.access,
+      refresh: payload.refresh,
+      username: payload.user?.username ?? username
     });
     return payload;
   }
@@ -225,7 +245,7 @@ export function AuthProvider({ children }) {
     const tokenPayload = decodeJwtPayload(auth.access);
     return {
       id: tokenPayload?.user_id ?? null,
-      username: auth.username || "Usuário",
+      username: auth.username || "Usuario",
       isAuthenticated: Boolean(auth.access && auth.refresh)
     };
   }, [auth.access, auth.refresh, auth.username]);
@@ -237,6 +257,7 @@ export function AuthProvider({ children }) {
       isAuthenticated: user.isAuthenticated,
       user,
       login,
+      signup,
       logout,
       request
     }),
