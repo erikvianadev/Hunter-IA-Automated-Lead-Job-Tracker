@@ -227,9 +227,36 @@ button {
   align-content: center;
 }
 
+.empty-state__eyebrow {
+  display: inline-flex;
+  width: fit-content;
+  border-radius: 999px;
+  padding: 6px 11px;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-strong);
+  background: color-mix(in srgb, var(--accent-soft) 70%, var(--surface-strong));
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
 .empty-state h3 {
   margin: 0;
   font-size: 1.18rem;
+}
+
+.empty-state__next-step {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-strong) 78%, transparent);
+  border: 1px solid color-mix(in srgb, var(--secondary) 16%, transparent);
+}
+
+.empty-state__next-step p,
+.empty-state__next-step strong {
+  margin: 0;
 }
 
 .hero-metrics strong,
@@ -651,6 +678,42 @@ select:focus {
   border: 1px solid var(--border);
   background: color-mix(in srgb, var(--surface-strong) 72%, transparent);
   min-width: 0;
+}
+
+.activation-summary,
+.activation-checklist {
+  display: grid;
+  gap: 14px;
+}
+
+.activation-progress {
+  height: 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 14%, transparent);
+  overflow: hidden;
+}
+
+.activation-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(135deg, var(--accent), var(--secondary));
+}
+
+.activation-checklist__item {
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-strong) 74%, transparent);
+}
+
+.activation-checklist__item.is-complete {
+  border-color: color-mix(in srgb, var(--secondary) 24%, transparent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--secondary-soft) 62%, var(--surface-strong)), color-mix(in srgb, var(--surface-strong) 92%, transparent));
+}
+
+.activation-checklist__item p {
+  margin: 8px 0 0;
 }
 
 .notes-panel {

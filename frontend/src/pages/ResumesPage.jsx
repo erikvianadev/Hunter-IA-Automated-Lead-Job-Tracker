@@ -326,6 +326,12 @@ export function ResumesPage() {
           title="Enviar novo curriculo"
           subtitle="Adicione uma nova versao para revisar, pontuar e usar nas analises de aderencia."
         >
+          {!loading && !resumes.length ? (
+            <div className="notice notice--info">
+              <strong>Seu primeiro valor comeca aqui</strong>
+              <p>Quando o curriculo entra, voce libera analise, senioridade e os proximos passos mais uteis do produto.</p>
+            </div>
+          ) : null}
           <form className="stack" onSubmit={handleUpload}>
             <div className="field">
               <span>Arquivo do curriculo</span>
@@ -469,8 +475,10 @@ export function ResumesPage() {
           {loading ? <div className="loading-panel">Carregando sua biblioteca de curriculos...</div> : null}
           {!loading && !resumes.length ? (
             <EmptyState
+              eyebrow="Etapa 1 da ativacao"
               title="Nenhum curriculo por aqui ainda"
-              description="Envie seu primeiro curriculo para comecar a melhorar o material e liberar os proximos insights."
+              description="Sem um curriculo ativo, a plataforma ainda nao consegue gerar analise, senioridade ou recomendar proximos ajustes com contexto."
+              nextStep="Escolha um arquivo em PDF ou DOCX, envie a sua melhor versao atual e depois gere a analise do curriculo."
               action={<button className="button button--secondary" type="button" onClick={openFilePicker}>Escolher arquivo</button>}
             />
           ) : null}
@@ -732,9 +740,12 @@ export function ResumesPage() {
             </div>
           ) : (
             <EmptyState
+              eyebrow="Nenhuma versao selecionada"
               title="Selecione um curriculo"
-              description="Escolha uma versao da sua biblioteca para ver feedback, senioridade e recursos premium."
-              action={<Link className="button button--ghost" to="/billing">Ver planos</Link>}
+              description="Os insights aparecem quando voce escolhe uma versao da biblioteca para analisar ou acompanhar."
+              nextStep="Selecione um curriculo da lista ao lado ou envie uma nova versao para continuar sua ativacao."
+              action={<button className="button button--secondary" type="button" onClick={openFilePicker}>Enviar curriculo</button>}
+              secondaryAction={<Link className="button button--ghost" to="/billing">Ver planos</Link>}
             />
           )}
         </SectionCard>

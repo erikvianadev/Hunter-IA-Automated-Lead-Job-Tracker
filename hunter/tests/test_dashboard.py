@@ -146,6 +146,13 @@ class DashboardApiTests(TestCase):
         self.assertEqual(response.data["profile_insights"]["recommended_track"], "junior")
         self.assertEqual(response.data["profile_insights"]["competitiveness_level"], "high")
         self.assertEqual(response.data["profile_insights"]["top_gap_area"], "projects")
+        self.assertEqual(response.data["activation"]["completed_steps"], 6)
+        self.assertEqual(response.data["activation"]["progress_percent"], 100)
+        self.assertTrue(response.data["activation"]["is_complete"])
+        self.assertEqual(
+            response.data["activation"]["next_best_action"]["action_type"],
+            "activation_complete",
+        )
         self.assertEqual(response.data["best_resume_summary"]["id"], active_resume.id)
         self.assertEqual(response.data["resume_report_preview"]["resume_id"], active_resume.id)
         self.assertEqual(response.data["resume_report_preview"]["average_match_score"], 82.5)
@@ -190,6 +197,65 @@ class DashboardApiTests(TestCase):
                     "recommended_track": None,
                     "competitiveness_level": None,
                     "top_gap_area": None,
+                },
+                "activation": {
+                    "completed_steps": 1,
+                    "total_steps": 6,
+                    "progress_percent": 17,
+                    "is_complete": False,
+                    "headline": "Vamos chegar ao primeiro valor",
+                    "summary": "Comece pelo curriculo principal para liberar as proximas etapas do produto com mais clareza.",
+                    "checklist": [
+                        {
+                            "id": "account_created",
+                            "title": "Conta criada",
+                            "detail": "Seu workspace ja esta pronto para organizar curriculo, vagas e candidaturas.",
+                            "completed": True,
+                            "current": False,
+                        },
+                        {
+                            "id": "resume_uploaded",
+                            "title": "Curriculo enviado",
+                            "detail": "Com um curriculo ativo, a plataforma consegue liberar analise e priorizar proximos passos.",
+                            "completed": False,
+                            "current": True,
+                        },
+                        {
+                            "id": "analysis_generated",
+                            "title": "Analise gerada",
+                            "detail": "A analise mostra a qualidade atual do curriculo e aponta os ajustes mais uteis.",
+                            "completed": False,
+                            "current": False,
+                        },
+                        {
+                            "id": "seniority_generated",
+                            "title": "Senioridade gerada",
+                            "detail": "A leitura de senioridade ajuda a focar nas vagas mais coerentes com o seu momento.",
+                            "completed": False,
+                            "current": False,
+                        },
+                        {
+                            "id": "job_search_completed",
+                            "title": "Busca realizada",
+                            "detail": "A busca monta sua shortlist inicial e abre o caminho para comparar oportunidades.",
+                            "completed": False,
+                            "current": False,
+                        },
+                        {
+                            "id": "first_job_action",
+                            "title": "Primeira acao em vaga",
+                            "detail": "Salvar uma vaga ou iniciar uma candidatura transforma pesquisa em progresso concreto.",
+                            "completed": False,
+                            "current": False,
+                        },
+                    ],
+                    "next_best_action": {
+                        "action_type": "resume_upload",
+                        "title": "Envie seu curriculo principal",
+                        "detail": "Esse e o passo que libera analise, senioridade e aderencia com vagas.",
+                        "cta_label": "Enviar curriculo",
+                        "cta_href": "/resumes",
+                    },
                 },
                 "best_resume_summary": None,
                 "resume_report_preview": None,
@@ -271,6 +337,11 @@ class DashboardApiTests(TestCase):
         self.assertIsNone(response.data["best_resume_summary"])
         self.assertIsNone(response.data["resume_report_preview"])
         self.assertFalse(response.data["comparison_available"])
+        self.assertEqual(response.data["activation"]["completed_steps"], 1)
+        self.assertEqual(
+            response.data["activation"]["next_best_action"]["action_type"],
+            "resume_upload",
+        )
 
     def test_dashboard_priority_actions_reflect_missing_analysis_and_seniority(self) -> None:
         resume = Resume.objects.create(
@@ -293,6 +364,11 @@ class DashboardApiTests(TestCase):
         self.assertEqual(response.data["summary"]["active_resume_target_role"], "Analyst")
         self.assertEqual(response.data["summary"]["active_resume_status"], "uploaded")
         self.assertEqual(response.data["resume_report_preview"]["resume_id"], resume.id)
+        self.assertEqual(response.data["activation"]["completed_steps"], 2)
+        self.assertEqual(
+            response.data["activation"]["next_best_action"]["action_type"],
+            "resume_analysis",
+        )
         action_types = [item["action_type"] for item in response.data["priority_actions"]]
         self.assertIn("resume_analysis", action_types)
         self.assertIn("seniority_assessment", action_types)
@@ -404,3 +480,68 @@ class DashboardApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data["recommended_jobs"]), 1)
         self.assertEqual(response.data["recommended_jobs"][0]["job_id"], good_job.id)
+        self.assertEqual(
+            response.data["activation"]["next_best_action"]["action_type"],
+            "resume_analysis",
+        )
+
+    def test_dashboard_next_best_action_highlights_first_job_action_after_search(self) -> None:
+        active_resume = Resume.objects.create(
+            owner=self.user,
+            file="resumes/user_1/active-ready.docx",
+            label="Current",
+            target_role="Backend Engineer",
+            original_filename="active-ready.docx",
+            extracted_text="Python Django SQL APIs",
+            parse_status=ResumeParseStatus.COMPLETED,
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            is_active=True,
+        )
+        ResumeAnalysis.objects.create(
+            resume=active_resume,
+            overall_score=79,
+            structure_score=80,
+            clarity_score=78,
+            market_fit_score=77,
+            project_score=76,
+            strengths=["Boa clareza"],
+            weaknesses=["Poucas metricas"],
+            recommendations=["Adicione impacto numerico."],
+            raw_summary={"parsed_resume": {"projects": ["API interna"], "links": ["linkedin"]}},
+        )
+        SeniorityAssessment.objects.create(
+            resume=active_resume,
+            internship_score=20,
+            junior_score=70,
+            mid_score=76,
+            senior_score=48,
+            freelance_score=52,
+            recommended_track="mid",
+            reasoning={"explanation": "Pleno parece o nivel mais aderente."},
+        )
+        target_job = Job.objects.create(
+            owner=self.user,
+            title="Backend Engineer",
+            company_name="Acme",
+            location="Remote",
+            description="Python Django APIs",
+            url="https://example.com/jobs/ready",
+        )
+        JobMatch.objects.create(
+            owner=self.user,
+            resume=active_resume,
+            job=target_job,
+            match_score=84,
+            strengths=["Boa aderencia tecnica"],
+            gaps=["Precisa reforcar cloud"],
+            recommendation="Vale priorizar essa vaga.",
+            reasoning={},
+        )
+
+        response = self.client.get("/hunter/api/resumes/dashboard/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.data["activation"]["next_best_action"]["action_type"],
+            "job_first_action",
+        )

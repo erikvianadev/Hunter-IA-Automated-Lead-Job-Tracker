@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 
 import { AppShell } from "../components/AppShell";
 import { EmptyState } from "../components/EmptyState";
@@ -140,6 +141,56 @@ function buildSearchSummary(count, shown, filters) {
     : `Mostrando ${shown} vagas carregadas de ${count} no seu workspace.`;
 }
 
+function getJobsEmptyStateContent({ hasResume, jobsCount, savedCount, applicationCount, hasActiveFilters }) {
+  if (hasActiveFilters) {
+    return {
+      eyebrow: "Nenhum resultado para os filtros",
+      title: "Nenhuma vaga apareceu com este recorte",
+      description: "Seu workspace pode ter vagas salvas, mas os filtros atuais esconderam todas as opcoes neste momento.",
+      nextStep: "Limpe os filtros ou rode uma nova busca para ampliar a shortlist.",
+      actionType: "search"
+    };
+  }
+
+  if (!hasResume) {
+    return {
+      eyebrow: "Base do fluxo ainda ausente",
+      title: "Envie um curriculo antes de buscar em volume",
+      description: "O curriculo ajuda a transformar busca em aderencia, prioridade e proximos passos mais confiaveis.",
+      nextStep: "Abra Curriculos, envie sua versao principal e depois volte para buscar vagas com mais contexto.",
+      actionType: "resume"
+    };
+  }
+
+  if (jobsCount === 0) {
+    return {
+      eyebrow: "Shortlist vazia",
+      title: "Sua busca inicial de vagas ainda nao aconteceu",
+      description: "Sem vagas no workspace, voce ainda nao consegue comparar oportunidades nem decidir onde agir primeiro.",
+      nextStep: "Use a busca desta pagina para trazer as primeiras vagas e montar sua shortlist inicial.",
+      actionType: "search"
+    };
+  }
+
+  if (savedCount === 0 && applicationCount === 0) {
+    return {
+      eyebrow: "Falta a primeira acao",
+      title: "Voce ja encontrou vagas, mas ainda nao tomou a primeira acao",
+      description: "Salvar uma vaga ou iniciar uma candidatura e o passo que transforma pesquisa em progresso visivel.",
+      nextStep: "Escolha uma vaga da lista, salve as mais promissoras ou marque a primeira candidatura como iniciada.",
+      actionType: "select"
+    };
+  }
+
+  return {
+    eyebrow: "Sem resultados para estes filtros",
+    title: "Nenhuma vaga encontrada",
+    description: "Seu workspace existe, mas os filtros atuais nao retornaram oportunidades para revisar agora.",
+    nextStep: "Limpe os filtros ou rode uma nova busca para trazer mais vagas para o workspace.",
+    actionType: "search"
+  };
+}
+
 export function JobsPage() {
   const { request } = useAuth();
   const [jobsState, setJobsState] = useState({ items: [], count: 0, page: 1, hasMore: false });
@@ -163,6 +214,30 @@ export function JobsPage() {
   const providerSummary = useMemo(() => getProviderSummary(scrapeSummary), [scrapeSummary]);
   const providerBreakdown = useMemo(() => getProviderBreakdown(scrapeSummary), [scrapeSummary]);
   const searchSummary = useMemo(() => buildSearchSummary(jobsState.count, jobsState.items.length, appliedFilters), [appliedFilters, jobsState.count, jobsState.items.length]);
+  const jobsEmptyState = useMemo(
+    () =>
+      getJobsEmptyStateContent({
+        hasResume: resumes.length > 0,
+        jobsCount: jobsState.count,
+        savedCount: workspaceStats.savedCount,
+        applicationCount: workspaceStats.applicationCount,
+        hasActiveFilters:
+          Boolean(appliedFilters.search.trim())
+          || Boolean(appliedFilters.company_name.trim())
+          || Boolean(appliedFilters.location.trim())
+          || appliedFilters.status !== "all"
+      }),
+    [
+      appliedFilters.company_name,
+      appliedFilters.location,
+      appliedFilters.search,
+      appliedFilters.status,
+      jobsState.count,
+      resumes.length,
+      workspaceStats.applicationCount,
+      workspaceStats.savedCount
+    ],
+  );
   const overviewCardsPresentation = useMemo(() => {
     const input = { jobsCount: jobsState.count, metaLoading, workspaceStats };
 
@@ -253,8 +328,7 @@ export function JobsPage() {
     }
   }
 
-  async function handleScrape(event) {
-    event.preventDefault();
+  async function submitScrapeSearch() {
     setScrapeLoading(true);
     setError("");
     setFeedback("");
@@ -272,6 +346,11 @@ export function JobsPage() {
     } finally {
       setScrapeLoading(false);
     }
+  }
+
+  async function handleScrape(event) {
+    event.preventDefault();
+    await submitScrapeSearch();
   }
 
   return (
@@ -330,7 +409,38 @@ export function JobsPage() {
       <section className="two-column-grid two-column-grid--wide-left">
         <SectionCard title="Workspace de vagas" subtitle="Revise a shortlist, tome ação rapidamente e mantenha listas maiores organizadas com carregamento incremental.">
           {jobsLoading && !jobsState.items.length ? <div className="loading-panel">Carregando seu workspace de vagas...</div> : null}
-          {!jobsLoading && !jobsState.items.length ? <EmptyState title="Nenhuma vaga encontrada" description="Tente filtros mais amplos ou rode uma nova coleta para trazer oportunidades para o workspace." /> : null}
+          {!jobsLoading && !jobsState.items.length ? (
+            <EmptyState
+              eyebrow={jobsEmptyState.eyebrow}
+              title={jobsEmptyState.title}
+              description={jobsEmptyState.description}
+              nextStep={jobsEmptyState.nextStep}
+              action={
+                jobsEmptyState.actionType === "resume" ? (
+                  <Link className="button button--secondary" to="/resumes">Enviar curriculo</Link>
+                ) : jobsEmptyState.actionType === "search" ? (
+                  <button className="button button--secondary" type="button" disabled={scrapeLoading} onClick={submitScrapeSearch}>
+                    {scrapeLoading ? "Buscando vagas..." : "Buscar vagas agora"}
+                  </button>
+                ) : null
+              }
+              secondaryAction={
+                jobsEmptyState.actionType === "select" ? (
+                  <button className="button button--ghost" type="button" onClick={() => refreshJobs(false)}>
+                    Revisar vagas
+                  </button>
+                ) : jobsEmptyState.actionType === "search" ? (
+                  <button className="button button--ghost" type="button" onClick={() => {
+                    const cleared = { search: "", company_name: "", location: "", status: "all", ordering: "-created_at" };
+                    setFilters(cleared);
+                    setAppliedFilters(cleared);
+                  }}>
+                    Limpar filtros
+                  </button>
+                ) : null
+              }
+            />
+          ) : null}
           {jobsState.items.length ? <div className="list-stack">{jobsState.items.map((job) => <article className={job.id === selectedJobId ? "list-item job-list-item is-selected" : "list-item job-list-item"} key={job.id}>
             <div className="job-list-item__main">
               <div className="inline-meta">
@@ -366,7 +476,7 @@ export function JobsPage() {
         </SectionCard>
 
         <SectionCard title="Detalhes da vaga" subtitle="Deixe o próximo passo óbvio com acesso ao anúncio original, controle de status e visibilidade de aderência.">
-          {!selectedJob ? <EmptyState title="Selecione uma vaga" description="Escolha uma vaga da lista para ver detalhes, ajustar o status e revisar a aderência com o currículo." /> : (
+          {!selectedJob ? <EmptyState eyebrow="Falta abrir uma oportunidade" title="Selecione uma vaga" description="Os detalhes da oportunidade mostram por que ela importa, como agir agora e qual e a aderencia com seu curriculo." nextStep="Escolha uma vaga da lista ao lado para salvar, iniciar candidatura ou atualizar o match." /> : (
             <div className="detail-stack">
               <div className="inline-meta"><strong>{selectedJob.title}</strong>{selectedJob.application_status ? <StatusBadge value={selectedJob.application_status} /> : null}{!selectedJob.application_status && selectedJob.is_saved ? <StatusBadge value="saved" /> : null}</div>
               <p className="job-detail-company">{selectedJob.company_name || "Empresa não informada"} | {selectedJob.location || "Local não informado"}</p>

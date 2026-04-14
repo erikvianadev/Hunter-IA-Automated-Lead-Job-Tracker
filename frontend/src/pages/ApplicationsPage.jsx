@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 
 import { AppShell } from "../components/AppShell";
 import { EmptyState } from "../components/EmptyState";
@@ -97,6 +98,56 @@ function getStatusCounts(applications) {
   );
 }
 
+function getApplicationsEmptyStateContent({ resumeCount, jobCount, savedCount, hasActiveFilters }) {
+  if (hasActiveFilters) {
+    return {
+      eyebrow: "Nenhum item para este filtro",
+      title: "Nenhuma candidatura apareceu com este recorte",
+      description: "Seu pipeline pode ter itens, mas os filtros atuais nao deixaram nenhuma candidatura visivel agora.",
+      nextStep: "Limpe os filtros ou ajuste a etapa buscada para reencontrar oportunidades ja rastreadas.",
+      actionType: "filters"
+    };
+  }
+
+  if (resumeCount === 0) {
+    return {
+      eyebrow: "Fluxo ainda no inicio",
+      title: "Envie um curriculo antes de abrir candidaturas",
+      description: "O curriculo organiza o contexto da sua busca e deixa mais claro em quais vagas vale investir energia.",
+      nextStep: "Abra Curriculos, envie sua versao principal e depois volte para buscar vagas ou iniciar candidaturas.",
+      actionType: "resume"
+    };
+  }
+
+  if (jobCount === 0) {
+    return {
+      eyebrow: "Ainda sem oportunidades no radar",
+      title: "Sua busca de vagas ainda nao gerou oportunidades para acompanhar",
+      description: "Sem vagas no workspace, ainda nao ha de onde iniciar e rastrear candidaturas.",
+      nextStep: "Abra Vagas, rode a busca inicial e monte sua shortlist antes de acompanhar o pipeline aqui.",
+      actionType: "jobs"
+    };
+  }
+
+  if (savedCount === 0) {
+    return {
+      eyebrow: "Nenhuma vaga priorizada",
+      title: "Falta escolher a primeira vaga para transformar em candidatura",
+      description: "Salvar ou aplicar em uma vaga cria o ponto de partida do seu pipeline e deixa o proximo follow-up visivel.",
+      nextStep: "Abra Vagas, salve as oportunidades mais promissoras ou marque a primeira como aplicada.",
+      actionType: "jobs"
+    };
+  }
+
+  return {
+    eyebrow: "Pipeline ainda vazio",
+    title: "Nenhuma candidatura rastreada ainda",
+    description: "Voce ja tem base para agir, mas ainda nao iniciou nenhuma candidatura para acompanhar por etapa.",
+    nextStep: "Volte para Vagas e marque a primeira oportunidade como aplicada para comecar a rastrear o fluxo aqui.",
+    actionType: "jobs"
+  };
+}
+
 export function ApplicationsPage() {
   const { request } = useAuth();
   const [applications, setApplications] = useState([]);
@@ -104,6 +155,7 @@ export function ApplicationsPage() {
   const [filters, setFilters] = useState({ status: "", search: "", company_name: "", ordering: "-updated_at" });
   const [appliedFilters, setAppliedFilters] = useState({ status: "", search: "", company_name: "", ordering: "-updated_at" });
   const [editingNotes, setEditingNotes] = useState({});
+  const [workspaceMeta, setWorkspaceMeta] = useState({ resumeCount: 0, jobCount: 0, savedCount: 0 });
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -118,6 +170,17 @@ export function ApplicationsPage() {
   const trackerSummary = useMemo(
     () => buildTrackerSummary(totalCount, applications.length, appliedFilters),
     [applications.length, appliedFilters, totalCount],
+  );
+  const applicationsEmptyState = useMemo(
+    () =>
+      getApplicationsEmptyStateContent({
+        ...workspaceMeta,
+        hasActiveFilters:
+          Boolean(appliedFilters.status)
+          || Boolean(appliedFilters.search.trim())
+          || Boolean(appliedFilters.company_name.trim())
+      }),
+    [appliedFilters.company_name, appliedFilters.search, appliedFilters.status, workspaceMeta],
   );
   const notesChanged = selectedApplication
     ? (editingNotes[selectedApplication.id] ?? "") !== (selectedApplication.notes ?? "")
@@ -145,10 +208,20 @@ export function ApplicationsPage() {
     }
 
     try {
-      const payload = await request(`/hunter/api/applications/?${params.toString()}`);
+      const [payload, jobsPayload, savedPayload, resumesPayload] = await Promise.all([
+        request(`/hunter/api/applications/?${params.toString()}`),
+        request("/hunter/api/jobs/?page_size=1"),
+        request("/hunter/api/saved-jobs/?page_size=1"),
+        request("/hunter/api/resumes/?page_size=1")
+      ]);
       const items = payload.results ?? [];
       setApplications(items);
       setTotalCount(payload.count ?? items.length);
+      setWorkspaceMeta({
+        resumeCount: resumesPayload.count ?? 0,
+        jobCount: jobsPayload.count ?? 0,
+        savedCount: savedPayload.count ?? 0
+      });
       setSelectedApplicationId((current) =>
         items.some((item) => item.id === current) ? current : items[0]?.id ?? null
       );
@@ -156,6 +229,7 @@ export function ApplicationsPage() {
     } catch (requestError) {
       setError(getErrorMessage(requestError, "Não foi possível carregar seu rastreador de candidaturas."));
       setApplications([]);
+      setWorkspaceMeta({ resumeCount: 0, jobCount: 0, savedCount: 0 });
       setTotalCount(0);
       setSelectedApplicationId(null);
     } finally {
@@ -302,8 +376,29 @@ export function ApplicationsPage() {
           {loading ? <div className="loading-panel">Carregando seu fluxo de candidaturas...</div> : null}
           {!loading && !applications.length ? (
             <EmptyState
-              title="Nenhuma candidatura rastreada ainda"
-              description="Comece a rastrear a partir das vagas ou limpe os filtros caso esperasse ver itens aqui."
+              eyebrow={applicationsEmptyState.eyebrow}
+              title={applicationsEmptyState.title}
+              description={applicationsEmptyState.description}
+              nextStep={applicationsEmptyState.nextStep}
+              action={
+                applicationsEmptyState.actionType === "resume" ? (
+                  <Link className="button button--secondary" to="/resumes">Enviar curriculo</Link>
+                ) : applicationsEmptyState.actionType === "filters" ? (
+                  <button
+                    className="button button--secondary"
+                    type="button"
+                    onClick={() => {
+                      const cleared = { status: "", search: "", company_name: "", ordering: "-updated_at" };
+                      setFilters(cleared);
+                      setAppliedFilters(cleared);
+                    }}
+                  >
+                    Limpar filtros
+                  </button>
+                ) : (
+                  <Link className="button button--secondary" to="/jobs">Abrir vagas</Link>
+                )
+              }
             />
           ) : null}
 
@@ -369,8 +464,10 @@ export function ApplicationsPage() {
         >
           {!selectedApplication ? (
             <EmptyState
+              eyebrow="Falta abrir um item do pipeline"
               title="Selecione uma candidatura"
-              description="Escolha um item do pipeline para ver o histórico, atualizar o status e registrar notas úteis de acompanhamento."
+              description="Ao abrir uma candidatura, voce consegue entender a etapa atual, registrar contexto e decidir o proximo follow-up com mais seguranca."
+              nextStep="Escolha um item da lista para atualizar o status, salvar notas e revisar o contexto da vaga."
             />
           ) : (
             <div className="detail-stack">

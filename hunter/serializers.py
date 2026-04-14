@@ -268,6 +268,33 @@ class DashboardProfileInsightsSerializer(serializers.Serializer):
     top_gap_area = serializers.CharField(read_only=True, allow_null=True)
 
 
+class DashboardActivationStepSerializer(serializers.Serializer):
+    id = serializers.CharField(read_only=True)
+    title = serializers.CharField(read_only=True)
+    detail = serializers.CharField(read_only=True)
+    completed = serializers.BooleanField(read_only=True)
+    current = serializers.BooleanField(read_only=True)
+
+
+class DashboardNextBestActionSerializer(serializers.Serializer):
+    action_type = serializers.CharField(read_only=True)
+    title = serializers.CharField(read_only=True)
+    detail = serializers.CharField(read_only=True)
+    cta_label = serializers.CharField(read_only=True)
+    cta_href = serializers.CharField(read_only=True)
+
+
+class DashboardActivationSerializer(serializers.Serializer):
+    completed_steps = serializers.IntegerField(read_only=True)
+    total_steps = serializers.IntegerField(read_only=True)
+    progress_percent = serializers.IntegerField(read_only=True)
+    is_complete = serializers.BooleanField(read_only=True)
+    headline = serializers.CharField(read_only=True)
+    summary = serializers.CharField(read_only=True)
+    checklist = DashboardActivationStepSerializer(many=True, read_only=True)
+    next_best_action = DashboardNextBestActionSerializer(read_only=True)
+
+
 class DashboardBestResumeSummarySerializer(serializers.Serializer):
     id = serializers.IntegerField(read_only=True)
     label = serializers.CharField(read_only=True)
@@ -327,6 +354,7 @@ class DashboardSerializer(serializers.Serializer):
     recommended_jobs = DashboardRecommendedJobSerializer(many=True, read_only=True)
     priority_actions = DashboardPriorityActionSerializer(many=True, read_only=True)
     profile_insights = DashboardProfileInsightsSerializer(read_only=True)
+    activation = DashboardActivationSerializer(read_only=True)
     best_resume_summary = DashboardBestResumeSummarySerializer(read_only=True, allow_null=True)
     resume_report_preview = DashboardResumeReportPreviewSerializer(read_only=True, allow_null=True)
     comparison_available = serializers.BooleanField(read_only=True)
