@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 
 import { AppShell } from "../components/AppShell";
 import { EmptyState } from "../components/EmptyState";
@@ -104,6 +105,7 @@ function getInsightStateMessage(kind, error) {
 
 export function ResumesPage() {
   const { request } = useAuth();
+  const fileInputRef = useRef(null);
   const [resumes, setResumes] = useState([]);
   const [selectedResumeId, setSelectedResumeId] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
@@ -123,6 +125,7 @@ export function ResumesPage() {
   const [error, setError] = useState("");
   const [feedback, setFeedback] = useState("");
   const [busyAction, setBusyAction] = useState("");
+  const [isDragActive, setIsDragActive] = useState(false);
 
   const selectedResume = useMemo(
     () => resumes.find((resume) => resume.id === selectedResumeId) ?? null,
@@ -220,6 +223,25 @@ export function ResumesPage() {
     loadSelectedResumeInsights(selectedResumeId);
   }, [selectedResumeId]);
 
+  function handleFileSelected(file) {
+    if (!file) {
+      setForm((previous) => ({ ...previous, file: null }));
+      return;
+    }
+
+    setForm((previous) => ({ ...previous, file }));
+    if (!isAllowedResumeFile(file)) {
+      setError("Esse arquivo nao pode ser usado como curriculo. Envie um PDF ou DOCX.");
+      return;
+    }
+
+    setError("");
+  }
+
+  function openFilePicker() {
+    fileInputRef.current?.click();
+  }
+
   async function handleUpload(event) {
     event.preventDefault();
     if (!form.file) {
@@ -257,6 +279,9 @@ export function ResumesPage() {
         label: "",
         target_role: ""
       });
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
       await loadResumes(false);
       setSelectedResumeId(payload.id);
     } catch (requestError) {
@@ -302,17 +327,57 @@ export function ResumesPage() {
           subtitle="Adicione uma nova versao para revisar, pontuar e usar nas analises de aderencia."
         >
           <form className="stack" onSubmit={handleUpload}>
-            <label className="field">
+            <div className="field">
               <span>Arquivo do curriculo</span>
               <input
+                ref={fileInputRef}
+                className="sr-only"
+                id="resume-file-input"
                 type="file"
                 accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                onChange={(event) =>
-                  setForm((previous) => ({ ...previous, file: event.target.files?.[0] ?? null }))
-                }
+                onChange={(event) => handleFileSelected(event.target.files?.[0] ?? null)}
                 required
               />
-            </label>
+              <div
+                className={isDragActive ? "upload-dropzone is-active" : "upload-dropzone"}
+                role="button"
+                tabIndex={0}
+                onClick={openFilePicker}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    openFilePicker();
+                  }
+                }}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  setIsDragActive(true);
+                }}
+                onDragEnter={(event) => {
+                  event.preventDefault();
+                  setIsDragActive(true);
+                }}
+                onDragLeave={(event) => {
+                  event.preventDefault();
+                  setIsDragActive(false);
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  setIsDragActive(false);
+                  handleFileSelected(event.dataTransfer.files?.[0] ?? null);
+                }}
+              >
+                <strong>{form.file ? "Arquivo selecionado" : "Arraste seu curriculo aqui"}</strong>
+                <p>
+                  {form.file
+                    ? `${form.file.name} (${Math.max(1, Math.round(form.file.size / 1024))} KB)`
+                    : "Ou clique para escolher um arquivo PDF ou DOCX."}
+                </p>
+                <span className="status-badge tone-muted">
+                  {form.file ? "Pronto para envio" : "PDF ou DOCX"}
+                </span>
+              </div>
+            </div>
 
             <label className="field">
               <span>Nome da versao</span>
@@ -406,6 +471,7 @@ export function ResumesPage() {
             <EmptyState
               title="Nenhum curriculo por aqui ainda"
               description="Envie seu primeiro curriculo para comecar a melhorar o material e liberar os proximos insights."
+              action={<button className="button button--secondary" type="button" onClick={openFilePicker}>Escolher arquivo</button>}
             />
           ) : null}
           {!loading && resumes.length ? (
@@ -668,6 +734,7 @@ export function ResumesPage() {
             <EmptyState
               title="Selecione um curriculo"
               description="Escolha uma versao da sua biblioteca para ver feedback, senioridade e recursos premium."
+              action={<Link className="button button--ghost" to="/billing">Ver planos</Link>}
             />
           )}
         </SectionCard>

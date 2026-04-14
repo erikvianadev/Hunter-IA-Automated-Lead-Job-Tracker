@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 
 import { useAuth } from "../context/AuthContext";
 import { getErrorMessage } from "../lib/utils";
@@ -34,24 +34,24 @@ export function LoginPage() {
   return (
     <div className="auth-layout">
       <div className="auth-panel auth-panel--hero">
-        <span className="hero-chip">Encontre vagas melhores com mais confianca</span>
-        <h1>Transforme seu progresso em uma busca de emprego mais clara e organizada.</h1>
+        <span className="hero-chip">Entrada real, progresso confiavel</span>
+        <h1>Organize sua busca de emprego com mais clareza, ritmo e confianca.</h1>
         <p>
           O Hunter IA ajuda voce a evoluir seu curriculo, acompanhar cada candidatura
-          e usar insights premium para priorizar os proximos passos com mais seguranca.
+          e priorizar vagas com mais contexto sobre o que fazer agora.
         </p>
         <div className="hero-metrics">
           <article>
-            <strong>Um workspace focado</strong>
-            <span>Curriculos, vagas, candidaturas e plano no mesmo fluxo</span>
+            <strong>Entrada simples e segura</strong>
+            <span>Entre na sua conta e retome seu workspace sem depender de setup manual</span>
           </article>
           <article>
-            <strong>Feito para manter ritmo</strong>
-            <span>Melhore seus materiais enquanto acompanha cada oportunidade</span>
+            <strong>Progresso em um so lugar</strong>
+            <span>Curriculos, vagas e candidaturas conectados em um fluxo pratico</span>
           </article>
           <article>
             <strong>Premium quando fizer sentido</strong>
-            <span>Desbloqueie comparacoes mais ricas e insights mais profundos de empregabilidade</span>
+            <span>Desbloqueie comparacoes e diagnosticos mais profundos quando quiser avancar</span>
           </article>
         </div>
       </div>
@@ -60,11 +60,11 @@ export function LoginPage() {
         <div className="form-card">
           <span className="form-card__eyebrow">Entrar</span>
           <h2>Bem-vindo de volta</h2>
-          <p>Entre para continuar evoluindo seu curriculo e acompanhando sua busca.</p>
+          <p>Entre para continuar seu progresso com visibilidade sobre curriculo, vagas e proximos passos.</p>
 
           <form className="stack" onSubmit={handleSubmit}>
             <label className="field">
-              <span>Usuario</span>
+              <span>Nome de usuario</span>
               <input
                 value={form.username}
                 onChange={(event) => setForm((previous) => ({ ...previous, username: event.target.value }))}
@@ -90,7 +90,7 @@ export function LoginPage() {
               <div className="notice notice--blocked">
                 <strong>Nao foi possivel entrar</strong>
                 <p>{error}</p>
-                <p>Confira usuario e senha. Se o problema continuar, tente novamente em instantes.</p>
+                <p>Revise seus dados. Se o problema continuar, tente novamente em instantes.</p>
               </div>
             ) : null}
 
@@ -98,6 +98,11 @@ export function LoginPage() {
               {submitting ? "Entrando..." : "Continuar"}
             </button>
           </form>
+
+          <div className="auth-support">
+            <span>Ainda nao tem conta?</span>
+            <Link to="/signup">Criar conta gratuita</Link>
+          </div>
         </div>
       </div>
     </div>

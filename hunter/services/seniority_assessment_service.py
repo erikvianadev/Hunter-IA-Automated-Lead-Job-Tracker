@@ -112,7 +112,7 @@ class SeniorityAssessmentService:
         skills_count: int,
     ) -> str:
         return (
-            f"Recommended track is {recommended_track} based on "
-            f"{experience_entries} experience entries, {projects_count} project signals, "
-            f"and {skills_count} distinct skills."
+            f"O nivel mais aderente no momento e {recommended_track}, com base em "
+            f"{experience_entries} experiencias identificadas, {projects_count} sinais de projetos "
+            f"e {skills_count} habilidades distintas."
         )

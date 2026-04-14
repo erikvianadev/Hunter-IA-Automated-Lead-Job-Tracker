@@ -582,7 +582,7 @@ class ResumeApiTests(TestCase):
         self.assertEqual(response.data["recent_match_summary"]["average_match_score"], 88.0)
         self.assertEqual(response.data["recent_match_summary"]["best_match_score"], 88)
         self.assertIn("Backend Premium", response.data["executive_summary"])
-        self.assertIn("recommended track is mid", response.data["profile_summary"].lower())
+        self.assertIn("nivel mais aderente hoje e pleno", response.data["profile_summary"].lower())
 
     def test_resume_report_ignores_foreign_matches_attached_to_owned_resume(self) -> None:
         self._subscribe_user_to_pro()
@@ -681,7 +681,7 @@ class ResumeApiTests(TestCase):
         response = self.client.get("/hunter/api/resumes/compare/")
 
         self.assertEqual(response.status_code, 403)
-        self.assertIn("Upgrade to Pro", response.data["detail"])
+        self.assertIn("faca upgrade para o pro", response.data["detail"].lower())
 
     def test_report_requires_pro_plan(self) -> None:
         resume = Resume.objects.create(
@@ -699,7 +699,7 @@ class ResumeApiTests(TestCase):
         response = self.client.get(f"/hunter/api/resumes/{resume.id}/report/")
 
         self.assertEqual(response.status_code, 403)
-        self.assertIn("Upgrade to Pro", response.data["detail"])
+        self.assertIn("faca upgrade para o pro", response.data["detail"].lower())
 
     def test_invalid_file_type_is_rejected(self) -> None:
         upload = SimpleUploadedFile(

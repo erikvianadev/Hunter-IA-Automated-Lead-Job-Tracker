@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
 import { AppShell } from "../components/AppShell";
 import { EmptyState } from "../components/EmptyState";
@@ -67,12 +68,20 @@ export function DashboardPage() {
             <StatCard
               label="Curriculos"
               value={summary.total_resumes}
-              helper={summary.active_resume_label ?? "Defina um curriculo principal para guiar os insights"}
+              helper={
+                summary.total_resumes
+                  ? summary.active_resume_label ?? "Defina um curriculo principal para guiar os insights"
+                  : "Comece enviando seu primeiro curriculo para liberar o fluxo principal."
+              }
             />
             <StatCard
               label="Candidaturas"
               value={summary.total_applications}
-              helper="Acompanhe cada etapa com mais clareza"
+              helper={
+                summary.total_applications
+                  ? "Acompanhe cada etapa com mais clareza"
+                  : "Quando voce marcar vagas como aplicadas, seu pipeline aparece aqui."
+              }
             />
             <StatCard
               label="Matches"
@@ -80,7 +89,7 @@ export function DashboardPage() {
               helper={
                 summary.average_match_score != null
                   ? `Aderencia media de ${summary.average_match_score}`
-                  : "Atualize um match para enxergar aderencia media"
+                  : "Gere aderencia com vagas para descobrir onde vale focar."
               }
             />
             <StatCard
@@ -89,7 +98,7 @@ export function DashboardPage() {
               helper={
                 summary.top_match_score != null
                   ? `Melhor aderencia de ${summary.top_match_score}`
-                  : "Salve vagas para montar sua shortlist"
+                  : "Monte sua shortlist salvando vagas com potencial."
               }
             />
           </section>
@@ -121,6 +130,7 @@ export function DashboardPage() {
                 <EmptyState
                   title="Adicione seu primeiro curriculo"
                   description="Envie um curriculo para comecar a receber analises, scores de aderencia e orientacoes mais profundas."
+                  action={<Link className="button button--secondary" to="/resumes">Enviar curriculo</Link>}
                 />
               )}
             </SectionCard>
@@ -155,7 +165,11 @@ export function DashboardPage() {
                       <div>
                         <div className="inline-meta">
                           <strong>{item.title}</strong>
-                          <StatusBadge value={`priority_${item.priority}`} tone="warning" />
+                          <StatusBadge
+                            value={`priority_${item.priority}`}
+                            label={`Prioridade ${item.priority}`}
+                            tone={item.priority === 1 ? "warning" : item.priority === 2 ? "medium" : "muted"}
+                          />
                         </div>
                         <p>{item.detail}</p>
                       </div>
@@ -166,6 +180,7 @@ export function DashboardPage() {
                 <EmptyState
                   title="Tudo sob controle por aqui"
                   description="Seu setup atual ja cobre os proximos passos mais importantes."
+                  action={<Link className="button button--ghost" to="/jobs">Buscar vagas</Link>}
                 />
               )}
             </SectionCard>
@@ -193,6 +208,11 @@ export function DashboardPage() {
                 <EmptyState
                   title="Nenhuma previa premium ainda"
                   description="Gere a analise do curriculo e a leitura de senioridade para liberar uma visao mais rica aqui."
+                  action={
+                    <Link className="button button--ghost" to={dashboard.active_resume ? "/resumes" : "/billing"}>
+                      {dashboard.active_resume ? "Abrir curriculos" : "Ver planos"}
+                    </Link>
+                  }
                 />
               )}
             </SectionCard>

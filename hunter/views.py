@@ -179,7 +179,7 @@ class JobViewSet(viewsets.ModelViewSet):
         )
         if resume is None:
             return Response(
-                {"detail": "A valid owned resume is required for matching."},
+                {"detail": "Escolha um curriculo seu para atualizar a aderencia desta vaga."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -363,7 +363,7 @@ class ResumeViewSet(
             try:
                 resume_ids = [int(value.strip()) for value in raw_ids.split(',') if value.strip()]
             except ValueError as exc:
-                raise serializers.ValidationError({"ids": ["Resume ids must be integers."]}) from exc
+                raise serializers.ValidationError({"ids": ["Os ids de curriculo precisam ser numeros inteiros."]}) from exc
 
         payload = ResumeProfileService().compare(
             owner=request.user,
@@ -428,7 +428,7 @@ class ResumeViewSet(
         resume = self.get_object()
         if not hasattr(resume, 'analysis'):
             return Response(
-                {"detail": "Resume analysis does not exist yet."},
+                {"detail": "A analise deste curriculo ainda nao foi gerada."},
                 status=status.HTTP_404_NOT_FOUND,
             )
         serializer = ResumeAnalysisSerializer(
@@ -455,7 +455,7 @@ class ResumeViewSet(
         resume = self.get_object()
         if not hasattr(resume, 'seniority_assessment'):
             return Response(
-                {"detail": "Resume seniority assessment does not exist yet."},
+                {"detail": "A leitura de senioridade deste curriculo ainda nao foi gerada."},
                 status=status.HTTP_404_NOT_FOUND,
             )
         serializer = SeniorityAssessmentSerializer(

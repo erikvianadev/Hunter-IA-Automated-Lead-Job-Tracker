@@ -248,6 +248,14 @@ button {
   width: min(100%, 460px);
 }
 
+.auth-support {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+  color: var(--muted);
+}
+
 .form-card h2,
 .page-header h2,
 .brand-lockup h1 {
@@ -357,6 +365,12 @@ select:focus {
   background: color-mix(in srgb, var(--surface-strong) 85%, transparent);
   color: var(--ink);
   border: 1px solid var(--border);
+}
+
+.button--inline {
+  width: fit-content;
+  min-height: 38px;
+  padding: 8px 14px;
 }
 
 .notice {
@@ -573,7 +587,7 @@ select:focus {
 }
 
 .status-badge {
-  border: 1px solid transparent;
+  border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
   font-weight: 700;
   line-height: 1.35;
 }
@@ -656,6 +670,54 @@ select:focus {
 
 .notes-preview--inline {
   line-height: 1.6;
+}
+
+.upload-dropzone {
+  display: grid;
+  gap: 10px;
+  padding: 20px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 32%, var(--surface-strong)), color-mix(in srgb, var(--secondary-soft) 18%, var(--surface-strong)));
+  cursor: pointer;
+  transition: border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.upload-dropzone:hover,
+.upload-dropzone.is-active {
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px rgba(70, 54, 29, 0.1);
+}
+
+.upload-dropzone strong,
+.upload-dropzone p {
+  margin: 0;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.job-list-item__main p:last-child,
+.detail-stack > p,
+.plain-list li {
+  line-height: 1.7;
+}
+
+.job-description,
+.detail-stack > p {
+  max-width: 72ch;
+  white-space: pre-line;
 }
 
 .plain-list {

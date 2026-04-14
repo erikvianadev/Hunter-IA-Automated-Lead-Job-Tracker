@@ -8,6 +8,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { JobsPage } from "./pages/JobsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { ResumesPage } from "./pages/ResumesPage";
+import { SignupPage } from "./pages/SignupPage";
 
 function ProtectedRoute({ children }) {
   const { bootstrapped, isAuthenticated } = useAuth();
@@ -29,6 +30,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/signup" element={<SignupPage />} />
       <Route
         path="/dashboard"
         element={

@@ -128,16 +128,16 @@ class BillingService:
     def subscribe(self, *, owner, plan_code: str, billing_cycle: str) -> dict[str, object]:
         plan = self._get_plan(plan_code=plan_code, billing_cycle=billing_cycle)
         if plan.code == self.PLAN_FREE:
-            raise BillingError('Free plan does not require Stripe checkout.')
+            raise BillingError('O plano gratuito nao precisa de checkout.')
         if not self.stripe_gateway.is_configured():
-            raise BillingError('Stripe billing is not configured.')
+            raise BillingError('O faturamento online nao esta configurado neste ambiente.')
 
         price_id = self.stripe_gateway.get_price_id(
             plan_code=plan.code,
             billing_cycle=plan.billing_cycle,
         )
         if not price_id:
-            raise BillingError('Stripe price is not configured for the selected plan.')
+            raise BillingError('O preco do plano escolhido nao esta configurado neste ambiente.')
 
         existing_customer_id = self._get_latest_customer_id(owner=owner)
         try:
@@ -163,7 +163,7 @@ class BillingService:
     def cancel(self, *, owner) -> dict[str, object]:
         subscription = self._get_effective_subscription_record(owner=owner)
         if subscription is None or subscription.plan_code == self.PLAN_FREE:
-            raise BillingError('There is no paid subscription to cancel.')
+            raise BillingError('Nao existe uma assinatura paga ativa para cancelar.')
         if subscription.status == BillingSubscriptionStatus.CANCELED:
             return self._serialize_subscription(record=subscription)
 
@@ -203,7 +203,7 @@ class BillingService:
         if feature_code in subscription['features']:
             return
         raise BillingAccessError(
-            f'The current plan does not include {feature_code}. Upgrade to Pro to continue.'
+            'Seu plano atual nao inclui este recurso. Faca upgrade para o Pro quando quiser liberar esse acesso.'
         )
 
     @transaction.atomic
@@ -320,7 +320,7 @@ class BillingService:
         for plan in self.PLAN_CATALOG:
             if plan.code == plan_code and plan.billing_cycle == billing_cycle:
                 return plan
-        raise BillingError('Invalid billing plan selection.')
+        raise BillingError('A opcao de plano escolhida nao e valida.')
 
     def _calculate_period_end(self, *, started_at, billing_cycle: str):
         if billing_cycle == BillingCycle.MONTHLY:
@@ -559,7 +559,7 @@ class BillingService:
             if configured_price_id and configured_price_id == price_id:
                 return plan.code, plan.billing_cycle
 
-        raise BillingError('Unable to map Stripe subscription to a local billing plan.')
+        raise BillingError('Nao foi possivel associar a assinatura recebida a um plano local.')
 
     def _resolve_price_amount(
         self,
