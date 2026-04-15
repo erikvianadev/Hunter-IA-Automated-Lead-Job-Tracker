@@ -214,15 +214,27 @@ class DashboardService:
                 }
             )
         else:
-            for recommendation in analysis.recommendations[:2]:
-                actions.append(
-                    {
-                        "action_type": "resume_improvement",
-                        "title": "Melhorar a qualidade do curriculo",
-                        "detail": recommendation,
-                        "priority": 2,
-                    }
-                )
+            structured_actions = analysis.raw_summary.get("priority_actions", [])
+            if structured_actions:
+                for item in structured_actions[:2]:
+                    actions.append(
+                        {
+                            "action_type": f"{item.get('category', 'resume_improvement')}_signal",
+                            "title": item.get("title", "Melhorar a qualidade do curriculo"),
+                            "detail": f"{item.get('reason', '')} {item.get('impact', '')}".strip(),
+                            "priority": item.get("priority_rank", 2),
+                        }
+                    )
+            else:
+                for recommendation in analysis.recommendations[:2]:
+                    actions.append(
+                        {
+                            "action_type": "resume_improvement",
+                            "title": "Melhorar a qualidade do curriculo",
+                            "detail": recommendation,
+                            "priority": 2,
+                        }
+                    )
             parsed_resume = analysis.raw_summary.get("parsed_resume", {})
             if not parsed_resume.get("projects"):
                 actions.append(

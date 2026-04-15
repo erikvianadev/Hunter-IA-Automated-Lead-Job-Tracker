@@ -45,6 +45,7 @@ def serialize_preferred_match(records):
         return None
 
     preferred = next((record for record in records if getattr(record.resume, 'is_active', False)), records[0])
+    reasoning = preferred.reasoning or {}
     return {
         'id': preferred.id,
         'resume_id': preferred.resume_id,
@@ -53,6 +54,10 @@ def serialize_preferred_match(records):
         'gaps': preferred.gaps,
         'strengths': preferred.strengths,
         'recommendation': preferred.recommendation,
+        'decision_class': reasoning.get('decision_class'),
+        'decision_label': reasoning.get('decision_label'),
+        'evidence_signals': reasoning.get('evidence_signals', []),
+        'seniority_context': reasoning.get('seniority_context', {}),
         'updated_at': preferred.updated_at,
     }
 
@@ -172,6 +177,10 @@ class ResumeSerializer(serializers.ModelSerializer):
 
 class ResumeAnalysisSerializer(serializers.ModelSerializer):
     resume = serializers.PrimaryKeyRelatedField(read_only=True)
+    working_signals = serializers.SerializerMethodField()
+    missing_signals = serializers.SerializerMethodField()
+    priority_actions = serializers.SerializerMethodField()
+    priority_summary = serializers.SerializerMethodField()
 
     class Meta:
         model = ResumeAnalysis
@@ -187,10 +196,26 @@ class ResumeAnalysisSerializer(serializers.ModelSerializer):
             'weaknesses',
             'recommendations',
             'raw_summary',
+            'working_signals',
+            'missing_signals',
+            'priority_actions',
+            'priority_summary',
             'created_at',
             'updated_at',
         ]
         read_only_fields = fields
+
+    def get_working_signals(self, obj):
+        return obj.raw_summary.get('what_is_working', [])
+
+    def get_missing_signals(self, obj):
+        return obj.raw_summary.get('what_is_missing', [])
+
+    def get_priority_actions(self, obj):
+        return obj.raw_summary.get('priority_actions', [])
+
+    def get_priority_summary(self, obj):
+        return obj.raw_summary.get('priority_summary', {})
 
 
 class SeniorityAssessmentSerializer(serializers.ModelSerializer):
@@ -222,6 +247,10 @@ class JobMatchSerializer(serializers.ModelSerializer):
     owner = serializers.PrimaryKeyRelatedField(read_only=True)
     resume = serializers.PrimaryKeyRelatedField(read_only=True)
     job = serializers.PrimaryKeyRelatedField(read_only=True)
+    decision_class = serializers.SerializerMethodField()
+    decision_label = serializers.SerializerMethodField()
+    evidence_signals = serializers.SerializerMethodField()
+    seniority_context = serializers.SerializerMethodField()
 
     class Meta:
         model = JobMatch
@@ -235,10 +264,26 @@ class JobMatchSerializer(serializers.ModelSerializer):
             'gaps',
             'recommendation',
             'reasoning',
+            'decision_class',
+            'decision_label',
+            'evidence_signals',
+            'seniority_context',
             'created_at',
             'updated_at',
         ]
         read_only_fields = fields
+
+    def get_decision_class(self, obj):
+        return obj.reasoning.get('decision_class')
+
+    def get_decision_label(self, obj):
+        return obj.reasoning.get('decision_label')
+
+    def get_evidence_signals(self, obj):
+        return obj.reasoning.get('evidence_signals', [])
+
+    def get_seniority_context(self, obj):
+        return obj.reasoning.get('seniority_context', {})
 
 
 class DashboardSummarySerializer(serializers.Serializer):

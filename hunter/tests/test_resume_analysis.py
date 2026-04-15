@@ -70,6 +70,12 @@ class ResumeAnalysisApiTests(TestCase):
         self.assertIn("weaknesses", response.data)
         self.assertIn("recommendations", response.data)
         self.assertIn("raw_summary", response.data)
+        self.assertIn("working_signals", response.data)
+        self.assertIn("missing_signals", response.data)
+        self.assertIn("priority_actions", response.data)
+        self.assertIn("priority_summary", response.data)
+        self.assertTrue(response.data["priority_actions"])
+        self.assertIn("impact", response.data["priority_actions"][0])
         self.assertTrue(ResumeAnalysis.objects.filter(resume=resume).exists())
 
     def test_retrieving_existing_analysis_returns_saved_analysis(self) -> None:

@@ -671,6 +671,18 @@ select:focus {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
+.priority-summary,
+.priority-action-grid,
+.signal-list {
+  display: grid;
+  gap: 12px;
+}
+
+.priority-action-grid,
+.signal-list {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
 .provider-breakdown__card,
 .job-detail-subcard {
   padding: 16px;
@@ -678,6 +690,31 @@ select:focus {
   border: 1px solid var(--border);
   background: color-mix(in srgb, var(--surface-strong) 72%, transparent);
   min-width: 0;
+}
+
+.priority-card,
+.signal-card {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-strong) 80%, transparent);
+}
+
+.priority-card p,
+.signal-card p {
+  margin: 0;
+}
+
+.signal-card--positive {
+  border-color: color-mix(in srgb, var(--secondary) 22%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--secondary-soft) 40%, var(--surface-strong)), var(--surface-strong));
+}
+
+.signal-card--warning {
+  border-color: color-mix(in srgb, var(--accent) 26%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent-soft) 30%, var(--surface-strong)), var(--surface-strong));
 }
 
 .activation-summary,

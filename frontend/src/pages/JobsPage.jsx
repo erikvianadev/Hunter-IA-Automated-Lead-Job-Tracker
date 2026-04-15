@@ -7,7 +7,7 @@ import { SectionCard } from "../components/SectionCard";
 import { StatCard } from "../components/StatCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { useAuth } from "../context/AuthContext";
-import { getJobsOverviewCardsPresentation, getMatchNoticeTone } from "../lib/presentation";
+import { getJobsOverviewCardsPresentation, getMatchDecisionPresentation, getMatchNoticeTone } from "../lib/presentation";
 import { formatRelativeDate, formatShortDate, getErrorMessage, titleize } from "../lib/utils";
 
 const JOBS_PAGE_SIZE = 12;
@@ -211,6 +211,10 @@ export function JobsPage() {
 
   const selectedJob = useMemo(() => jobsState.items.find((job) => job.id === selectedJobId) ?? null, [jobsState.items, selectedJobId]);
   const selectedResume = useMemo(() => resumes.find((resume) => resume.id === selectedResumeId) ?? null, [resumes, selectedResumeId]);
+  const selectedDecision = useMemo(
+    () => getMatchDecisionPresentation(selectedJob?.current_match ?? {}),
+    [selectedJob],
+  );
   const providerSummary = useMemo(() => getProviderSummary(scrapeSummary), [scrapeSummary]);
   const providerBreakdown = useMemo(() => getProviderBreakdown(scrapeSummary), [scrapeSummary]);
   const searchSummary = useMemo(() => buildSearchSummary(jobsState.count, jobsState.items.length, appliedFilters), [appliedFilters, jobsState.count, jobsState.items.length]);
@@ -448,6 +452,7 @@ export function JobsPage() {
                 {job.application_status ? <StatusBadge value={job.application_status} /> : null}
                 {!job.application_status && job.is_saved ? <StatusBadge value="saved" /> : null}
                 {job.current_match ? <span className={`status-badge tone-${getScoreTone(job.current_match.match_score)}`}>{job.current_match.match_score}% aderência</span> : null}
+                {job.current_match?.decision_label ? <span className={`status-badge tone-${getMatchDecisionPresentation(job.current_match).tone}`}>{job.current_match.decision_label}</span> : null}
               </div>
               <p>{job.company_name || "Empresa não informada"} | {job.location || "Local não informado"}</p>
               <p className="muted-copy">{job.source ? `${job.source} | ` : ""}{getJobRecencyLabel(job)}</p>
@@ -511,9 +516,18 @@ export function JobsPage() {
                 {resumes.length ? <label className="field"><span>Currículo usado no match</span><select value={selectedResumeId ?? ""} onChange={(event) => setSelectedResumeId(Number(event.target.value))}>{resumes.map((resume) => <option key={resume.id} value={resume.id}>{resume.label || resume.original_filename}{resume.is_active ? " (Principal)" : ""}</option>)}</select></label> : <div className="notice notice--error">Nenhum currículo está disponível para match ainda. Envie um currículo primeiro para liberar o score de aderência.</div>}
                 {selectedJob.current_match ? <div className="detail-stack">
                   <div className="insight-list insight-list--three"><div><span>Score de aderência</span><strong>{selectedJob.current_match.match_score}/100</strong></div><div><span>Currículo usado</span><strong>{selectedJob.current_match.resume_label}</strong></div><div><span>Atualizado</span><strong>{formatRelativeDate(selectedJob.current_match.updated_at)}</strong></div></div>
-                  <div className={`notice notice--${getMatchNoticeTone(selectedJob.current_match.match_score)}`}><strong>{selectedJob.current_match.match_score >= 80 ? "Boa aderencia para priorizar" : selectedJob.current_match.match_score >= 60 ? "Aderencia promissora, com ajustes" : "Aderencia baixa neste momento"}</strong><p>{selectedJob.current_match.recommendation}</p></div>
-                  {selectedJob.current_match.gaps?.length ? <div><strong>Principais lacunas</strong><ul className="plain-list">{selectedJob.current_match.gaps.slice(0, 3).map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}</ul></div> : null}
-                  {selectedJob.current_match.strengths?.length ? <div><strong>Pontos fortes</strong><ul className="plain-list">{selectedJob.current_match.strengths.slice(0, 2).map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}</ul></div> : null}
+                  <div className={`notice notice--${selectedDecision.tone || getMatchNoticeTone(selectedJob.current_match.match_score)}`}>
+                    <div className="inline-meta">
+                      <strong>{selectedDecision.title}</strong>
+                      {selectedJob.current_match.decision_label ? <StatusBadge value={selectedJob.current_match.decision_class || selectedJob.current_match.decision_label} label={selectedJob.current_match.decision_label} tone={selectedDecision.tone} /> : null}
+                    </div>
+                    <p>{selectedJob.current_match.recommendation}</p>
+                  </div>
+                  <div className="signal-list">
+                    {selectedJob.current_match.strengths?.length ? <article className="signal-card signal-card--positive"><strong>Forças detectadas</strong><ul className="plain-list">{selectedJob.current_match.strengths.slice(0, 3).map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}</ul></article> : null}
+                    {selectedJob.current_match.gaps?.length ? <article className="signal-card signal-card--warning"><strong>Principais gaps</strong><ul className="plain-list">{selectedJob.current_match.gaps.slice(0, 3).map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}</ul></article> : null}
+                  </div>
+                  {selectedJob.current_match.evidence_signals?.length ? <div><strong>Sinais usados na decisão</strong><ul className="plain-list">{selectedJob.current_match.evidence_signals.slice(0, 4).map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}</ul></div> : null}
                 </div> : <p className="muted-copy">Ainda não existe match para esta vaga. Rode a análise de aderência para ver score, lacunas e recomendação.</p>}
               </SectionCard>
               <div className="detail-stack"><strong>Descrição da vaga</strong><p>{selectedJob.description || "Nenhuma descrição detalhada foi capturada para esta vaga ainda."}</p></div>

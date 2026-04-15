@@ -359,7 +359,12 @@ class JobWorkflowApiTests(TestCase):
             strengths=["Python overlap"],
             gaps=["Add stronger AWS signal"],
             recommendation="Strong match. Prioritize this application.",
-            reasoning={"source": "test"},
+            reasoning={
+                "source": "test",
+                "decision_class": "aplicar_agora",
+                "decision_label": "Aplicar agora",
+                "evidence_signals": ["Ha aderencia em Python e Django."],
+            },
         )
 
         response = self.client.get("/hunter/api/jobs/")
@@ -372,6 +377,8 @@ class JobWorkflowApiTests(TestCase):
         self.assertEqual(payload["application_id"], application.id)
         self.assertEqual(payload["current_match"]["match_score"], 82)
         self.assertEqual(payload["current_match"]["resume_label"], "Backend Resume")
+        self.assertEqual(payload["current_match"]["decision_class"], "aplicar_agora")
+        self.assertTrue(payload["current_match"]["evidence_signals"])
 
     def test_applications_listing_exposes_job_context_and_current_match(self) -> None:
         SavedJob.objects.create(owner=self.user, job=self.job)
@@ -400,7 +407,12 @@ class JobWorkflowApiTests(TestCase):
             strengths=["Distributed systems overlap"],
             gaps=["Highlight leadership scope"],
             recommendation="Strong fit with a compelling backend profile.",
-            reasoning={"source": "test"},
+            reasoning={
+                "source": "test",
+                "decision_class": "aplicar_agora",
+                "decision_label": "Aplicar agora",
+                "evidence_signals": ["Ha aderencia em sistemas distribuidos."],
+            },
         )
 
         response = self.client.get("/hunter/api/applications/")
@@ -413,3 +425,4 @@ class JobWorkflowApiTests(TestCase):
         self.assertEqual(payload["job_location"], self.job.location)
         self.assertEqual(payload["current_match"]["match_score"], 88)
         self.assertEqual(payload["current_match"]["resume_label"], "Primary Backend Resume")
+        self.assertEqual(payload["current_match"]["decision_label"], "Aplicar agora")
