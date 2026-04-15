@@ -300,6 +300,69 @@ export function getMatchNoticeTone(score) {
   return "blocked";
 }
 
+export function getPriorityTone(priorityLabel) {
+  if (priorityLabel === "Alta prioridade") {
+    return "warning";
+  }
+
+  if (priorityLabel === "Media prioridade") {
+    return "medium";
+  }
+
+  return "muted";
+}
+
+export function getMatchDecisionPresentation(match = {}) {
+  const decisionClass = match.decision_class || match.reasoning?.decision_class;
+  const decisionLabel = match.decision_label || match.reasoning?.decision_label;
+
+  if (decisionClass === "aplicar_agora") {
+    return {
+      label: decisionLabel || "Aplicar agora",
+      title: "Decisao coerente para agir",
+      tone: "success"
+    };
+  }
+
+  if (decisionClass === "aplicar_apos_ajustes") {
+    return {
+      label: decisionLabel || "Aplicar apos ajustes",
+      title: "Vale agir, mas com ajuste antes",
+      tone: "warning"
+    };
+  }
+
+  if (decisionClass === "fortalecer_curriculo_antes") {
+    return {
+      label: decisionLabel || "Fortalecer curriculo antes",
+      title: "A decisao mais coerente e preparar melhor o material",
+      tone: "blocked"
+    };
+  }
+
+  if ((match.match_score ?? 0) >= 80) {
+    return {
+      label: "Aplicar agora",
+      title: "Boa aderencia para priorizar",
+      tone: "success"
+    };
+  }
+
+  if ((match.match_score ?? 0) >= 60) {
+    return {
+      label: "Aplicar apos ajustes",
+      title: "Aderencia promissora, com ajustes",
+      tone: "warning"
+    };
+  }
+
+  return {
+    label: "Fortalecer curriculo antes",
+    title: "Aderencia baixa neste momento",
+    tone: "blocked"
+  };
+}
+
 export function getJobsOverviewCardsPresentation(input = {}) {
   const jobsCount = Number.isFinite(input.jobsCount) ? input.jobsCount : 0;
   const metaLoading = Boolean(input.metaLoading);

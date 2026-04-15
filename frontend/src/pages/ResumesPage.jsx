@@ -6,7 +6,7 @@ import { EmptyState } from "../components/EmptyState";
 import { SectionCard } from "../components/SectionCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { useAuth } from "../context/AuthContext";
-import { getResumeInsightPresentation, getResumeParsePresentation } from "../lib/presentation";
+import { getPriorityTone, getResumeInsightPresentation, getResumeParsePresentation } from "../lib/presentation";
 import { formatShortDate, getErrorMessage, titleize } from "../lib/utils";
 
 const READY_PARSE_STATUSES = new Set(["completed"]);
@@ -101,6 +101,14 @@ function getInsightStateMessage(kind, error) {
   }
 
   return getErrorMessage(error, "Nao foi possivel carregar este insight agora.");
+}
+
+function getPriorityDirectiveLabel(summary) {
+  if (!summary?.directive) {
+    return "";
+  }
+
+  return summary.directive;
 }
 
 export function ResumesPage() {
@@ -704,15 +712,93 @@ export function ResumesPage() {
               {analysis ? (
                 <div className="detail-stack">
                   <strong>Destaques da analise</strong>
-                  <p>
-                    Estrutura {analysis.structure_score} | Clareza {analysis.clarity_score} | Aderencia{" "}
-                    {analysis.market_fit_score} | Projetos {analysis.project_score}
-                  </p>
-                  <ul className="plain-list">
-                    {(analysis.recommendations ?? []).map((item, index) => (
-                      <li key={`${item}-${index}`}>{item}</li>
-                    ))}
-                  </ul>
+                  <div className="insight-list insight-list--four">
+                    <div>
+                      <span>Estrutura</span>
+                      <strong>{analysis.structure_score}/100</strong>
+                    </div>
+                    <div>
+                      <span>Clareza</span>
+                      <strong>{analysis.clarity_score}/100</strong>
+                    </div>
+                    <div>
+                      <span>Aderencia</span>
+                      <strong>{analysis.market_fit_score}/100</strong>
+                    </div>
+                    <div>
+                      <span>Projetos</span>
+                      <strong>{analysis.project_score}/100</strong>
+                    </div>
+                  </div>
+
+                  {analysis.priority_summary?.title ? (
+                    <div className={`notice notice--${getPriorityTone(analysis.priority_summary.label)}`}>
+                      <div className="priority-summary">
+                        <div className="inline-meta">
+                          <strong>{analysis.priority_summary.title}</strong>
+                          <StatusBadge
+                            value={analysis.priority_summary.label}
+                            label={analysis.priority_summary.label}
+                            tone={getPriorityTone(analysis.priority_summary.label)}
+                          />
+                          {getPriorityDirectiveLabel(analysis.priority_summary) ? (
+                            <span className="status-badge tone-muted">{getPriorityDirectiveLabel(analysis.priority_summary)}</span>
+                          ) : null}
+                        </div>
+                        <p>{analysis.priority_summary.impact}</p>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {analysis.priority_actions?.length ? (
+                    <div className="priority-action-grid">
+                      {analysis.priority_actions.slice(0, 3).map((item, index) => (
+                        <article className="priority-card" key={`${item.title}-${index}`}>
+                          <div className="inline-meta">
+                            <strong>{item.title}</strong>
+                            <StatusBadge
+                              value={item.priority_label}
+                              label={item.priority_label}
+                              tone={getPriorityTone(item.priority_label)}
+                            />
+                            {item.fix_first ? <span className="status-badge tone-warning">Corrija primeiro</span> : null}
+                          </div>
+                          <p><strong>Motivo:</strong> {item.reason}</p>
+                          <p><strong>Impacto:</strong> {item.impact}</p>
+                        </article>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {analysis.working_signals?.length ? (
+                    <div>
+                      <strong>O que ja esta funcionando</strong>
+                      <div className="signal-list">
+                        {analysis.working_signals.slice(0, 3).map((item, index) => (
+                          <article className="signal-card signal-card--positive" key={`${item.title}-${index}`}>
+                            <strong>{item.title}</strong>
+                            <p>{item.statement}</p>
+                            <p className="muted-copy">{item.evidence}</p>
+                          </article>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {analysis.missing_signals?.length ? (
+                    <div>
+                      <strong>O que esta te segurando</strong>
+                      <div className="signal-list">
+                        {analysis.missing_signals.slice(0, 3).map((item, index) => (
+                          <article className="signal-card signal-card--warning" key={`${item.title}-${index}`}>
+                            <strong>{item.title}</strong>
+                            <p>{item.statement}</p>
+                            <p className="muted-copy">{item.risk}</p>
+                          </article>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
 

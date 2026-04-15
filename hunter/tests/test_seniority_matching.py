@@ -129,6 +129,11 @@ class SeniorityAndMatchingApiTests(TestCase):
         self.assertIn("gaps", response.data)
         self.assertIn("recommendation", response.data)
         self.assertIn("reasoning", response.data)
+        self.assertIn("decision_class", response.data)
+        self.assertIn("decision_label", response.data)
+        self.assertIn("evidence_signals", response.data)
+        self.assertEqual(response.data["decision_class"], "aplicar_agora")
+        self.assertTrue(response.data["evidence_signals"])
         self.assertTrue(JobMatch.objects.filter(owner=self.user, resume=self.resume, job=self.job).exists())
 
     def test_listing_matches_returns_only_owned_matches(self) -> None:

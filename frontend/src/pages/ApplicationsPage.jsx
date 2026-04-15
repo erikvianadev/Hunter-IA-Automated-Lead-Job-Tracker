@@ -7,7 +7,7 @@ import { SectionCard } from "../components/SectionCard";
 import { StatCard } from "../components/StatCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { useAuth } from "../context/AuthContext";
-import { getMatchNoticeTone } from "../lib/presentation";
+import { getMatchDecisionPresentation, getMatchNoticeTone } from "../lib/presentation";
 import { formatDate, formatRelativeDate, formatShortDate, getErrorMessage, titleize } from "../lib/utils";
 
 const APPLICATION_STATUSES = ["saved", "applied", "interview", "rejected", "offer", "archived"];
@@ -165,6 +165,10 @@ export function ApplicationsPage() {
   const selectedApplication = useMemo(
     () => applications.find((application) => application.id === selectedApplicationId) ?? null,
     [applications, selectedApplicationId],
+  );
+  const selectedDecision = useMemo(
+    () => getMatchDecisionPresentation(selectedApplication?.current_match ?? {}),
+    [selectedApplication],
   );
   const statusCounts = useMemo(() => getStatusCounts(applications), [applications]);
   const trackerSummary = useMemo(
@@ -421,6 +425,7 @@ export function ApplicationsPage() {
                           {application.current_match.match_score}% aderência
                         </span>
                       ) : null}
+                      {application.current_match?.decision_label ? <span className={`status-badge tone-${getMatchDecisionPresentation(application.current_match).tone}`}>{application.current_match.decision_label}</span> : null}
                     </div>
 
                     <p>
@@ -644,27 +649,43 @@ export function ApplicationsPage() {
                       </div>
                     </div>
 
-                    <div className={`notice notice--${getMatchNoticeTone(selectedApplication.current_match.match_score)}`}>
-                      <strong>{selectedApplication.current_match.match_score >= 80 ? "Boa aderencia para priorizar" : selectedApplication.current_match.match_score >= 60 ? "Aderencia promissora, com ajustes" : "Aderencia baixa neste momento"}</strong>
+                    <div className={`notice notice--${selectedDecision.tone || getMatchNoticeTone(selectedApplication.current_match.match_score)}`}>
+                      <div className="inline-meta">
+                        <strong>{selectedDecision.title}</strong>
+                        {selectedApplication.current_match.decision_label ? <StatusBadge value={selectedApplication.current_match.decision_class || selectedApplication.current_match.decision_label} label={selectedApplication.current_match.decision_label} tone={selectedDecision.tone} /> : null}
+                      </div>
                       <p>{selectedApplication.current_match.recommendation}</p>
                     </div>
 
-                    {selectedApplication.current_match.strengths?.length ? (
-                      <div>
-                        <strong>Por que faz sentido</strong>
-                        <ul className="plain-list">
-                          {selectedApplication.current_match.strengths.slice(0, 3).map((item, index) => (
-                            <li key={`${item}-${index}`}>{item}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : null}
+                    <div className="signal-list">
+                      {selectedApplication.current_match.strengths?.length ? (
+                        <article className="signal-card signal-card--positive">
+                          <strong>Forças detectadas</strong>
+                          <ul className="plain-list">
+                            {selectedApplication.current_match.strengths.slice(0, 3).map((item, index) => (
+                              <li key={`${item}-${index}`}>{item}</li>
+                            ))}
+                          </ul>
+                        </article>
+                      ) : null}
 
-                    {selectedApplication.current_match.gaps?.length ? (
+                      {selectedApplication.current_match.gaps?.length ? (
+                        <article className="signal-card signal-card--warning">
+                          <strong>Pontos de atenção</strong>
+                          <ul className="plain-list">
+                            {selectedApplication.current_match.gaps.slice(0, 3).map((item, index) => (
+                              <li key={`${item}-${index}`}>{item}</li>
+                            ))}
+                          </ul>
+                        </article>
+                      ) : null}
+                    </div>
+
+                    {selectedApplication.current_match.evidence_signals?.length ? (
                       <div>
-                        <strong>Pontos de atenção</strong>
+                        <strong>Sinais usados na decisão</strong>
                         <ul className="plain-list">
-                          {selectedApplication.current_match.gaps.slice(0, 3).map((item, index) => (
+                          {selectedApplication.current_match.evidence_signals.slice(0, 4).map((item, index) => (
                             <li key={`${item}-${index}`}>{item}</li>
                           ))}
                         </ul>

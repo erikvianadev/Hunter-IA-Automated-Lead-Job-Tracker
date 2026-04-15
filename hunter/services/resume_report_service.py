@@ -131,7 +131,10 @@ class ResumeReportService:
         if not trust_decision.trusted:
             return strengths
         if analysis is not None:
-            strengths.extend(analysis.strengths[:3])
+            structured_strengths = analysis.raw_summary.get("what_is_working", [])
+            strengths.extend(item.get("statement", "") for item in structured_strengths[:3])
+            if not strengths:
+                strengths.extend(analysis.strengths[:3])
             if analysis.overall_score >= 75:
                 strengths.append("A qualidade geral do curriculo ja esta competitiva para triagens iniciais.")
             if analysis.market_fit_score >= 70:
@@ -161,7 +164,10 @@ class ResumeReportService:
             }
             weakest_area = min(score_map, key=score_map.get)
             gaps.append(f"A area com menor score hoje e {get_area_label(weakest_area)}.")
-            gaps.extend(analysis.weaknesses[:3])
+            structured_gaps = analysis.raw_summary.get("what_is_missing", [])
+            gaps.extend(item.get("statement", "") for item in structured_gaps[:3])
+            if not structured_gaps:
+                gaps.extend(analysis.weaknesses[:3])
 
         if seniority is None:
             gaps.append("A leitura de senioridade ainda nao esta disponivel.")
@@ -189,7 +195,14 @@ class ResumeReportService:
         if analysis is None:
             actions.append("Gere a analise do curriculo para liberar recomendacoes com score.")
         else:
-            actions.extend(analysis.recommendations[:3])
+            structured_actions = analysis.raw_summary.get("priority_actions", [])
+            if structured_actions:
+                actions.extend(
+                    f"{item.get('priority_label', 'Prioridade')}: {item.get('title', '')}. {item.get('impact', '')}".strip()
+                    for item in structured_actions[:3]
+                )
+            else:
+                actions.extend(analysis.recommendations[:3])
             if analysis.market_fit_score < 60:
                 actions.append("Ajuste o curriculo para um cargo-alvo mais claro e com melhor cobertura de palavras-chave.")
             if analysis.project_score < 60:
@@ -248,15 +261,15 @@ class ResumeReportService:
 
         strengths = []
         if analysis.structure_score >= 70:
-            strengths.append("solid structure")
+            strengths.append("estrutura solida")
         if analysis.clarity_score >= 70:
-            strengths.append("clear wording")
+            strengths.append("clareza boa")
         if analysis.market_fit_score >= 70:
-            strengths.append("strong market alignment")
+            strengths.append("aderencia de mercado forte")
         if analysis.project_score >= 70:
-            strengths.append("credible project evidence")
-        strengths_text = ", ".join(strengths) if strengths else "several foundational gaps"
-        if strengths_text == "several foundational gaps":
+            strengths.append("projetos criveis")
+        strengths_text = ", ".join(strengths) if strengths else "algumas lacunas estruturais importantes"
+        if strengths_text == "algumas lacunas estruturais importantes":
             strengths_text = "algumas lacunas estruturais importantes"
 
         track_text = (
