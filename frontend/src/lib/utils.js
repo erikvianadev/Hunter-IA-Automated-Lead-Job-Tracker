@@ -122,6 +122,7 @@ const SAFE_ERROR_CODE_MESSAGES = {
   invalid_file: "Nao conseguimos validar esse arquivo como um curriculo PDF ou DOCX confiavel.",
   invalid_json_response: "A resposta do servidor nao veio no formato esperado. Tente novamente em instantes.",
   job_search_failed: "Nao foi possivel atualizar a busca de vagas agora. Tente novamente em instantes.",
+  network_error: "Falha de rede ou conexao. Confira sua internet e tente novamente.",
   unsupported_file_type: "Esse arquivo nao pode ser usado como curriculo. Envie um PDF ou DOCX.",
   upload_too_large: "O arquivo enviado passou do limite permitido para curriculos."
 };
