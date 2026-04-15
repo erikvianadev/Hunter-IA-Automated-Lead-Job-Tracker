@@ -14,6 +14,51 @@ function buildUrl(path) {
   return `${API_BASE_URL}${path}`;
 }
 
+function isFormDataBody(body) {
+  if (!body) {
+    return false;
+  }
+
+  if (typeof FormData !== "undefined" && body instanceof FormData) {
+    return true;
+  }
+
+  const tag = Object.prototype.toString.call(body);
+  if (tag === "[object FormData]") {
+    return true;
+  }
+
+  return (
+    typeof body === "object" &&
+    typeof body.append === "function" &&
+    typeof body.get === "function" &&
+    typeof body.has === "function" &&
+    typeof body.entries === "function"
+  );
+}
+
+function withDefaultContentType(headers, body) {
+  if (!body || headers.has("Content-Type") || isFormDataBody(body)) {
+    return headers;
+  }
+
+  headers.set("Content-Type", "application/json");
+  return headers;
+}
+
+async function performFetch(url, options) {
+  try {
+    return await fetch(url, options);
+  } catch (error) {
+    throw {
+      code: "network_error",
+      detail: error?.message ?? "Network error",
+      message: error?.message ?? "Network error",
+      cause: error
+    };
+  }
+}
+
 async function parseResponse(response) {
   const contentType = response.headers.get("content-type") ?? "";
 
@@ -132,7 +177,7 @@ export function AuthProvider({ children }) {
       throw new Error("Sua sessao expirou.");
     }
 
-    const response = await fetch(buildUrl("/api/token/refresh/"), {
+    const response = await performFetch(buildUrl("/api/token/refresh/"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refresh: refreshToken })
@@ -154,17 +199,13 @@ export function AuthProvider({ children }) {
 
   async function request(path, options = {}, retry = true) {
     const headers = new Headers(options.headers ?? {});
-    const isFormData = options.body instanceof FormData;
-
-    if (!isFormData && !headers.has("Content-Type") && options.body) {
-      headers.set("Content-Type", "application/json");
-    }
+    withDefaultContentType(headers, options.body);
 
     if (auth.access) {
       headers.set("Authorization", `Bearer ${auth.access}`);
     }
 
-    const response = await fetch(buildUrl(path), {
+    const response = await performFetch(buildUrl(path), {
       ...options,
       headers
     });
@@ -172,14 +213,11 @@ export function AuthProvider({ children }) {
     if (response.status === 401 && auth.refresh && retry) {
       const nextAccess = await refreshAccessToken(auth.refresh);
       const retryHeaders = new Headers(options.headers ?? {});
-
-      if (!isFormData && !retryHeaders.has("Content-Type") && options.body) {
-        retryHeaders.set("Content-Type", "application/json");
-      }
+      withDefaultContentType(retryHeaders, options.body);
 
       retryHeaders.set("Authorization", `Bearer ${nextAccess}`);
 
-      const retriedResponse = await fetch(buildUrl(path), {
+      const retriedResponse = await performFetch(buildUrl(path), {
         ...options,
         headers: retryHeaders
       });
@@ -198,7 +236,7 @@ export function AuthProvider({ children }) {
   }
 
   async function login({ username, password }) {
-    const response = await fetch(buildUrl("/api/token/"), {
+    const response = await performFetch(buildUrl("/api/token/"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password })
@@ -218,7 +256,7 @@ export function AuthProvider({ children }) {
   }
 
   async function signup({ username, password, password_confirm }) {
-    const response = await fetch(buildUrl("/api/auth/signup/"), {
+    const response = await performFetch(buildUrl("/api/auth/signup/"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password, password_confirm })

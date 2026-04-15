@@ -103,6 +103,42 @@ function getInsightStateMessage(kind, error) {
   return getErrorMessage(error, "Nao foi possivel carregar este insight agora.");
 }
 
+function getResumeUploadErrorMessage(error) {
+  if (!error) {
+    return "Nao foi possivel enviar esse curriculo agora.";
+  }
+
+  if (error.code === "network_error") {
+    return "Falha de rede ou conexao durante o envio. Confira sua internet e tente novamente.";
+  }
+
+  if (error.status === 401) {
+    return "Sua sessao expirou. Entre novamente para enviar o curriculo.";
+  }
+
+  if (error.status === 403) {
+    return "Seu acesso nao esta autorizado para enviar curriculos agora.";
+  }
+
+  if (error.status === 413) {
+    return "O arquivo enviado passou do limite permitido para curriculos.";
+  }
+
+  if (error.status === 415) {
+    return "Esse arquivo nao pode ser usado como curriculo. Envie um PDF ou DOCX.";
+  }
+
+  if (error.status >= 500) {
+    return "O servidor esta temporariamente indisponivel para receber curriculos. Tente novamente em instantes.";
+  }
+
+  if (error.status === 400) {
+    return getErrorMessage(error, "Arquivo invalido. Revise o PDF ou DOCX e tente novamente.");
+  }
+
+  return getErrorMessage(error, "Nao foi possivel enviar esse curriculo agora.");
+}
+
 function getPriorityDirectiveLabel(summary) {
   if (!summary?.directive) {
     return "";
@@ -293,7 +329,7 @@ export function ResumesPage() {
       await loadResumes(false);
       setSelectedResumeId(payload.id);
     } catch (requestError) {
-      setError(getErrorMessage(requestError, "Nao foi possivel enviar esse curriculo agora."));
+      setError(getResumeUploadErrorMessage(requestError));
     } finally {
       setBusyAction("");
     }
