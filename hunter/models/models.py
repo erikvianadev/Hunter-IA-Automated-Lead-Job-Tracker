@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.db import models
+from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
 
 from ..choices import (
@@ -7,6 +8,7 @@ from ..choices import (
     BillingInvoiceStatus,
     BillingSubscriptionStatus,
     JobApplicationStatus,
+    ProductEventCategory,
     ResumeParseStatus,
 )
 
@@ -36,6 +38,53 @@ class Tag(BaseModel):
 
     def __str__(self) -> str:
         return self.name
+
+
+class ProductEvent(BaseModel):
+    owner = models.ForeignKey(
+        get_user_model(),
+        on_delete=models.SET_NULL,
+        related_name='product_events',
+        null=True,
+        blank=True,
+        verbose_name=_('owner'),
+    )
+    event_name = models.CharField(_('event name'), max_length=64, db_index=True)
+    category = models.CharField(
+        _('category'),
+        max_length=32,
+        choices=ProductEventCategory.choices,
+    )
+    source = models.CharField(_('source'), max_length=64, blank=True, default='')
+    metadata = models.JSONField(_('metadata'), default=dict, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(
+                fields=['category', 'event_name', 'created_at'],
+                name='product_event_cat_name_idx',
+            ),
+            models.Index(
+                fields=['owner', 'category', 'event_name'],
+                name='product_event_owner_idx',
+            ),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['owner', 'category', 'event_name'],
+                condition=Q(
+                    owner__isnull=False,
+                    category=ProductEventCategory.JOURNEY_MILESTONE,
+                ),
+                name='uniq_owner_journey_milestone',
+            ),
+        ]
+        verbose_name = _('product event')
+        verbose_name_plural = _('product events')
+
+    def __str__(self) -> str:
+        return f'{self.category}:{self.event_name}'
 
 
 class Job(BaseModel):
