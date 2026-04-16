@@ -3,7 +3,9 @@ from pathlib import Path
 from unittest.mock import patch
 from uuid import uuid4
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
@@ -13,8 +15,18 @@ from hunter.providers.base import ProviderRunResult
 from hunter.services.job_persistence_service import PersistenceResult
 
 
+def throttle_settings(**rates):
+    framework_settings = dict(settings.REST_FRAMEWORK)
+    framework_settings["DEFAULT_THROTTLE_RATES"] = {
+        **settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"],
+        **rates,
+    }
+    return framework_settings
+
+
 class ScrapeJobsApiTests(TestCase):
     def setUp(self) -> None:
+        cache.clear()
         self.user = get_user_model().objects.create_user(
             username="api-user",
             password="secret",
@@ -141,6 +153,25 @@ class ScrapeJobsApiTests(TestCase):
         )
         self.assertEqual(response.data["status"], "total_failure")
         self.assertEqual(response.data["status_label"], "Coleta indisponivel")
+
+    @override_settings(REST_FRAMEWORK=throttle_settings(job_search="1/min"))
+    def test_scrape_search_is_rate_limited(self) -> None:
+        invalid_payload = {"query": "x" * 300}
+
+        first_response = self.client.post(
+            "/hunter/api/scrape/",
+            invalid_payload,
+            format="json",
+        )
+        second_response = self.client.post(
+            "/hunter/api/scrape/",
+            invalid_payload,
+            format="json",
+        )
+
+        self.assertEqual(first_response.status_code, 400)
+        self.assertEqual(second_response.status_code, 429)
+        self.assertEqual(second_response.data["code"], "rate_limited")
 
 
 class ProjectHealthEndpointsTests(TestCase):

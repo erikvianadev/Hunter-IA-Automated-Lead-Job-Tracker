@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from rest_framework.exceptions import AuthenticationFailed, NotAuthenticated
+from math import ceil
+
+from rest_framework.exceptions import AuthenticationFailed, NotAuthenticated, Throttled
 from rest_framework.views import exception_handler
 
 
@@ -24,6 +26,15 @@ def product_exception_handler(exc, context):
             "code": "session_invalid",
             "detail": "Sua sessao expirou ou nao pode ser validada. Entre novamente para continuar.",
         }
+        return response
+
+    if isinstance(exc, Throttled):
+        response.data = {
+            "code": "rate_limited",
+            "detail": "Muitas tentativas em pouco tempo. Aguarde um instante e tente novamente.",
+        }
+        if exc.wait is not None:
+            response.data["retry_after_seconds"] = ceil(exc.wait)
         return response
 
     return response

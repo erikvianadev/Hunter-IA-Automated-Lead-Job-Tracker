@@ -17,17 +17,22 @@ from .auth_serializers import (
     serialize_field_errors,
 )
 from hunter.services import ProductEventName, ProductObservabilityService
+from hunter.throttles import ProductScopedRateThrottle
 
 
 class ProductTokenObtainPairView(TokenObtainPairView):
     serializer_class = ProductTokenObtainPairSerializer
     permission_classes = [AllowAny]
     authentication_classes = []
+    throttle_classes = [ProductScopedRateThrottle]
+    throttle_scope = "auth_login"
 
 
 class ProductTokenRefreshView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
+    throttle_classes = [ProductScopedRateThrottle]
+    throttle_scope = "auth_refresh"
 
     def post(self, request, *args, **kwargs):
         serializer = TokenRefreshSerializer(data=request.data)
@@ -56,6 +61,8 @@ class ProductTokenRefreshView(APIView):
 class SignupView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
+    throttle_classes = [ProductScopedRateThrottle]
+    throttle_scope = "auth_signup"
 
     def post(self, request, *args, **kwargs):
         serializer = SignupSerializer(data=request.data)

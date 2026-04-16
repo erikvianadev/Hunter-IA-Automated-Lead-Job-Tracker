@@ -314,47 +314,55 @@ class ResumeUploadSerializer(serializers.Serializer):
     target_role = serializers.CharField(required=False, allow_blank=True, max_length=120)
 
 
+RESUME_PARSE_STATUS_DETAILS = {
+    'pending': 'Seu curriculo entrou na fila de processamento.',
+    'processing': 'Estamos preparando seu curriculo para liberar os proximos recursos.',
+    'completed': 'Curriculo pronto para analise, senioridade e aderencia com vagas.',
+    'upload_too_large': 'O arquivo enviado passou do limite permitido.',
+    'invalid_file': 'Nao conseguimos validar esse arquivo como um curriculo PDF ou DOCX confiavel.',
+    'unsupported_file_type': 'Envie um curriculo em PDF ou DOCX.',
+    'parsing_failed': 'Nao foi possivel ler esse curriculo agora. Tente enviar uma nova versao.',
+    'parsing_timeout_or_budget_exceeded': 'Nao foi possivel concluir a leitura dentro do limite seguro.',
+    'empty_text': 'Nao encontramos texto suficiente nesse arquivo.',
+    'insufficient_text': 'O arquivo tem pouco texto para liberar uma leitura confiavel.',
+    'scanned_or_image_pdf': 'O PDF parece ser uma imagem. Envie um PDF com texto selecionavel ou um DOCX.',
+    'unsupported_or_unsafe_structure': 'A estrutura do arquivo nao passou nas validacoes de seguranca.',
+    'quarantined_or_blocked_by_policy': 'O arquivo nao pode ser processado com seguranca.',
+    'failed': 'Nao foi possivel processar esse curriculo agora.',
+    'unsupported_structure': 'A estrutura do arquivo nao e suportada.',
+}
+
+
 class ResumeSerializer(serializers.ModelSerializer):
-    owner = serializers.PrimaryKeyRelatedField(read_only=True)
-    file_url = serializers.SerializerMethodField()
+    parse_status_detail = serializers.SerializerMethodField()
 
     class Meta:
         model = Resume
         fields = [
             'id',
-            'owner',
-            'file',
-            'file_url',
             'label',
             'target_role',
             'original_filename',
-            'extracted_text',
-            'extraction_diagnostics',
             'parse_status',
-            'content_type',
+            'parse_status_detail',
             'is_active',
             'created_at',
             'updated_at',
         ]
         read_only_fields = [
-            'owner',
             'original_filename',
-            'extracted_text',
-            'extraction_diagnostics',
             'parse_status',
-            'content_type',
+            'parse_status_detail',
             'is_active',
             'created_at',
             'updated_at',
         ]
 
-    def get_file_url(self, obj):
-        request = self.context.get('request')
-        if not obj.file:
-            return None
-        if request is None:
-            return obj.file.url
-        return request.build_absolute_uri(obj.file.url)
+    def get_parse_status_detail(self, obj):
+        return RESUME_PARSE_STATUS_DETAILS.get(
+            obj.parse_status,
+            'Acompanhe o status do curriculo antes de continuar.',
+        )
 
 
 class ResumeAnalysisSerializer(serializers.ModelSerializer):
@@ -538,6 +546,17 @@ class DashboardResumeReportPreviewSerializer(serializers.Serializer):
     average_match_score = serializers.FloatField(read_only=True, allow_null=True)
 
 
+class DashboardPremiumFeatureStateSerializer(serializers.Serializer):
+    available = serializers.BooleanField(read_only=True)
+    locked = serializers.BooleanField(read_only=True)
+    detail = serializers.CharField(read_only=True)
+
+
+class DashboardPremiumFeaturesSerializer(serializers.Serializer):
+    resume_report = DashboardPremiumFeatureStateSerializer(read_only=True)
+    resume_comparison = DashboardPremiumFeatureStateSerializer(read_only=True)
+
+
 class DashboardJobMatchSerializer(serializers.ModelSerializer):
     job_id = serializers.IntegerField(source='job.id', read_only=True)
     job_title = serializers.CharField(source='job.title', read_only=True)
@@ -641,6 +660,7 @@ class DashboardSerializer(serializers.Serializer):
     best_resume_summary = DashboardBestResumeSummarySerializer(read_only=True, allow_null=True)
     resume_report_preview = DashboardResumeReportPreviewSerializer(read_only=True, allow_null=True)
     comparison_available = serializers.BooleanField(read_only=True)
+    premium_features = DashboardPremiumFeaturesSerializer(read_only=True)
 
 
 class ResumeReportCategoryScoresSerializer(serializers.Serializer):

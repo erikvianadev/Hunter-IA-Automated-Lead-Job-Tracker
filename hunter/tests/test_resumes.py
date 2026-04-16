@@ -3,7 +3,9 @@ import shutil
 import zipfile
 from io import BytesIO
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
@@ -133,6 +135,15 @@ trailer
 TEMP_MEDIA_ROOT = os.path.join(os.getcwd(), "test_media")
 
 
+def throttle_settings(**rates):
+    framework_settings = dict(settings.REST_FRAMEWORK)
+    framework_settings["DEFAULT_THROTTLE_RATES"] = {
+        **settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"],
+        **rates,
+    }
+    return framework_settings
+
+
 @override_settings(MEDIA_ROOT=TEMP_MEDIA_ROOT)
 class ResumeApiTests(TestCase):
     @classmethod
@@ -146,6 +157,7 @@ class ResumeApiTests(TestCase):
         shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
 
     def setUp(self) -> None:
+        cache.clear()
         self.user = get_user_model().objects.create_user(
             username="resume-user",
             password="secret",
@@ -159,6 +171,16 @@ class ResumeApiTests(TestCase):
 
     def _subscribe_user_to_pro(self) -> None:
         create_active_pro_subscription(owner=self.user)
+
+    def assertResumePayloadIsRedacted(self, payload) -> None:
+        for field in (
+            "file",
+            "file_url",
+            "content_type",
+            "extracted_text",
+            "extraction_diagnostics",
+        ):
+            self.assertNotIn(field, payload)
 
     def test_authenticated_user_can_upload_resume(self) -> None:
         upload = SimpleUploadedFile(
@@ -179,7 +201,11 @@ class ResumeApiTests(TestCase):
         self.assertEqual(response.data["target_role"], "")
         self.assertTrue(response.data["is_active"])
         self.assertEqual(response.data["parse_status"], ResumeParseStatus.COMPLETED)
-        self.assertIn("Jane Doe", response.data["extracted_text"])
+        self.assertEqual(
+            response.data["parse_status_detail"],
+            "Curriculo pronto para analise, senioridade e aderencia com vagas.",
+        )
+        self.assertResumePayloadIsRedacted(response.data)
 
     def test_upload_accepts_resume_label_and_target_role(self) -> None:
         upload = SimpleUploadedFile(
@@ -225,6 +251,7 @@ class ResumeApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["count"], 1)
         self.assertEqual(response.data["results"][0]["original_filename"], "first.docx")
+        self.assertResumePayloadIsRedacted(response.data["results"][0])
 
     def test_user_can_retrieve_own_resume(self) -> None:
         resume = Resume.objects.create(
@@ -241,6 +268,7 @@ class ResumeApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["id"], resume.id)
         self.assertEqual(response.data["original_filename"], "me.docx")
+        self.assertResumePayloadIsRedacted(response.data)
 
     def test_user_cannot_access_another_users_resume(self) -> None:
         resume = Resume.objects.create(
@@ -308,6 +336,7 @@ class ResumeApiTests(TestCase):
         self.assertFalse(first_resume.is_active)
         self.assertTrue(second_resume.is_active)
         self.assertEqual(response.data["id"], second_resume.id)
+        self.assertResumePayloadIsRedacted(response.data)
 
     def test_activation_isolated_to_owned_resume(self) -> None:
         private_resume = Resume.objects.create(
@@ -785,8 +814,36 @@ class ResumeApiTests(TestCase):
 
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.data["parse_status"], ResumeParseStatus.SCANNED_OR_IMAGE_PDF)
-        self.assertEqual(response.data["extraction_diagnostics"]["likely_scanned_pdf"], True)
-        self.assertIn("text PDF or upload a DOCX", response.data["extraction_diagnostics"]["suggestion"])
+        self.assertIn("PDF parece ser uma imagem", response.data["parse_status_detail"])
+        self.assertResumePayloadIsRedacted(response.data)
+
+    @override_settings(REST_FRAMEWORK=throttle_settings(resume_upload="1/min"))
+    def test_resume_upload_is_rate_limited(self) -> None:
+        first_upload = SimpleUploadedFile(
+            "resume.txt",
+            b"plain text resume",
+            content_type="text/plain",
+        )
+        second_upload = SimpleUploadedFile(
+            "resume.txt",
+            b"plain text resume",
+            content_type="text/plain",
+        )
+
+        first_response = self.client.post(
+            "/hunter/api/resumes/",
+            {"file": first_upload},
+            format="multipart",
+        )
+        second_response = self.client.post(
+            "/hunter/api/resumes/",
+            {"file": second_upload},
+            format="multipart",
+        )
+
+        self.assertEqual(first_response.status_code, 400)
+        self.assertEqual(second_response.status_code, 429)
+        self.assertEqual(second_response.data["code"], "rate_limited")
 
 
 class ResumeTextExtractionServiceTests(TestCase):

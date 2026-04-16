@@ -1,13 +1,25 @@
+from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.core.cache import cache
+from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
 from hunter.choices import ResumeParseStatus
 from hunter.models.models import Job, JobMatch, Resume, SeniorityAssessment
 
 
+def throttle_settings(**rates):
+    framework_settings = dict(settings.REST_FRAMEWORK)
+    framework_settings["DEFAULT_THROTTLE_RATES"] = {
+        **settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"],
+        **rates,
+    }
+    return framework_settings
+
+
 class SeniorityAndMatchingApiTests(TestCase):
     def setUp(self) -> None:
+        cache.clear()
         self.user = get_user_model().objects.create_user(
             username="sprint4-user",
             password="secret",
@@ -135,6 +147,25 @@ class SeniorityAndMatchingApiTests(TestCase):
         self.assertEqual(response.data["decision_class"], "aplicar_agora")
         self.assertTrue(response.data["evidence_signals"])
         self.assertTrue(JobMatch.objects.filter(owner=self.user, resume=self.resume, job=self.job).exists())
+
+    @override_settings(REST_FRAMEWORK=throttle_settings(job_match="1/min"))
+    def test_job_match_action_is_rate_limited(self) -> None:
+        payload = {"resume_id": 999999}
+
+        first_response = self.client.post(
+            f"/hunter/api/jobs/{self.job.id}/match/",
+            payload,
+            format="json",
+        )
+        second_response = self.client.post(
+            f"/hunter/api/jobs/{self.job.id}/match/",
+            payload,
+            format="json",
+        )
+
+        self.assertEqual(first_response.status_code, 400)
+        self.assertEqual(second_response.status_code, 429)
+        self.assertEqual(second_response.data["code"], "rate_limited")
 
     def test_listing_matches_returns_only_owned_matches(self) -> None:
         JobMatch.objects.create(

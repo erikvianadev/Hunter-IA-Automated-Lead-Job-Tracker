@@ -12,6 +12,7 @@ from hunter.models.models import (
     SavedJob,
     SeniorityAssessment,
 )
+from hunter.tests.billing_helpers import create_active_pro_subscription
 
 
 class DashboardApiTests(TestCase):
@@ -133,6 +134,10 @@ class DashboardApiTests(TestCase):
         self.assertEqual(response.data["active_resume"]["id"], active_resume.id)
         self.assertEqual(response.data["active_resume"]["label"], "Backend v2")
         self.assertEqual(response.data["active_resume"]["target_role"], "Backend Engineer")
+        self.assertNotIn("extracted_text", response.data["active_resume"])
+        self.assertNotIn("extraction_diagnostics", response.data["active_resume"])
+        self.assertNotIn("file", response.data["active_resume"])
+        self.assertNotIn("file_url", response.data["active_resume"])
         self.assertEqual(response.data["analysis"]["id"], analysis.id)
         self.assertEqual(
             response.data["seniority_assessment"]["id"],
@@ -153,10 +158,11 @@ class DashboardApiTests(TestCase):
             response.data["activation"]["next_best_action"]["action_type"],
             "activation_complete",
         )
-        self.assertEqual(response.data["best_resume_summary"]["id"], active_resume.id)
-        self.assertEqual(response.data["resume_report_preview"]["resume_id"], active_resume.id)
-        self.assertEqual(response.data["resume_report_preview"]["average_match_score"], 82.5)
-        self.assertTrue(response.data["comparison_available"])
+        self.assertIsNone(response.data["best_resume_summary"])
+        self.assertIsNone(response.data["resume_report_preview"])
+        self.assertFalse(response.data["comparison_available"])
+        self.assertTrue(response.data["premium_features"]["resume_report"]["locked"])
+        self.assertTrue(response.data["premium_features"]["resume_comparison"]["locked"])
         self.assertTrue(response.data["priority_actions"])
         self.assertEqual(response.data["priority_actions"][0]["action_type"], "project_signal")
 
@@ -321,7 +327,8 @@ class DashboardApiTests(TestCase):
         self.assertEqual(response.data["summary"]["active_resume_label"], "Basic")
         self.assertEqual(response.data["summary"]["active_resume_target_role"], "Analyst")
         self.assertEqual(response.data["summary"]["active_resume_status"], "uploaded")
-        self.assertEqual(response.data["resume_report_preview"]["resume_id"], resume.id)
+        self.assertIsNone(response.data["resume_report_preview"])
+        self.assertTrue(response.data["premium_features"]["resume_report"]["locked"])
         self.assertEqual(response.data["activation"]["completed_steps"], 2)
         self.assertEqual(
             response.data["activation"]["next_best_action"]["action_type"],
@@ -331,7 +338,7 @@ class DashboardApiTests(TestCase):
         self.assertIn("resume_analysis", action_types)
         self.assertIn("seniority_assessment", action_types)
 
-    def test_dashboard_flags_comparison_available_when_user_has_multiple_resumes(self) -> None:
+    def test_dashboard_locks_comparison_when_free_user_has_multiple_resumes(self) -> None:
         Resume.objects.create(
             owner=self.user,
             file="resumes/user_1/one.docx",
@@ -358,7 +365,67 @@ class DashboardApiTests(TestCase):
         response = self.client.get("/hunter/api/resumes/dashboard/")
 
         self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data["comparison_available"])
+        self.assertTrue(response.data["premium_features"]["resume_comparison"]["locked"])
+        self.assertIsNone(response.data["best_resume_summary"])
+
+    def test_dashboard_exposes_premium_previews_only_for_pro_user(self) -> None:
+        create_active_pro_subscription(owner=self.user)
+        first_resume = Resume.objects.create(
+            owner=self.user,
+            file="resumes/user_1/one.docx",
+            label="One",
+            target_role="Backend Engineer",
+            original_filename="one.docx",
+            extracted_text="one",
+            parse_status=ResumeParseStatus.COMPLETED,
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            is_active=True,
+        )
+        second_resume = Resume.objects.create(
+            owner=self.user,
+            file="resumes/user_1/two.docx",
+            label="Two",
+            target_role="Backend Engineer",
+            original_filename="two.docx",
+            extracted_text="two",
+            parse_status=ResumeParseStatus.COMPLETED,
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            is_active=False,
+        )
+        ResumeAnalysis.objects.create(
+            resume=first_resume,
+            overall_score=82,
+            structure_score=80,
+            clarity_score=81,
+            market_fit_score=83,
+            project_score=78,
+            strengths=["Boa aderencia tecnica."],
+            weaknesses=["Pode reforcar impacto."],
+            recommendations=["Adicione metricas."],
+            raw_summary={},
+        )
+        ResumeAnalysis.objects.create(
+            resume=second_resume,
+            overall_score=74,
+            structure_score=72,
+            clarity_score=73,
+            market_fit_score=75,
+            project_score=70,
+            strengths=[],
+            weaknesses=[],
+            recommendations=[],
+            raw_summary={},
+        )
+
+        response = self.client.get("/hunter/api/resumes/dashboard/")
+
+        self.assertEqual(response.status_code, 200)
         self.assertTrue(response.data["comparison_available"])
+        self.assertEqual(response.data["best_resume_summary"]["id"], first_resume.id)
+        self.assertEqual(response.data["resume_report_preview"]["resume_id"], first_resume.id)
+        self.assertTrue(response.data["premium_features"]["resume_report"]["available"])
+        self.assertTrue(response.data["premium_features"]["resume_comparison"]["available"])
 
     def test_dashboard_recommended_jobs_skip_low_matches_and_applied_roles(self) -> None:
         active_resume = Resume.objects.create(

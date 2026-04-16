@@ -13,6 +13,7 @@ from hunter.serializers import ScrapeJobsRequestSerializer
 from hunter.services import ProductEventName, ProductObservabilityService
 from hunter.services.job_aggregation_service import JobAggregationService
 from hunter.services.job_persistence_service import JobPersistenceService
+from hunter.throttles import ProductScopedRateThrottle
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,8 @@ class ScrapeJobsView(APIView):
     """
 
     permission_classes = [IsAuthenticated]
+    throttle_classes = [ProductScopedRateThrottle]
+    throttle_scope = "job_search"
 
     def post(self, request):
         payload = {key: value for key, value in request.query_params.items()}

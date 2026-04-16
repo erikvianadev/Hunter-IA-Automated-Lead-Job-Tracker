@@ -6,6 +6,7 @@ from django.db.models import Avg, Max
 from hunter.choices import JobApplicationStatus
 from hunter.models.models import Job, JobApplication, JobMatch, Resume, SavedJob
 
+from .billing_service import BillingService
 from .resume_comparison_service import ResumeComparisonService
 from .resume_report_service import ResumeReportService
 
@@ -82,9 +83,11 @@ class DashboardService:
         *,
         report_service: ResumeReportService | None = None,
         comparison_service: ResumeComparisonService | None = None,
+        billing_service: BillingService | None = None,
     ) -> None:
         self.report_service = report_service or ResumeReportService()
         self.comparison_service = comparison_service or ResumeComparisonService()
+        self.billing_service = billing_service or BillingService()
 
     def build(self, *, owner) -> dict[str, object]:
         total_jobs = Job.objects.filter(owner=owner).count()
@@ -124,10 +127,18 @@ class DashboardService:
                 top_match_score=Max('match_score'),
             )
         )
-        comparison_payload = self.comparison_service.build(owner=owner)
+        subscription = self.billing_service.get_subscription(owner=owner)
+        features = set(subscription.get("features", []))
+        can_view_report_preview = BillingService.FEATURE_PREMIUM_REPORTS in features
+        can_compare_resumes = BillingService.FEATURE_RESUME_COMPARISON in features
+        comparison_payload = (
+            self.comparison_service.build(owner=owner)
+            if can_compare_resumes
+            else None
+        )
         report_preview = (
             self.report_service.build(resume=active_resume)
-            if active_resume is not None
+            if active_resume is not None and can_view_report_preview
             else None
         )
 
@@ -195,7 +206,11 @@ class DashboardService:
                 total_saved_jobs=total_saved_jobs,
                 total_applications=total_applications,
             ),
-            "best_resume_summary": comparison_payload["best_resume_by_score"],
+            "best_resume_summary": (
+                comparison_payload["best_resume_by_score"]
+                if comparison_payload is not None
+                else None
+            ),
             "resume_report_preview": (
                 {
                     "resume_id": report_preview["resume_id"],
@@ -211,13 +226,58 @@ class DashboardService:
                 if report_preview is not None
                 else None
             ),
-            "comparison_available": len(all_resumes) > 1,
+            "comparison_available": can_compare_resumes and len(all_resumes) > 1,
+            "premium_features": {
+                "resume_report": self._build_premium_feature_state(
+                    has_relevant_data=active_resume is not None,
+                    is_entitled=can_view_report_preview,
+                    locked_detail=(
+                        "O preview do relatorio fica reservado para contas Pro."
+                    ),
+                    available_detail="Preview do relatorio liberado para sua conta.",
+                    unavailable_detail=(
+                        "Envie um curriculo para preparar o preview do relatorio."
+                    ),
+                ),
+                "resume_comparison": self._build_premium_feature_state(
+                    has_relevant_data=len(all_resumes) > 1,
+                    is_entitled=can_compare_resumes,
+                    locked_detail=(
+                        "A comparacao entre curriculos fica reservada para contas Pro."
+                    ),
+                    available_detail="Comparacao entre curriculos liberada para sua conta.",
+                    unavailable_detail=(
+                        "Envie mais de uma versao de curriculo para comparar."
+                    ),
+                ),
+            },
         }
 
     def _normalize_average(self, value):
         if value is None:
             return None
         return round(float(value), 2)
+
+    def _build_premium_feature_state(
+        self,
+        *,
+        has_relevant_data: bool,
+        is_entitled: bool,
+        locked_detail: str,
+        available_detail: str,
+        unavailable_detail: str,
+    ) -> dict[str, object]:
+        return {
+            "available": bool(has_relevant_data and is_entitled),
+            "locked": bool(has_relevant_data and not is_entitled),
+            "detail": (
+                available_detail
+                if has_relevant_data and is_entitled
+                else locked_detail
+                if has_relevant_data
+                else unavailable_detail
+            ),
+        }
 
     def _build_recommended_jobs(self, *, owner, match_queryset):
         applied_job_ids = set(

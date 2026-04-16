@@ -1,10 +1,22 @@
+from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.core.cache import cache
+from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
+
+
+def throttle_settings(**rates):
+    framework_settings = dict(settings.REST_FRAMEWORK)
+    framework_settings["DEFAULT_THROTTLE_RATES"] = {
+        **settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"],
+        **rates,
+    }
+    return framework_settings
 
 
 class AuthApiTests(TestCase):
     def setUp(self) -> None:
+        cache.clear()
         self.client = APIClient()
         self.user = get_user_model().objects.create_user(
             username="existing-user",
@@ -126,3 +138,28 @@ class AuthApiTests(TestCase):
             response.data["detail"],
             "Sua sessao expirou. Entre novamente para continuar.",
         )
+
+    @override_settings(REST_FRAMEWORK=throttle_settings(auth_signup="1/min"))
+    def test_signup_is_rate_limited_with_safe_portuguese_message(self) -> None:
+        first_response = self.client.post("/api/auth/signup/", {}, format="json")
+        second_response = self.client.post("/api/auth/signup/", {}, format="json")
+
+        self.assertEqual(first_response.status_code, 400)
+        self.assertEqual(second_response.status_code, 429)
+        self.assertEqual(second_response.data["code"], "rate_limited")
+        self.assertIn("Muitas tentativas", second_response.data["detail"])
+
+    @override_settings(REST_FRAMEWORK=throttle_settings(auth_login="1/min"))
+    def test_login_is_rate_limited_with_safe_portuguese_message(self) -> None:
+        payload = {
+            "username": self.user.username,
+            "password": "wrong-password",
+        }
+
+        first_response = self.client.post("/api/token/", payload, format="json")
+        second_response = self.client.post("/api/token/", payload, format="json")
+
+        self.assertEqual(first_response.status_code, 401)
+        self.assertEqual(second_response.status_code, 429)
+        self.assertEqual(second_response.data["code"], "rate_limited")
+        self.assertIn("Aguarde", second_response.data["detail"])

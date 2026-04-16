@@ -198,12 +198,19 @@ STORAGES = {
 }
 WHITENOISE_MAX_AGE = env.int("WHITENOISE_MAX_AGE", default=31536000)
 
-REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework.authentication.SessionAuthentication',
+ENABLE_BASIC_AUTH = env.bool("DJANGO_ENABLE_BASIC_AUTH", default=DEBUG)
+DRF_AUTHENTICATION_CLASSES = [
+    'rest_framework.authentication.SessionAuthentication',
+    'rest_framework_simplejwt.authentication.JWTAuthentication',
+]
+if ENABLE_BASIC_AUTH:
+    DRF_AUTHENTICATION_CLASSES.insert(
+        1,
         'rest_framework.authentication.BasicAuthentication',
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-    ),
+    )
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': tuple(DRF_AUTHENTICATION_CLASSES),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
@@ -215,6 +222,17 @@ REST_FRAMEWORK = {
         'rest_framework.filters.OrderingFilter',
     ],
     'EXCEPTION_HANDLER': 'project.api_exceptions.product_exception_handler',
+    'DEFAULT_THROTTLE_RATES': {
+        'auth_signup': env('THROTTLE_AUTH_SIGNUP', default='5/hour'),
+        'auth_login': env('THROTTLE_AUTH_LOGIN', default='10/min'),
+        'auth_refresh': env('THROTTLE_AUTH_REFRESH', default='60/min'),
+        'resume_upload': env('THROTTLE_RESUME_UPLOAD', default='10/hour'),
+        'resume_analysis': env('THROTTLE_RESUME_ANALYSIS', default='20/hour'),
+        'resume_seniority': env('THROTTLE_RESUME_SENIORITY', default='20/hour'),
+        'job_search': env('THROTTLE_JOB_SEARCH', default='12/hour'),
+        'job_match': env('THROTTLE_JOB_MATCH', default='30/hour'),
+        'billing_action': env('THROTTLE_BILLING_ACTION', default='20/hour'),
+    },
 }
 
 RESUME_INGESTION = {

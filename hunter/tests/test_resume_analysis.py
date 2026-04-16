@@ -1,7 +1,9 @@
 import os
 import shutil
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
@@ -9,6 +11,15 @@ from hunter.models.models import Resume, ResumeAnalysis
 
 
 TEMP_MEDIA_ROOT = os.path.join(os.getcwd(), "test_media_analysis")
+
+
+def throttle_settings(**rates):
+    framework_settings = dict(settings.REST_FRAMEWORK)
+    framework_settings["DEFAULT_THROTTLE_RATES"] = {
+        **settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"],
+        **rates,
+    }
+    return framework_settings
 
 
 @override_settings(MEDIA_ROOT=TEMP_MEDIA_ROOT)
@@ -24,6 +35,7 @@ class ResumeAnalysisApiTests(TestCase):
         shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
 
     def setUp(self) -> None:
+        cache.clear()
         self.user = get_user_model().objects.create_user(
             username="analysis-user",
             password="secret",
@@ -146,6 +158,24 @@ class ResumeAnalysisApiTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("detail", response.data)
+
+    @override_settings(REST_FRAMEWORK=throttle_settings(resume_analysis="1/min"))
+    def test_resume_analysis_action_is_rate_limited(self) -> None:
+        resume = Resume.objects.create(
+            owner=self.user,
+            file="resumes/user_1/empty.docx",
+            original_filename="empty.docx",
+            extracted_text="",
+            parse_status="completed",
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+
+        first_response = self.client.post(f"/hunter/api/resumes/{resume.id}/analyze/")
+        second_response = self.client.post(f"/hunter/api/resumes/{resume.id}/analyze/")
+
+        self.assertEqual(first_response.status_code, 400)
+        self.assertEqual(second_response.status_code, 429)
+        self.assertEqual(second_response.data["code"], "rate_limited")
 
     def test_missing_analysis_returns_not_found(self) -> None:
         resume = Resume.objects.create(

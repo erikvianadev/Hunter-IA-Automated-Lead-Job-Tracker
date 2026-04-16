@@ -4,7 +4,9 @@ import json
 from datetime import timedelta
 from unittest.mock import patch
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -30,9 +32,19 @@ STRIPE_TEST_SETTINGS = {
 }
 
 
+def throttle_settings(**rates):
+    framework_settings = dict(settings.REST_FRAMEWORK)
+    framework_settings["DEFAULT_THROTTLE_RATES"] = {
+        **settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"],
+        **rates,
+    }
+    return framework_settings
+
+
 @override_settings(STRIPE=STRIPE_TEST_SETTINGS)
 class BillingApiTests(TestCase):
     def setUp(self) -> None:
+        cache.clear()
         self.user = get_user_model().objects.create_user(
             username="billing-user",
             email="billing-user@example.com",
@@ -199,6 +211,15 @@ class BillingApiTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("nao existe uma assinatura paga ativa", response.data["detail"].lower())
+
+    @override_settings(REST_FRAMEWORK=throttle_settings(billing_action="1/min"))
+    def test_billing_actions_are_rate_limited(self) -> None:
+        first_response = self.client.post("/hunter/api/billing/cancel/", {}, format="json")
+        second_response = self.client.post("/hunter/api/billing/cancel/", {}, format="json")
+
+        self.assertEqual(first_response.status_code, 400)
+        self.assertEqual(second_response.status_code, 429)
+        self.assertEqual(second_response.data["code"], "rate_limited")
 
     def test_billing_is_scoped_to_authenticated_user(self) -> None:
         BillingSubscription.objects.create(

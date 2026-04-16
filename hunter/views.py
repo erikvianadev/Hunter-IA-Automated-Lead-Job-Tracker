@@ -44,6 +44,7 @@ from .serializers import (
     SeniorityAssessmentSerializer,
     TagSerializer,
 )
+from .throttles import ProductScopedRateThrottle
 from .services import (
     BillingAccessError,
     BillingError,
@@ -76,6 +77,17 @@ RESUME_UPLOAD_ERROR_DETAILS = {
 }
 
 
+class ScopedActionThrottleMixin:
+    throttle_action_scopes: dict[str, str] = {}
+
+    def get_throttles(self):
+        scope = self.throttle_action_scopes.get(getattr(self, 'action', None))
+        if scope:
+            self.throttle_scope = scope
+            return [ProductScopedRateThrottle()]
+        return super().get_throttles()
+
+
 class TagViewSet(viewsets.ModelViewSet):
     serializer_class = TagSerializer
     permission_classes = [IsAuthenticated]
@@ -89,10 +101,13 @@ class TagViewSet(viewsets.ModelViewSet):
         return Tag.objects.all()
 
 
-class JobViewSet(viewsets.ModelViewSet):
+class JobViewSet(ScopedActionThrottleMixin, viewsets.ModelViewSet):
     serializer_class = JobSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = HunterPagination
+    throttle_action_scopes = {
+        'match': 'job_match',
+    }
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = JobFilter
     search_fields = ['title', 'company_name', 'location', 'description']
@@ -328,6 +343,7 @@ class JobApplicationViewSet(
 
 
 class ResumeViewSet(
+    ScopedActionThrottleMixin,
     CreateModelMixin,
     ListModelMixin,
     RetrieveModelMixin,
@@ -337,6 +353,11 @@ class ResumeViewSet(
     permission_classes = [IsAuthenticated]
     pagination_class = HunterPagination
     ordering = ['-created_at']
+    throttle_action_scopes = {
+        'create': 'resume_upload',
+        'analyze': 'resume_analysis',
+        'assess_seniority': 'resume_seniority',
+    }
 
     def get_queryset(self):
         return Resume.objects.filter(owner=self.request.user).select_related('owner')
@@ -728,8 +749,12 @@ class ProductFunnelObservabilityView(APIView):
         return min(max(days, 1), 90)
 
 
-class BillingViewSet(viewsets.GenericViewSet):
+class BillingViewSet(ScopedActionThrottleMixin, viewsets.GenericViewSet):
     permission_classes = [IsAuthenticated]
+    throttle_action_scopes = {
+        'subscribe': 'billing_action',
+        'cancel': 'billing_action',
+    }
 
     @action(detail=False, methods=['get'], url_path='plans')
     def plans(self, request):
