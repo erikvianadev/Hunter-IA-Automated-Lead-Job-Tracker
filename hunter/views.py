@@ -1,4 +1,7 @@
-from django.db.models import Prefetch
+from datetime import timedelta
+
+from django.db.models import Count, Max, Prefetch
+from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
@@ -11,13 +14,13 @@ from rest_framework.mixins import (
     RetrieveModelMixin,
     UpdateModelMixin,
 )
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .choices import JobApplicationStatus
+from .choices import JobApplicationStatus, ProductEventCategory, ResumeParseStatus
 from .filters import JobApplicationFilter, JobFilter
-from .models.models import Job, JobApplication, JobMatch, Lead, Resume, SavedJob, Tag
+from .models.models import Job, JobApplication, JobMatch, Lead, ProductEvent, Resume, SavedJob, Tag
 from .pagination import HunterPagination
 from .serializers import (
     BillingOverviewSerializer,
@@ -51,6 +54,8 @@ from .services import (
     JobMatchingService,
     JobWorkflowError,
     JobWorkflowService,
+    ProductEventName,
+    ProductObservabilityService,
     ResumeAnalysisError,
     ResumeAnalysisService,
     ResumeIngestionService,
@@ -58,7 +63,9 @@ from .services import (
     ResumeProfileError,
     ResumeReportService,
     ResumeValidationError,
+    SeniorityAssessmentError,
     SeniorityAssessmentService,
+    FUNNEL_MILESTONE_ORDER,
 )
 
 
@@ -130,6 +137,15 @@ class JobViewSet(viewsets.ModelViewSet):
             return Response(status=status.HTTP_204_NO_CONTENT)
 
         saved_job, created = service.save_job(owner=request.user, job=job)
+        ProductObservabilityService().record_milestone(
+            owner=request.user,
+            event_name=ProductEventName.FIRST_SAVED_JOB,
+            source="jobs.save",
+            metadata={
+                "job_id": job.id,
+                "created": created,
+            },
+        )
         serializer = SavedJobSerializer(
             saved_job,
             context=self.get_serializer_context(),
@@ -154,6 +170,19 @@ class JobViewSet(viewsets.ModelViewSet):
             )
         except JobWorkflowError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        if application.status in JobWorkflowService.APPLYING_STATUSES:
+            ProductObservabilityService().record_milestone(
+                owner=request.user,
+                event_name=ProductEventName.FIRST_APPLICATION,
+                source="jobs.apply",
+                metadata={
+                    "job_id": job.id,
+                    "application_id": application.id,
+                    "created": created,
+                    "status": application.status,
+                },
+            )
 
         response_serializer = JobApplicationSerializer(
             application,
@@ -279,6 +308,18 @@ class JobApplicationViewSet(
             status=serializer.validated_data.get('status'),
             notes=serializer.validated_data.get('notes'),
         )
+        if updated_application.status in JobWorkflowService.APPLYING_STATUSES:
+            ProductObservabilityService().record_milestone(
+                owner=request.user,
+                event_name=ProductEventName.FIRST_APPLICATION,
+                source="applications.update",
+                metadata={
+                    "job_id": updated_application.job_id,
+                    "application_id": updated_application.id,
+                    "status": updated_application.status,
+                },
+            )
+
         response_serializer = JobApplicationSerializer(
             updated_application,
             context=self.get_serializer_context(),
@@ -317,6 +358,12 @@ class ResumeViewSet(
                 target_role=serializer.validated_data.get('target_role', ''),
             )
         except ResumeValidationError as exc:
+            ProductObservabilityService().record_journey_failure(
+                owner=request.user,
+                event_name=ProductEventName.RESUME_UPLOAD_FAILED,
+                source="resumes.upload",
+                metadata={"reason": exc.code},
+            )
             detail = RESUME_UPLOAD_ERROR_DETAILS.get(
                 exc.code,
                 "Nao foi possivel validar o arquivo enviado como curriculo.",
@@ -330,6 +377,46 @@ class ResumeViewSet(
                     },
                 },
                 status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as exc:
+            ProductObservabilityService().record_technical_failure(
+                owner=request.user,
+                event_name=ProductEventName.RESUME_UPLOAD_ERROR,
+                source="resumes.upload",
+                metadata={"reason": exc.__class__.__name__},
+            )
+            raise
+
+        observability = ProductObservabilityService()
+        observability.record_milestone(
+            owner=request.user,
+            event_name=ProductEventName.RESUME_UPLOADED,
+            source="resumes.upload",
+            metadata={
+                "resume_id": resume.id,
+                "parse_status": resume.parse_status,
+                "content_type": resume.content_type,
+            },
+        )
+        if resume.parse_status == ResumeParseStatus.COMPLETED:
+            observability.record_milestone(
+                owner=request.user,
+                event_name=ProductEventName.RESUME_READY,
+                source="resumes.upload",
+                metadata={
+                    "resume_id": resume.id,
+                    "is_active": resume.is_active,
+                },
+            )
+        else:
+            observability.record_journey_failure(
+                owner=request.user,
+                event_name=ProductEventName.RESUME_NOT_READY,
+                source="resumes.upload",
+                metadata={
+                    "resume_id": resume.id,
+                    "parse_status": resume.parse_status,
+                },
             )
 
         response_serializer = ResumeSerializer(
@@ -415,7 +502,38 @@ class ResumeViewSet(
         try:
             analysis = ResumeAnalysisService().analyze(resume=resume)
         except ResumeAnalysisError as exc:
+            ProductObservabilityService().record_journey_failure(
+                owner=request.user,
+                event_name=ProductEventName.ANALYSIS_GENERATION_BLOCKED,
+                source="resumes.analyze",
+                metadata={
+                    "resume_id": resume.id,
+                    "parse_status": resume.parse_status,
+                },
+            )
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:
+            ProductObservabilityService().record_technical_failure(
+                owner=request.user,
+                event_name=ProductEventName.ANALYSIS_GENERATION_ERROR,
+                source="resumes.analyze",
+                metadata={
+                    "resume_id": resume.id,
+                    "reason": exc.__class__.__name__,
+                },
+            )
+            raise
+
+        ProductObservabilityService().record_milestone(
+            owner=request.user,
+            event_name=ProductEventName.ANALYSIS_GENERATED,
+            source="resumes.analyze",
+            metadata={
+                "resume_id": resume.id,
+                "analysis_id": analysis.id,
+                "overall_score": analysis.overall_score,
+            },
+        )
 
         serializer = ResumeAnalysisSerializer(
             analysis,
@@ -442,8 +560,39 @@ class ResumeViewSet(
         resume = self.get_object()
         try:
             assessment = SeniorityAssessmentService().assess(resume=resume)
-        except ResumeAnalysisError as exc:
+        except (ResumeAnalysisError, SeniorityAssessmentError) as exc:
+            ProductObservabilityService().record_journey_failure(
+                owner=request.user,
+                event_name=ProductEventName.SENIORITY_GENERATION_BLOCKED,
+                source="resumes.assess_seniority",
+                metadata={
+                    "resume_id": resume.id,
+                    "parse_status": resume.parse_status,
+                },
+            )
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:
+            ProductObservabilityService().record_technical_failure(
+                owner=request.user,
+                event_name=ProductEventName.SENIORITY_GENERATION_ERROR,
+                source="resumes.assess_seniority",
+                metadata={
+                    "resume_id": resume.id,
+                    "reason": exc.__class__.__name__,
+                },
+            )
+            raise
+
+        ProductObservabilityService().record_milestone(
+            owner=request.user,
+            event_name=ProductEventName.SENIORITY_GENERATED,
+            source="resumes.assess_seniority",
+            metadata={
+                "resume_id": resume.id,
+                "assessment_id": assessment.id,
+                "recommended_track": assessment.recommended_track,
+            },
+        )
         serializer = SeniorityAssessmentSerializer(
             assessment,
             context=self.get_serializer_context(),
@@ -499,6 +648,78 @@ class SavedJobViewSet(ListModelMixin, viewsets.GenericViewSet):
             .select_related('owner', 'job')
             .prefetch_related('job__tags')
         )
+
+
+class ProductFunnelObservabilityView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        days = self._parse_days(request.query_params.get('days'))
+        since = timezone.now() - timedelta(days=days)
+        queryset = ProductEvent.objects.filter(created_at__gte=since)
+
+        milestone_rows = {
+            row['event_name']: row
+            for row in queryset
+            .filter(category=ProductEventCategory.JOURNEY_MILESTONE)
+            .values('event_name')
+            .annotate(
+                users=Count('owner', distinct=True),
+                events=Count('id'),
+                latest_at=Max('created_at'),
+            )
+        }
+        milestones = [
+            {
+                "event_name": event_name,
+                "users": milestone_rows.get(event_name, {}).get("users", 0),
+                "events": milestone_rows.get(event_name, {}).get("events", 0),
+                "latest_at": milestone_rows.get(event_name, {}).get("latest_at"),
+            }
+            for event_name in FUNNEL_MILESTONE_ORDER
+        ]
+
+        failures = list(
+            queryset
+            .exclude(category=ProductEventCategory.JOURNEY_MILESTONE)
+            .values('category', 'event_name')
+            .annotate(
+                users=Count('owner', distinct=True),
+                events=Count('id'),
+                latest_at=Max('created_at'),
+            )
+            .order_by('category', 'event_name')
+        )
+        recent_events = [
+            {
+                "id": event.id,
+                "event_name": event.event_name,
+                "category": event.category,
+                "owner_id": event.owner_id,
+                "source": event.source,
+                "metadata": event.metadata,
+                "created_at": event.created_at,
+            }
+            for event in queryset.select_related('owner').order_by('-created_at')[:50]
+        ]
+
+        return Response(
+            {
+                "window_days": days,
+                "since": since,
+                "milestones": milestones,
+                "failures": failures,
+                "recent_events": recent_events,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def _parse_days(self, raw_value: str | None) -> int:
+        try:
+            days = int(raw_value or 30)
+        except (TypeError, ValueError):
+            return 30
+        return min(max(days, 1), 90)
 
 
 class BillingViewSet(viewsets.GenericViewSet):

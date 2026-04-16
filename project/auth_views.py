@@ -13,6 +13,7 @@ from .auth_serializers import (
     SignupSerializer,
     serialize_field_errors,
 )
+from hunter.services import ProductEventName, ProductObservabilityService
 
 
 class ProductTokenObtainPairView(TokenObtainPairView):
@@ -28,6 +29,15 @@ class SignupView(APIView):
     def post(self, request, *args, **kwargs):
         serializer = SignupSerializer(data=request.data)
         if not serializer.is_valid():
+            field_errors = serialize_field_errors(serializer.errors)
+            ProductObservabilityService().record_journey_failure(
+                event_name=ProductEventName.ACCOUNT_CREATION_FAILED,
+                source="auth.signup",
+                metadata={
+                    "reason": "validation_failed",
+                    "fields": sorted(field_errors.keys()),
+                },
+            )
             return Response(
                 {
                     "code": "signup_validation_failed",
@@ -35,7 +45,7 @@ class SignupView(APIView):
                         "Nao foi possivel concluir o cadastro com esses dados. "
                         "Revise os campos e tente novamente."
                     ),
-                    "field_errors": serialize_field_errors(serializer.errors),
+                    "field_errors": field_errors,
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
@@ -44,6 +54,11 @@ class SignupView(APIView):
             with transaction.atomic():
                 user = serializer.save()
         except IntegrityError:
+            ProductObservabilityService().record_journey_failure(
+                event_name=ProductEventName.ACCOUNT_CREATION_FAILED,
+                source="auth.signup",
+                metadata={"reason": "integrity_error"},
+            )
             return Response(
                 {
                     "code": "signup_unavailable",
@@ -61,6 +76,17 @@ class SignupView(APIView):
             )
 
         refresh = RefreshToken.for_user(user)
+        observability = ProductObservabilityService()
+        observability.record_milestone(
+            owner=user,
+            event_name=ProductEventName.ACCOUNT_CREATED,
+            source="auth.signup",
+        )
+        observability.record_milestone(
+            owner=user,
+            event_name=ProductEventName.FIRST_LOGIN,
+            source="auth.signup",
+        )
         return Response(
             {
                 "message": "Conta criada com sucesso.",
