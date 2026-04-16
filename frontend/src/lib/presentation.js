@@ -90,6 +90,30 @@ const RESUME_PARSE_PRESENTATIONS = {
     nextStep: "Adicione mais texto selecionável ao currículo e envie uma nova exportação.",
     noticeTone: "warning"
   },
+  document_not_resume_like: {
+    label: "Nao parece CV",
+    tone: "blocked",
+    title: "O arquivo foi recebido, mas nao parece um curriculo",
+    description: "Recebemos o envio, porem o conteudo nao tem sinais suficientes de um CV utilizavel.",
+    nextStep: "Envie um CV real em PDF ou DOCX, com experiencia, formacao, habilidades ou projetos profissionais claros.",
+    noticeTone: "blocked"
+  },
+  insufficient_resume_signals: {
+    label: "Faltam sinais de CV",
+    tone: "blocked",
+    title: "Faltam sinais profissionais no arquivo",
+    description: "O arquivo foi recebido, mas nao mostra estrutura ou conteudo profissional suficiente para seguir com analise.",
+    nextStep: "Envie um curriculo em PDF ou DOCX com secoes claras de experiencia, formacao, habilidades ou projetos.",
+    noticeTone: "blocked"
+  },
+  blocked_for_low_resume_confidence: {
+    label: "Baixa confianca",
+    tone: "blocked",
+    title: "Nao liberamos este arquivo para analise",
+    description: "Recebemos o arquivo, mas a confianca de que ele e um curriculo utilizavel ficou baixa demais.",
+    nextStep: "Substitua por um CV real em PDF ou DOCX com conteudo profissional claro.",
+    noticeTone: "blocked"
+  },
   scanned_or_image_pdf: {
     label: "PDF escaneado",
     tone: "warning",
