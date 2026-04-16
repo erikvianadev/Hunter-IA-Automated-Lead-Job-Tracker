@@ -41,6 +41,15 @@ STATUS_MESSAGES = {
     ResumeParseStatus.INSUFFICIENT_TEXT: (
         "The uploaded file produced too little reliable text for downstream analysis."
     ),
+    ResumeParseStatus.DOCUMENT_NOT_RESUME_LIKE: (
+        "Recebemos o arquivo, mas ele nao parece um curriculo utilizavel. Envie um CV real em PDF ou DOCX com conteudo profissional claro."
+    ),
+    ResumeParseStatus.INSUFFICIENT_RESUME_SIGNALS: (
+        "Recebemos o arquivo, mas faltam sinais suficientes de curriculo para liberar analise, senioridade ou match."
+    ),
+    ResumeParseStatus.BLOCKED_FOR_LOW_RESUME_CONFIDENCE: (
+        "Recebemos o arquivo, mas a confianca de que ele e um curriculo utilizavel ficou baixa demais para seguir."
+    ),
     ResumeParseStatus.SCANNED_OR_IMAGE_PDF: (
         "The uploaded PDF appears to be scanned or image-based and cannot be analyzed safely."
     ),

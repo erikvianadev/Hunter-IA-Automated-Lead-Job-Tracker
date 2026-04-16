@@ -16,6 +16,7 @@ from .product_observability_service import (
 from .resume_analysis_service import ResumeAnalysisError, ResumeAnalysisService
 from .resume_comparison_service import ResumeComparisonService
 from .resume_ingestion_service import ResumeIngestionService, ResumeValidationError
+from .resume_likeness_service import ResumeLikenessService
 from .resume_profile_service import ResumeProfileError, ResumeProfileService
 from .resume_report_service import ResumeReportService
 from .resume_parser_service import ResumeParserService
@@ -56,6 +57,7 @@ __all__ = [
     "ResumeAnalysisService",
     "ResumeComparisonService",
     "ResumeIngestionService",
+    "ResumeLikenessService",
     "ResumeProfileError",
     "ResumeProfileService",
     "ResumeReportService",

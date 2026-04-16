@@ -25,6 +25,18 @@ class ResumeParseStatus(models.TextChoices):
     )
     EMPTY_TEXT = 'empty_text', _('Empty Text')
     INSUFFICIENT_TEXT = 'insufficient_text', _('Insufficient Text')
+    DOCUMENT_NOT_RESUME_LIKE = (
+        'document_not_resume_like',
+        _('Document Not Resume Like'),
+    )
+    INSUFFICIENT_RESUME_SIGNALS = (
+        'insufficient_resume_signals',
+        _('Insufficient Resume Signals'),
+    )
+    BLOCKED_FOR_LOW_RESUME_CONFIDENCE = (
+        'blocked_for_low_resume_confidence',
+        _('Blocked For Low Resume Confidence'),
+    )
     SCANNED_OR_IMAGE_PDF = 'scanned_or_image_pdf', _('Scanned Or Image PDF')
     UNSUPPORTED_OR_UNSAFE_STRUCTURE = (
         'unsupported_or_unsafe_structure',

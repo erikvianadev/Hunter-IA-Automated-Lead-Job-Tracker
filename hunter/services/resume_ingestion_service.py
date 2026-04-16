@@ -12,6 +12,7 @@ from django.db import transaction
 from hunter.choices import ResumeParseStatus
 from hunter.models.models import Resume
 
+from .resume_likeness_service import ResumeLikenessService
 from .resume_security_service import ResumeSecurityService
 from .resume_text_extraction_service import ResumeTextExtractionError, ResumeTextExtractionService
 
@@ -40,9 +41,11 @@ class ResumeIngestionService:
         *,
         extraction_service: ResumeTextExtractionService | None = None,
         security_service: ResumeSecurityService | None = None,
+        likeness_service: ResumeLikenessService | None = None,
     ) -> None:
         self.extraction_service = extraction_service or ResumeTextExtractionService()
         self.security_service = security_service or ResumeSecurityService()
+        self.likeness_service = likeness_service or ResumeLikenessService()
         config = getattr(settings, "RESUME_INGESTION", {})
         self.max_upload_size_bytes = int(config.get("MAX_UPLOAD_SIZE_BYTES", 5 * 1024 * 1024))
         self.allowed_extensions = {
@@ -139,9 +142,16 @@ class ResumeIngestionService:
             return resume
 
         parse_status = self.security_service.normalize_status(extraction.status)
+        likeness_diagnostics: dict[str, object] = {}
+        if parse_status == ResumeParseStatus.COMPLETED:
+            likeness = self.likeness_service.evaluate(text=extraction.text)
+            likeness_diagnostics = likeness.diagnostics
+            parse_status = likeness.status
+
         diagnostics = self._make_json_safe({
             **admission_diagnostics,
             **extraction.diagnostics,
+            **likeness_diagnostics,
             "normalized_parse_status": parse_status,
         })
         resume.parse_status = parse_status
