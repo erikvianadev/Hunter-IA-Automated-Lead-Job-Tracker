@@ -8,6 +8,11 @@ from .job_workflow_service import JobWorkflowError, JobWorkflowService
 from .job_deduplication_service import JobDeduplicationService
 from .job_persistence_service import JobPersistenceService, PersistenceResult
 from .job_quality_service import JobQualityResult, JobQualityService
+from .product_observability_service import (
+    FUNNEL_MILESTONE_ORDER,
+    ProductEventName,
+    ProductObservabilityService,
+)
 from .resume_analysis_service import ResumeAnalysisError, ResumeAnalysisService
 from .resume_comparison_service import ResumeComparisonService
 from .resume_ingestion_service import ResumeIngestionService, ResumeValidationError
@@ -44,6 +49,9 @@ __all__ = [
     "PersistenceResult",
     "JobQualityResult",
     "JobQualityService",
+    "FUNNEL_MILESTONE_ORDER",
+    "ProductEventName",
+    "ProductObservabilityService",
     "ResumeAnalysisError",
     "ResumeAnalysisService",
     "ResumeComparisonService",

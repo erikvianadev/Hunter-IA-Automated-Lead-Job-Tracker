@@ -10,6 +10,7 @@ from rest_framework.views import APIView
 
 from hunter.scrape_summary import build_scrape_summary
 from hunter.serializers import ScrapeJobsRequestSerializer
+from hunter.services import ProductEventName, ProductObservabilityService
 from hunter.services.job_aggregation_service import JobAggregationService
 from hunter.services.job_persistence_service import JobPersistenceService
 
@@ -85,7 +86,21 @@ class ScrapeJobsView(APIView):
                 aggregation=aggregation,
                 persistence=persistence,
             )
+            observability = ProductObservabilityService()
             if aggregation.status == "total_failure":
+                observability.record_technical_failure(
+                    owner=request.user,
+                    event_name=ProductEventName.JOB_SEARCH_FAILED,
+                    source="jobs.search",
+                    metadata={
+                        "status": aggregation.status,
+                        "providers_run": aggregation.providers_run,
+                        "providers_failed": aggregation.providers_failed,
+                        "providers_blocked": aggregation.providers_blocked,
+                        "providers_invalid_response": aggregation.providers_invalid_response,
+                        "providers_unavailable": aggregation.providers_unavailable,
+                    },
+                )
                 return Response(
                     {
                         **payload,
@@ -95,9 +110,47 @@ class ScrapeJobsView(APIView):
                     status=status.HTTP_503_SERVICE_UNAVAILABLE,
                 )
 
+            observability.record_milestone(
+                owner=request.user,
+                event_name=ProductEventName.FIRST_JOB_SEARCH,
+                source="jobs.search",
+                metadata={
+                    "status": aggregation.status,
+                    "query_length": len(query),
+                    "location_provided": bool(location.strip()),
+                    "saved": persistence.saved,
+                    "scraped": aggregation.scraped,
+                    "providers_run_count": len(aggregation.providers_run),
+                    "providers_failed_count": len(aggregation.providers_failed),
+                },
+            )
+            if aggregation.providers_failed:
+                observability.record_technical_failure(
+                    owner=request.user,
+                    event_name=ProductEventName.JOB_SEARCH_DEGRADED,
+                    source="jobs.search",
+                    metadata={
+                        "status": aggregation.status,
+                        "providers_failed": aggregation.providers_failed,
+                        "providers_blocked": aggregation.providers_blocked,
+                        "providers_invalid_response": aggregation.providers_invalid_response,
+                        "providers_unavailable": aggregation.providers_unavailable,
+                    },
+                )
+
             return Response(payload, status=status.HTTP_200_OK)
 
         except Exception as exc:
+            ProductObservabilityService().record_technical_failure(
+                owner=request.user,
+                event_name=ProductEventName.JOB_SEARCH_FAILED,
+                source="jobs.search",
+                metadata={
+                    "reason": exc.__class__.__name__,
+                    "query_length": len(query),
+                    "location_provided": bool(location.strip()),
+                },
+            )
             logger.exception(
                 "Scrape failed for user=%s query=%r location=%r: %s",
                 request.user.username,

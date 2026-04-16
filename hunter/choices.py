@@ -38,6 +38,12 @@ class ResumeParseStatus(models.TextChoices):
     UNSUPPORTED_STRUCTURE = 'unsupported_structure', _('Unsupported Structure')
 
 
+class ProductEventCategory(models.TextChoices):
+    JOURNEY_MILESTONE = 'journey_milestone', _('Journey milestone')
+    JOURNEY_FAILURE = 'journey_failure', _('Journey failure')
+    TECHNICAL_FAILURE = 'technical_failure', _('Technical failure')
+
+
 class BillingCycle(models.TextChoices):
     FREE = 'free', _('Free')
     MONTHLY = 'monthly', _('Monthly')

@@ -8,6 +8,8 @@ from django.utils.translation import override
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
+from hunter.services import ProductEventName, ProductObservabilityService
+
 
 User = get_user_model()
 USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9_.-]{3,30}$")
@@ -42,6 +44,24 @@ class ProductTokenObtainPairSerializer(TokenObtainPairSerializer):
     default_error_messages = {
         "no_active_account": "Usuario ou senha nao conferem. Revise seus dados e tente novamente.",
     }
+
+    def validate(self, attrs):
+        try:
+            data = super().validate(attrs)
+        except Exception:
+            ProductObservabilityService().record_journey_failure(
+                event_name=ProductEventName.LOGIN_FAILED,
+                source="auth.login",
+                metadata={"reason": "invalid_credentials"},
+            )
+            raise
+
+        ProductObservabilityService().record_milestone(
+            owner=self.user,
+            event_name=ProductEventName.FIRST_LOGIN,
+            source="auth.login",
+        )
+        return data
 
 
 class SignupSerializer(serializers.Serializer):

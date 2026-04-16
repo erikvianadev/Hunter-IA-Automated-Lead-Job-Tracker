@@ -13,6 +13,11 @@ router.register(r'resumes', views.ResumeViewSet, basename='resume')
 router.register(r'matches', views.JobMatchViewSet, basename='match')
 
 urlpatterns = [
+    path(
+        'api/observability/funnel/',
+        views.ProductFunnelObservabilityView.as_view(),
+        name='product-funnel-observability',
+    ),
     path('api/', include(router.urls)),
     path('api/', include('hunter.api.urls')),
     path(

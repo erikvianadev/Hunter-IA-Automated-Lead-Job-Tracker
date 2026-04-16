@@ -1,6 +1,29 @@
 from django.contrib import admin
 
-from .models.models import BillingInvoice, BillingSubscription
+from .models.models import BillingInvoice, BillingSubscription, ProductEvent
+
+
+@admin.register(ProductEvent)
+class ProductEventAdmin(admin.ModelAdmin):
+    list_display = (
+        'id',
+        'event_name',
+        'category',
+        'owner',
+        'source',
+        'created_at',
+    )
+    list_filter = ('category', 'event_name', 'source', 'created_at')
+    search_fields = ('event_name', 'source', 'owner__username', 'owner__email')
+    readonly_fields = (
+        'owner',
+        'event_name',
+        'category',
+        'source',
+        'metadata',
+        'created_at',
+        'updated_at',
+    )
 
 
 @admin.register(BillingSubscription)
