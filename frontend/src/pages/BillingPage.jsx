@@ -83,13 +83,19 @@ export function BillingPage() {
   }
 
   const subscription = overview?.subscription;
-  const subscriptionStatus = subscription ? getBillingStatusPresentation(subscription.status || subscription.plan_code) : null;
+  const subscriptionStatus = subscription
+    ? getBillingStatusPresentation(subscription.access_state || subscription.status || subscription.plan_code)
+    : null;
   const lastInvoiceStatus = subscription?.last_invoice
     ? getBillingStatusPresentation(subscription.last_invoice.status)
     : null;
   const currentPlanPresentation = subscription
     ? getBillingPlanPresentation({ ...subscription, name: subscription.plan_name })
     : null;
+  const canCancelSubscription =
+    subscription?.plan_code !== "free" &&
+    subscription?.status === "active" &&
+    subscription?.auto_renew;
 
   return (
     <AppShell
@@ -109,7 +115,7 @@ export function BillingPage() {
           title="Seu plano atual"
           subtitle="Veja o que está ativo hoje e como isso apoia sua busca neste momento."
           actions={
-            subscription?.plan_code !== "free" ? (
+            canCancelSubscription ? (
               <button
                 className="button button--ghost"
                 type="button"
@@ -145,7 +151,7 @@ export function BillingPage() {
               </p>
               <p className="muted-copy">
                 {subscription.started_at ? `Iniciado em ${formatDate(subscription.started_at)}` : "Disponível na sua conta"}
-                {subscription.current_period_end ? ` | Ciclo atual termina em ${formatDate(subscription.current_period_end)}` : ""}
+                {subscription.access_until ? ` | Acesso valido ate ${formatDate(subscription.access_until)}` : ""}
               </p>
               <div className={`notice notice--${subscriptionStatus.tone === "good" ? "success" : subscriptionStatus.tone === "warning" ? "warning" : subscriptionStatus.tone === "blocked" ? "blocked" : "info"}`}>
                 <strong>

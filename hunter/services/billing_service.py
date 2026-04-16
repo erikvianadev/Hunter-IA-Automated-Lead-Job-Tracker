@@ -101,7 +101,7 @@ class BillingService:
         current = self.get_subscription(owner=owner) if owner is not None else None
         current_plan_key = (
             (current["plan_code"], current["billing_cycle"])
-            if current is not None
+            if current is not None and current.get("is_entitled")
             else None
         )
         return [
@@ -129,6 +129,17 @@ class BillingService:
         plan = self._get_plan(plan_code=plan_code, billing_cycle=billing_cycle)
         if plan.code == self.PLAN_FREE:
             raise BillingError('O plano gratuito nao precisa de checkout.')
+
+        current = self.get_subscription(owner=owner)
+        if (
+            current.get("is_entitled")
+            and current.get("plan_code") == plan.code
+            and current.get("billing_cycle") == plan.billing_cycle
+        ):
+            raise BillingError(
+                'Esse plano ja esta ativo na sua conta. Atualize a pagina de Planos para conferir o acesso atual.'
+            )
+
         if not self.stripe_gateway.is_configured():
             raise BillingError('O faturamento online nao esta configurado neste ambiente.')
 
@@ -203,7 +214,7 @@ class BillingService:
         if feature_code in subscription['features']:
             return
         raise BillingAccessError(
-            'Seu plano atual nao inclui este recurso. Faca upgrade para o Pro quando quiser liberar esse acesso.'
+            'Seu plano atual nao inclui este recurso premium. Faca upgrade para o Pro quando quiser liberar esse acesso.'
         )
 
     @transaction.atomic
@@ -244,12 +255,19 @@ class BillingService:
             "current_period_end": None,
             "canceled_at": None,
             "expires_at": None,
+            "access_until": None,
+            "is_entitled": True,
+            "access_state": "active",
             "features": list(plan.features),
             "last_invoice": None,
         }
 
     def _serialize_subscription(self, *, record: BillingSubscription) -> dict[str, object]:
         plan = self._get_plan(plan_code=record.plan_code, billing_cycle=record.billing_cycle)
+        now = timezone.now()
+        is_entitled = self._record_has_entitlement(record=record, now=now)
+        access_until = self._get_access_until(record=record)
+        access_state = self._get_access_state(record=record, now=now)
         last_invoice = (
             record.invoices
             .filter(owner=record.owner)
@@ -269,7 +287,10 @@ class BillingService:
             "current_period_end": record.current_period_end,
             "canceled_at": record.canceled_at,
             "expires_at": record.expires_at,
-            "features": list(plan.features),
+            "access_until": access_until,
+            "is_entitled": is_entitled,
+            "access_state": access_state,
+            "features": list(plan.features) if is_entitled else [],
             "last_invoice": (
                 {
                     "id": last_invoice.id,
@@ -296,15 +317,30 @@ class BillingService:
             .order_by('-created_at')
         )
         for record in records:
-            if record.status == BillingSubscriptionStatus.ACTIVE:
-                return record
-            if (
-                record.status == BillingSubscriptionStatus.CANCELED
-                and record.expires_at is not None
-                and record.expires_at > now
-            ):
+            if self._record_has_entitlement(record=record, now=now):
                 return record
         return None
+
+    def _record_has_entitlement(self, *, record: BillingSubscription, now) -> bool:
+        if record.status == BillingSubscriptionStatus.ACTIVE:
+            if record.expires_at is not None and record.expires_at <= now:
+                return False
+            if record.current_period_end is not None and record.current_period_end <= now:
+                return False
+            return True
+        if record.status == BillingSubscriptionStatus.CANCELED:
+            return record.expires_at is not None and record.expires_at > now
+        return False
+
+    def _get_access_until(self, *, record: BillingSubscription):
+        return record.expires_at or record.current_period_end
+
+    def _get_access_state(self, *, record: BillingSubscription, now) -> str:
+        if not self._record_has_entitlement(record=record, now=now):
+            return "expired"
+        if record.status == BillingSubscriptionStatus.CANCELED:
+            return "active_until_period_end"
+        return "active"
 
     def _get_latest_customer_id(self, *, owner) -> str | None:
         return (
@@ -346,6 +382,9 @@ class BillingService:
         )
 
     def _handle_subscription_updated(self, *, subscription_data: dict[str, Any]) -> None:
+        if not subscription_data.get('id'):
+            return
+
         owner = self._resolve_owner_from_subscription(subscription_data=subscription_data)
         if owner is None:
             return
@@ -355,6 +394,9 @@ class BillingService:
         )
 
     def _handle_subscription_deleted(self, *, subscription_data: dict[str, Any]) -> None:
+        if not subscription_data.get('id'):
+            return
+
         owner = self._resolve_owner_from_subscription(subscription_data=subscription_data)
         if owner is None:
             return
@@ -365,6 +407,9 @@ class BillingService:
 
     def _handle_invoice_paid(self, *, invoice_data: dict[str, Any]) -> None:
         stripe_subscription_id = invoice_data.get('subscription', '')
+        if not stripe_subscription_id:
+            return
+
         subscription = (
             BillingSubscription.objects
             .filter(stripe_subscription_id=stripe_subscription_id)
@@ -418,14 +463,16 @@ class BillingService:
         return self._get_owner_by_id(owner_id=owner_id)
 
     def _resolve_owner_from_subscription(self, *, subscription_data: dict[str, Any]):
-        record = (
-            BillingSubscription.objects
-            .filter(stripe_subscription_id=subscription_data.get('id', ''))
-            .select_related('owner')
-            .first()
-        )
-        if record is not None:
-            return record.owner
+        stripe_subscription_id = subscription_data.get('id', '')
+        if stripe_subscription_id:
+            record = (
+                BillingSubscription.objects
+                .filter(stripe_subscription_id=stripe_subscription_id)
+                .select_related('owner')
+                .first()
+            )
+            if record is not None:
+                return record.owner
 
         metadata = subscription_data.get('metadata', {})
         owner_id = metadata.get('owner_id')
@@ -433,6 +480,9 @@ class BillingService:
             return self._get_owner_by_id(owner_id=owner_id)
 
         customer_id = subscription_data.get('customer', '')
+        if not customer_id:
+            return None
+
         record = (
             BillingSubscription.objects
             .filter(stripe_customer_id=customer_id)
@@ -458,6 +508,10 @@ class BillingService:
         checkout_session_id: str = '',
         stripe_customer_id: str = '',
     ) -> BillingSubscription:
+        stripe_subscription_id = stripe_subscription.get('id', '')
+        if not stripe_subscription_id:
+            raise BillingError('Nao foi possivel validar a assinatura recebida pelo faturamento.')
+
         plan_code, billing_cycle = self._resolve_plan_from_stripe_subscription(
             stripe_subscription=stripe_subscription,
         )
@@ -490,7 +544,7 @@ class BillingService:
         }
         subscription, created = BillingSubscription.objects.update_or_create(
             owner=owner,
-            stripe_subscription_id=stripe_subscription.get('id', ''),
+            stripe_subscription_id=stripe_subscription_id,
             defaults=defaults,
         )
 

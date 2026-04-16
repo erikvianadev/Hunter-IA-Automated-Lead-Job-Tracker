@@ -4,6 +4,8 @@ import { decodeJwtPayload, looksLikeHtmlDocument } from "../lib/utils";
 
 const STORAGE_KEY = "hunter-ia-auth";
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
+const EMPTY_AUTH = { access: null, refresh: null, username: "" };
+const SESSION_EXPIRED_MESSAGE = "Sua sessao expirou. Entre novamente para continuar.";
 
 const AuthContext = createContext(null);
 
@@ -55,6 +57,57 @@ async function performFetch(url, options) {
       detail: error?.message ?? "Network error",
       message: error?.message ?? "Network error",
       cause: error
+    };
+  }
+}
+
+function isExpiredJwt(token, skewSeconds = 30) {
+  const payload = decodeJwtPayload(token);
+  if (!payload?.exp) {
+    return Boolean(token);
+  }
+
+  return Math.floor(Date.now() / 1000) >= Number(payload.exp) - skewSeconds;
+}
+
+function normalizeAuthState(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return EMPTY_AUTH;
+  }
+
+  const access = typeof value.access === "string" && value.access.trim() ? value.access : null;
+  const refresh = typeof value.refresh === "string" && value.refresh.trim() ? value.refresh : null;
+  const username = typeof value.username === "string" ? value.username.trim() : "";
+
+  if (!access || !refresh || isExpiredJwt(refresh)) {
+    return EMPTY_AUTH;
+  }
+
+  if (!decodeJwtPayload(access)) {
+    return EMPTY_AUTH;
+  }
+
+  return { access, refresh, username };
+}
+
+function loadStoredAuth() {
+  const raw = window.localStorage.getItem(STORAGE_KEY);
+  if (!raw) {
+    return { auth: EMPTY_AUTH, notice: "" };
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    const hadStoredTokens = Boolean(parsed?.access || parsed?.refresh);
+    const auth = normalizeAuthState(parsed);
+    return {
+      auth,
+      notice: hadStoredTokens && !auth.refresh ? SESSION_EXPIRED_MESSAGE : ""
+    };
+  } catch (error) {
+    return {
+      auth: EMPTY_AUTH,
+      notice: "Nao foi possivel validar sua sessao salva. Entre novamente para continuar."
     };
   }
 }
@@ -149,18 +202,9 @@ function buildHttpError(response, payload, fallbackMessage) {
 }
 
 export function AuthProvider({ children }) {
-  const [auth, setAuth] = useState(() => {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return { access: null, refresh: null, username: "" };
-    }
-
-    try {
-      return JSON.parse(raw);
-    } catch (error) {
-      return { access: null, refresh: null, username: "" };
-    }
-  });
+  const initialAuthState = useMemo(() => loadStoredAuth(), []);
+  const [auth, setAuth] = useState(initialAuthState.auth);
+  const [sessionNotice, setSessionNotice] = useState(initialAuthState.notice);
   const [bootstrapped, setBootstrapped] = useState(false);
 
   useEffect(() => {
@@ -171,10 +215,29 @@ export function AuthProvider({ children }) {
     setBootstrapped(true);
   }, []);
 
+  function clearAuth(notice = "") {
+    setAuth(EMPTY_AUTH);
+    setSessionNotice(notice);
+  }
+
   async function refreshAccessToken(currentRefreshToken) {
     const refreshToken = currentRefreshToken ?? auth.refresh;
     if (!refreshToken) {
-      throw new Error("Sua sessao expirou.");
+      clearAuth(SESSION_EXPIRED_MESSAGE);
+      throw {
+        code: "session_expired",
+        detail: SESSION_EXPIRED_MESSAGE,
+        message: SESSION_EXPIRED_MESSAGE
+      };
+    }
+
+    if (isExpiredJwt(refreshToken, 0)) {
+      clearAuth(SESSION_EXPIRED_MESSAGE);
+      throw {
+        code: "session_expired",
+        detail: SESSION_EXPIRED_MESSAGE,
+        message: SESSION_EXPIRED_MESSAGE
+      };
     }
 
     const response = await performFetch(buildUrl("/api/token/refresh/"), {
@@ -185,8 +248,8 @@ export function AuthProvider({ children }) {
     const payload = await parseResponse(response);
 
     if (!response.ok || !payload?.access) {
-      setAuth({ access: null, refresh: null, username: "" });
-      throw buildHttpError(response, payload, "Nao foi possivel renovar a sessao.");
+      clearAuth(SESSION_EXPIRED_MESSAGE);
+      throw buildHttpError(response, payload, SESSION_EXPIRED_MESSAGE);
     }
 
     setAuth((previous) => ({
@@ -230,6 +293,9 @@ export function AuthProvider({ children }) {
 
     const payload = await parseResponse(response);
     if (!response.ok) {
+      if (response.status === 401) {
+        clearAuth(SESSION_EXPIRED_MESSAGE);
+      }
       throw buildHttpError(response, payload, "A requisicao falhou.");
     }
     return payload;
@@ -252,6 +318,7 @@ export function AuthProvider({ children }) {
       refresh: payload.refresh,
       username: payload.user?.username ?? username
     });
+    setSessionNotice("");
     return payload;
   }
 
@@ -272,11 +339,16 @@ export function AuthProvider({ children }) {
       refresh: payload.refresh,
       username: payload.user?.username ?? username
     });
+    setSessionNotice("");
     return payload;
   }
 
   function logout() {
-    setAuth({ access: null, refresh: null, username: "" });
+    clearAuth("");
+  }
+
+  function clearSessionNotice() {
+    setSessionNotice("");
   }
 
   const user = useMemo(() => {
@@ -284,7 +356,7 @@ export function AuthProvider({ children }) {
     return {
       id: tokenPayload?.user_id ?? null,
       username: auth.username || "Usuario",
-      isAuthenticated: Boolean(auth.access && auth.refresh)
+      isAuthenticated: Boolean(auth.access && auth.refresh && !isExpiredJwt(auth.refresh, 0))
     };
   }, [auth.access, auth.refresh, auth.username]);
 
@@ -294,12 +366,14 @@ export function AuthProvider({ children }) {
       bootstrapped,
       isAuthenticated: user.isAuthenticated,
       user,
+      sessionNotice,
+      clearSessionNotice,
       login,
       signup,
       logout,
       request
     }),
-    [auth, bootstrapped, user],
+    [auth, bootstrapped, user, sessionNotice],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

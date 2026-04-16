@@ -18,9 +18,8 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path, re_path
-from rest_framework_simplejwt.views import TokenRefreshView
 
-from .auth_views import ProductTokenObtainPairView, SignupView
+from .auth_views import ProductTokenObtainPairView, ProductTokenRefreshView, SignupView
 from .views import FrontendAppView, HealthView, ReadinessView, RootView
 
 urlpatterns = [
@@ -29,7 +28,7 @@ urlpatterns = [
     path('ready/', ReadinessView.as_view(), name='ready'),
     path('admin/', admin.site.urls),
     path('api/token/', ProductTokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('api/token/refresh/', ProductTokenRefreshView.as_view(), name='token_refresh'),
     path('api/auth/signup/', SignupView.as_view(), name='signup'),
     path('hunter/', include('hunter.urls')),
     path('api-auth/', include('rest_framework.urls')),

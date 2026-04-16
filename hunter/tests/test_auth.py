@@ -45,6 +45,15 @@ class AuthApiTests(TestCase):
         self.assertIn("Nao foi possivel concluir o cadastro", response.data["detail"])
         self.assertIn("As senhas nao coincidem", response.data["field_errors"]["password_confirm"][0])
 
+    def test_signup_missing_fields_returns_safe_portuguese_errors(self) -> None:
+        response = self.client.post("/api/auth/signup/", {}, format="json")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["code"], "signup_validation_failed")
+        self.assertIn("Informe um nome de usuario", response.data["field_errors"]["username"][0])
+        self.assertIn("Informe uma senha", response.data["field_errors"]["password"][0])
+        self.assertIn("Confirme sua senha", response.data["field_errors"]["password_confirm"][0])
+
     def test_signup_validates_username_format(self) -> None:
         response = self.client.post(
             "/api/auth/signup/",
@@ -88,4 +97,32 @@ class AuthApiTests(TestCase):
         self.assertEqual(
             response.data["detail"],
             "Usuario ou senha nao conferem. Revise seus dados e tente novamente.",
+        )
+
+    def test_login_accepts_username_case_variation_without_leaking_lookup_state(self) -> None:
+        response = self.client.post(
+            "/api/token/",
+            {
+                "username": "EXISTING-USER",
+                "password": "super-secret-123",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["access"])
+        self.assertTrue(response.data["refresh"])
+
+    def test_refresh_invalid_token_returns_safe_session_message(self) -> None:
+        response = self.client.post(
+            "/api/token/refresh/",
+            {"refresh": "not-a-token"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.data["code"], "session_expired")
+        self.assertEqual(
+            response.data["detail"],
+            "Sua sessao expirou. Entre novamente para continuar.",
         )

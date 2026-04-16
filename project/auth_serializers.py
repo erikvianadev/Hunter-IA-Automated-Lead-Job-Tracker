@@ -5,6 +5,7 @@ import re
 from django.contrib.auth import get_user_model, password_validation
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils.translation import override
+from rest_framework.exceptions import AuthenticationFailed
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
@@ -46,9 +47,19 @@ class ProductTokenObtainPairSerializer(TokenObtainPairSerializer):
     }
 
     def validate(self, attrs):
+        username = str(attrs.get(self.username_field, "")).strip()
+        if username:
+            matches = list(
+                User.objects
+                .filter(username__iexact=username)
+                .values_list("username", flat=True)[:2]
+            )
+            if len(matches) == 1:
+                attrs[self.username_field] = matches[0]
+
         try:
             data = super().validate(attrs)
-        except Exception:
+        except AuthenticationFailed:
             ProductObservabilityService().record_journey_failure(
                 event_name=ProductEventName.LOGIN_FAILED,
                 source="auth.login",
@@ -70,6 +81,7 @@ class SignupSerializer(serializers.Serializer):
         trim_whitespace=True,
         error_messages={
             "blank": "Informe um nome de usuario para continuar.",
+            "required": "Informe um nome de usuario para continuar.",
             "max_length": "Use no maximo 150 caracteres no nome de usuario.",
         },
     )
@@ -79,6 +91,7 @@ class SignupSerializer(serializers.Serializer):
         style={"input_type": "password"},
         error_messages={
             "blank": "Informe uma senha para continuar.",
+            "required": "Informe uma senha para continuar.",
         },
     )
     password_confirm = serializers.CharField(
@@ -87,6 +100,7 @@ class SignupSerializer(serializers.Serializer):
         style={"input_type": "password"},
         error_messages={
             "blank": "Confirme sua senha para concluir o cadastro.",
+            "required": "Confirme sua senha para concluir o cadastro.",
         },
     )
 

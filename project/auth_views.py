@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from django.db import IntegrityError, transaction
 from rest_framework import status
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
+from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
@@ -20,6 +23,34 @@ class ProductTokenObtainPairView(TokenObtainPairView):
     serializer_class = ProductTokenObtainPairSerializer
     permission_classes = [AllowAny]
     authentication_classes = []
+
+
+class ProductTokenRefreshView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request, *args, **kwargs):
+        serializer = TokenRefreshSerializer(data=request.data)
+        try:
+            serializer.is_valid(raise_exception=True)
+        except ValidationError:
+            return Response(
+                {
+                    "code": "session_refresh_missing",
+                    "detail": "Nao foi possivel renovar sua sessao. Entre novamente para continuar.",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except (InvalidToken, TokenError):
+            return Response(
+                {
+                    "code": "session_expired",
+                    "detail": "Sua sessao expirou. Entre novamente para continuar.",
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        return Response(serializer.validated_data, status=status.HTTP_200_OK)
 
 
 class SignupView(APIView):
