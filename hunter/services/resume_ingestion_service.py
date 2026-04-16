@@ -157,7 +157,12 @@ class ResumeIngestionService:
         resume.parse_status = parse_status
         resume.extracted_text = extraction.text
         resume.extraction_diagnostics = diagnostics
-        resume.is_active = parse_status == ResumeParseStatus.COMPLETED
+        
+        # Recalibração: Permitir ativação para estados legítimos (Trusted)
+        # O ResumeSecurityService agora define quem é trusted.
+        trust_decision = self.security_service.evaluate(resume=resume)
+        resume.is_active = trust_decision.trusted
+        
         resume.save(
             update_fields=[
                 "parse_status",

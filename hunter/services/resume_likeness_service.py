@@ -165,6 +165,9 @@ class ResumeLikenessService:
         "figma",
         "analytics",
         "machine learning",
+        "estudante",
+        "aluno",
+        "student",
     )
     EXPERIENCE_VERBS = (
         "atuei",
@@ -233,7 +236,8 @@ class ResumeLikenessService:
 
     def __init__(self) -> None:
         config = getattr(settings, "RESUME_INGESTION", {})
-        self.min_confidence = float(config.get("MIN_RESUME_LIKENESS_CONFIDENCE", 0.35))
+        # Aumentamos o threshold de COMPLETED para 0.45 para separar currículos fracos
+        self.min_confidence = float(config.get("MIN_RESUME_LIKENESS_CONFIDENCE", 0.45))
 
     def evaluate(self, *, text: str) -> ResumeLikenessResult:
         normalized_text = self._normalize(text)
@@ -276,18 +280,27 @@ class ResumeLikenessService:
 
         unrelated_penalty = min(0.35, 0.08 * sum(len(values) for values in unrelated_hits.values()))
         confidence = max(0.0, min(1.0, confidence - unrelated_penalty))
+        
         strong_unrelated_document = self._is_strong_unrelated_document(
             section_count=section_count,
             unrelated_hits=unrelated_hits,
             contact_signals=contact_signals,
             experience_hits=experience_hits,
         )
+        
+        # Recalibração da lógica de status
         is_resume_like = confidence >= self.min_confidence and not strong_unrelated_document
+        
+        # Novo threshold para currículos fracos: 0.25
+        is_weak_resume = not is_resume_like and confidence >= 0.25 and not strong_unrelated_document
+
         status = self._choose_status(
             is_resume_like=is_resume_like,
+            is_weak_resume=is_weak_resume,
             confidence=confidence,
             strong_unrelated_document=strong_unrelated_document,
         )
+        
         diagnostics = {
             "resume_likeness_validated": True,
             "resume_likeness_confidence": round(confidence, 3),
@@ -305,7 +318,8 @@ class ResumeLikenessService:
             },
             "resume_likeness_unrelated_signals": unrelated_hits,
         }
-        if not is_resume_like:
+        
+        if not (is_resume_like or is_weak_resume):
             diagnostics.update(
                 {
                     "failure_reason": status,
@@ -317,8 +331,9 @@ class ResumeLikenessService:
                     ),
                 }
             )
+            
         return ResumeLikenessResult(
-            is_resume_like=is_resume_like,
+            is_resume_like=is_resume_like or is_weak_resume,
             status=status,
             confidence=round(confidence, 3),
             diagnostics=diagnostics,
@@ -354,8 +369,6 @@ class ResumeLikenessService:
         signals: set[str] = set()
         if re.search(r"\b[\w.+-]+@[\w.-]+\.[a-z]{2,}\b", text):
             signals.add("email")
-        if re.search(r"(linkedin\.com|github\.com|portfolio|curriculo lattes)", text):
-            signals.add("professional_link")
         if re.search(r"(?:\+?\d{1,3}[\s.-]?)?(?:\(?\d{2}\)?[\s.-]?)?\d{4,5}[\s.-]?\d{4}", text):
             signals.add("phone")
         return signals
@@ -409,14 +422,17 @@ class ResumeLikenessService:
         self,
         *,
         is_resume_like: bool,
+        is_weak_resume: bool,
         confidence: float,
         strong_unrelated_document: bool,
     ) -> str:
         if is_resume_like:
             return ResumeParseStatus.COMPLETED
+        if is_weak_resume:
+            return ResumeParseStatus.INSUFFICIENT_RESUME_SIGNALS
         if strong_unrelated_document:
             return ResumeParseStatus.DOCUMENT_NOT_RESUME_LIKE
-        if confidence >= self.min_confidence * 0.6:
+        if confidence >= 0.15:
             return ResumeParseStatus.BLOCKED_FOR_LOW_RESUME_CONFIDENCE
         return ResumeParseStatus.INSUFFICIENT_RESUME_SIGNALS
 

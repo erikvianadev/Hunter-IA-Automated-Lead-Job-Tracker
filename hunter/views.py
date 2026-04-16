@@ -58,6 +58,7 @@ from .services import (
     ProductEventName,
     ProductObservabilityService,
     ResumeAnalysisError,
+    ResumeTrustError,
     ResumeAnalysisService,
     ResumeIngestionService,
     ResumeProfileService,
@@ -229,11 +230,10 @@ class JobViewSet(ScopedActionThrottleMixin, viewsets.ModelViewSet):
 
         try:
             match = JobMatchingService().match(
-                owner=request.user,
                 resume=resume,
                 job=job,
             )
-        except (JobMatchingError, ResumeAnalysisError) as exc:
+        except (JobMatchingError, ResumeAnalysisError, ResumeTrustError) as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response(

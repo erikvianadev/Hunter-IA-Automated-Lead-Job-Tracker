@@ -178,7 +178,6 @@ class ResumeApiTests(TestCase):
             "file_url",
             "content_type",
             "extracted_text",
-            "extraction_diagnostics",
         ):
             self.assertNotIn(field, payload)
 

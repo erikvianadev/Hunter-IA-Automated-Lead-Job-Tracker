@@ -106,34 +106,48 @@ class ResumeSecurityService:
         diagnostics.setdefault("normalized_parse_status", normalized_status)
         diagnostics.setdefault("is_trusted_ingestion", False)
 
-        if normalized_status == ResumeParseStatus.COMPLETED:
-            if (
-                self._has_quality_diagnostics(original_diagnostics)
-                and (
-                    character_count < self.min_text_characters
-                    or word_count < self.min_word_count
-                )
-            ):
-                diagnostics.update(
-                    {
-                        "normalized_parse_status": ResumeParseStatus.INSUFFICIENT_TEXT,
-                        "is_trusted_ingestion": False,
-                        "minimum_trusted_characters": self.min_text_characters,
-                        "minimum_trusted_words": self.min_word_count,
-                    }
-                )
-                return ResumeTrustDecision(
-                    trusted=False,
-                    normalized_status=ResumeParseStatus.INSUFFICIENT_TEXT,
-                    message=STATUS_MESSAGES[ResumeParseStatus.INSUFFICIENT_TEXT],
-                    diagnostics=diagnostics,
-                )
+        # Estados que consideramos legítimos o suficiente para processamento (Trusted)
+        # 1. COMPLETED: Fluxo normal
+        # 2. INSUFFICIENT_RESUME_SIGNALS: Currículo legítimo mas fraco/curto
+        # 3. BLOCKED_FOR_LOW_RESUME_CONFIDENCE: Baixa confiança, mas não bloqueio duro
+        trusted_statuses = {
+            ResumeParseStatus.COMPLETED,
+            ResumeParseStatus.INSUFFICIENT_RESUME_SIGNALS,
+            ResumeParseStatus.BLOCKED_FOR_LOW_RESUME_CONFIDENCE,
+        }
 
+        if normalized_status in trusted_statuses:
+            # Se for COMPLETED, ainda validamos o mínimo de texto para evitar lixo
+            if normalized_status == ResumeParseStatus.COMPLETED:
+                if (
+                    self._has_quality_diagnostics(original_diagnostics)
+                    and (
+                        character_count < self.min_text_characters
+                        or word_count < self.min_word_count
+                    )
+                ):
+                    diagnostics.update(
+                        {
+                            "normalized_parse_status": ResumeParseStatus.INSUFFICIENT_TEXT,
+                            "is_trusted_ingestion": False,
+                            "minimum_trusted_characters": self.min_text_characters,
+                            "minimum_trusted_words": self.min_word_count,
+                        }
+                    )
+                    return ResumeTrustDecision(
+                        trusted=False,
+                        normalized_status=ResumeParseStatus.INSUFFICIENT_TEXT,
+                        message=STATUS_MESSAGES[ResumeParseStatus.INSUFFICIENT_TEXT],
+                        diagnostics=diagnostics,
+                    )
+
+            # Para INSUFFICIENT_RESUME_SIGNALS e BLOCKED_FOR_LOW_RESUME_CONFIDENCE, 
+            # permitimos passar como trusted para degradar graciosamente em vez de bloquear.
             diagnostics["is_trusted_ingestion"] = True
             return ResumeTrustDecision(
                 trusted=True,
-                normalized_status=ResumeParseStatus.COMPLETED,
-                message="Resume ingestion completed with enough text for downstream processing.",
+                normalized_status=normalized_status,
+                message=STATUS_MESSAGES.get(normalized_status, "Resume ingestion completed."),
                 diagnostics=diagnostics,
             )
 

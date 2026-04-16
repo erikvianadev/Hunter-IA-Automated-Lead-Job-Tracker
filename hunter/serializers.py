@@ -330,6 +330,9 @@ RESUME_PARSE_STATUS_DETAILS = {
     'quarantined_or_blocked_by_policy': 'O arquivo nao pode ser processado com seguranca.',
     'failed': 'Nao foi possivel processar esse curriculo agora.',
     'unsupported_structure': 'A estrutura do arquivo nao e suportada.',
+    'document_not_resume_like': 'O arquivo nao parece um curriculo utilizavel. Envie um CV real.',
+    'insufficient_resume_signals': 'Curriculo identificado, mas com poucos sinais profissionais para analise completa.',
+    'blocked_for_low_resume_confidence': 'Nao foi possivel confirmar sinais suficientes de curriculo neste arquivo.',
 }
 
 
@@ -346,6 +349,7 @@ class ResumeSerializer(serializers.ModelSerializer):
             'parse_status',
             'parse_status_detail',
             'is_active',
+            'extraction_diagnostics',
             'created_at',
             'updated_at',
         ]
