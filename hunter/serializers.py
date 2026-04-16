@@ -548,6 +548,61 @@ class DashboardRecommendedJobSerializer(serializers.Serializer):
     recommendation = serializers.CharField(read_only=True)
 
 
+class DashboardWeeklyPrioritySerializer(serializers.Serializer):
+    rank = serializers.IntegerField(read_only=True)
+    source = serializers.CharField(read_only=True)
+    source_id = serializers.JSONField(read_only=True, allow_null=True)
+    score = serializers.IntegerField(read_only=True)
+    title = serializers.CharField(read_only=True)
+    reason = serializers.CharField(read_only=True)
+    action = serializers.CharField(read_only=True)
+    cta_label = serializers.CharField(read_only=True)
+    cta_href = serializers.CharField(read_only=True)
+
+
+class DashboardApplicationAttentionSerializer(serializers.Serializer):
+    rank = serializers.IntegerField(read_only=True)
+    application_id = serializers.IntegerField(read_only=True)
+    job_id = serializers.IntegerField(read_only=True)
+    title = serializers.CharField(read_only=True)
+    company_name = serializers.CharField(read_only=True)
+    status = serializers.CharField(read_only=True)
+    status_label = serializers.CharField(read_only=True)
+    updated_at = serializers.DateTimeField(read_only=True)
+    days_since_update = serializers.IntegerField(read_only=True)
+    reason = serializers.CharField(read_only=True)
+    suggested_action = serializers.CharField(read_only=True)
+    missing_context = serializers.ListField(child=serializers.CharField(), read_only=True)
+    objective_criteria = serializers.ListField(child=serializers.CharField(), read_only=True)
+    score = serializers.IntegerField(read_only=True)
+
+
+class DashboardJobToActSerializer(DashboardRecommendedJobSerializer):
+    rank = serializers.IntegerField(read_only=True)
+    reason = serializers.CharField(read_only=True)
+    suggested_action = serializers.CharField(read_only=True)
+    score = serializers.IntegerField(read_only=True)
+
+
+class DashboardResumeGapSerializer(serializers.Serializer):
+    rank = serializers.IntegerField(read_only=True)
+    gap_type = serializers.CharField(read_only=True)
+    title = serializers.CharField(read_only=True)
+    impact = serializers.CharField(read_only=True)
+    guidance = serializers.CharField(read_only=True)
+    score = serializers.IntegerField(read_only=True)
+
+
+class DashboardWeeklyControlSerializer(serializers.Serializer):
+    headline = serializers.CharField(read_only=True)
+    summary = serializers.CharField(read_only=True)
+    main_priority = DashboardWeeklyPrioritySerializer(read_only=True, allow_null=True)
+    secondary_priorities = DashboardWeeklyPrioritySerializer(many=True, read_only=True)
+    applications_needing_attention = DashboardApplicationAttentionSerializer(many=True, read_only=True)
+    jobs_to_act_now = DashboardJobToActSerializer(many=True, read_only=True)
+    resume_gaps = DashboardResumeGapSerializer(many=True, read_only=True)
+
+
 class DashboardSerializer(serializers.Serializer):
     summary = DashboardSummarySerializer(read_only=True)
     active_resume = ResumeSerializer(read_only=True, allow_null=True)
@@ -555,6 +610,7 @@ class DashboardSerializer(serializers.Serializer):
     seniority_assessment = SeniorityAssessmentSerializer(read_only=True, allow_null=True)
     top_matches = DashboardJobMatchSerializer(many=True, read_only=True)
     recommended_jobs = DashboardRecommendedJobSerializer(many=True, read_only=True)
+    weekly_control = DashboardWeeklyControlSerializer(read_only=True)
     priority_actions = DashboardPriorityActionSerializer(many=True, read_only=True)
     profile_insights = DashboardProfileInsightsSerializer(read_only=True)
     activation = DashboardActivationSerializer(read_only=True)

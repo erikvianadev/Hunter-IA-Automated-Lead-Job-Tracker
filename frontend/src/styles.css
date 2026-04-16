@@ -732,6 +732,76 @@ select:focus {
   gap: 14px;
 }
 
+.weekly-control-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
+  gap: 18px;
+  align-items: stretch;
+}
+
+.weekly-priority-hero {
+  display: grid;
+  gap: 18px;
+  padding: 28px;
+  border-radius: var(--radius-xl);
+  border: 1px solid color-mix(in srgb, var(--accent) 26%, transparent);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 74%, var(--surface-strong)), color-mix(in srgb, var(--secondary-soft) 34%, var(--surface-strong))),
+    var(--surface-elevated);
+  box-shadow: var(--shadow);
+  min-width: 0;
+}
+
+.weekly-priority-hero h2 {
+  margin: 8px 0 10px;
+  font-size: clamp(1.8rem, 2.6vw, 3rem);
+  line-height: 1.02;
+  overflow-wrap: anywhere;
+}
+
+.weekly-priority-hero p,
+.weekly-secondary-item p,
+.application-attention-item p,
+.job-action-item p {
+  margin: 0;
+}
+
+.weekly-priority-hero__eyebrow {
+  color: var(--accent-strong);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.weekly-priority-hero__reason {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.weekly-priority-hero__reason div,
+.weekly-secondary-item {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-strong) 74%, transparent);
+  min-width: 0;
+}
+
+.weekly-priority-hero__reason span {
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.weekly-secondary-list {
+  display: grid;
+  gap: 12px;
+}
+
 .activation-progress {
   height: 10px;
   border-radius: 999px;
@@ -1049,6 +1119,7 @@ select:focus {
 @media (max-width: 1180px) {
   .auth-layout,
   .app-shell,
+  .weekly-control-grid,
   .two-column-grid,
   .two-column-grid--wide-left {
     grid-template-columns: 1fr;
@@ -1064,12 +1135,13 @@ select:focus {
   }
 
   .hero-metrics,
-  .stats-grid,
-  .plan-grid,
-  .insight-list,
-  .application-command-panel,
-  .context-grid,
-  .jobs-filter-grid {
+    .stats-grid,
+    .plan-grid,
+    .insight-list,
+    .weekly-priority-hero__reason,
+    .application-command-panel,
+    .context-grid,
+    .jobs-filter-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

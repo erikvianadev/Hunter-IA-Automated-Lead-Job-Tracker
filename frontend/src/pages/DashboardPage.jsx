@@ -16,6 +16,26 @@ function hasResumeUsableText(resume) {
   return extractedText.length >= 40 && extractedText.split(/\s+/).length >= 8;
 }
 
+function getPrioritySourceLabel(source) {
+  const labels = {
+    application: "Candidatura",
+    job: "Vaga",
+    jobs: "Vagas",
+    resume: "Curriculo",
+    resume_gap: "Curriculo",
+    setup: "Setup"
+  };
+
+  return labels[source] ?? "Prioridade";
+}
+
+function getPrioritySourceTone(source) {
+  if (source === "application") return "warning";
+  if (source === "job" || source === "jobs") return "medium";
+  if (source === "resume" || source === "resume_gap") return "good";
+  return "muted";
+}
+
 export function DashboardPage() {
   const { request } = useAuth();
   const [dashboard, setDashboard] = useState(null);
@@ -42,7 +62,12 @@ export function DashboardPage() {
 
   const summary = dashboard?.summary ?? {};
   const profileInsights = dashboard?.profile_insights ?? {};
-  const priorityActions = dashboard?.priority_actions ?? [];
+  const weeklyControl = dashboard?.weekly_control ?? {};
+  const mainPriority = weeklyControl.main_priority;
+  const secondaryPriorities = weeklyControl.secondary_priorities ?? [];
+  const applicationsNeedingAttention = weeklyControl.applications_needing_attention ?? [];
+  const jobsToActNow = weeklyControl.jobs_to_act_now ?? [];
+  const resumeGaps = weeklyControl.resume_gaps ?? [];
   const activation = dashboard?.activation;
   const activationChecklist = activation?.checklist ?? [];
   const nextBestAction = activation?.next_best_action;
@@ -106,6 +131,177 @@ export function DashboardPage() {
               }
             />
           </section>
+
+          {mainPriority ? (
+            <section className="weekly-control-grid">
+              <article className="weekly-priority-hero">
+                <div className="inline-meta">
+                  <StatusBadge value="priority_1" label="Prioridade 1 da semana" tone="warning" />
+                  <StatusBadge
+                    value={mainPriority.source}
+                    label={getPrioritySourceLabel(mainPriority.source)}
+                    tone={getPrioritySourceTone(mainPriority.source)}
+                  />
+                </div>
+                <div>
+                  <span className="weekly-priority-hero__eyebrow">{weeklyControl.headline ?? "Mission Control semanal"}</span>
+                  <h2>{mainPriority.title}</h2>
+                  <p>{weeklyControl.summary}</p>
+                </div>
+                <div className="weekly-priority-hero__reason">
+                  <div>
+                    <span>Por que agora</span>
+                    <p>{mainPriority.reason}</p>
+                  </div>
+                  <div>
+                    <span>Acao recomendada</span>
+                    <p>{mainPriority.action}</p>
+                  </div>
+                </div>
+                <Link className="button button--primary" to={mainPriority.cta_href}>
+                  {mainPriority.cta_label}
+                </Link>
+              </article>
+
+              <SectionCard
+                title="Fila executiva"
+                subtitle="O que fazer depois da prioridade 1, em ordem de utilidade pratica."
+              >
+                {secondaryPriorities.length ? (
+                  <div className="weekly-secondary-list">
+                    {secondaryPriorities.map((priority) => (
+                      <article className="weekly-secondary-item" key={`${priority.source}-${priority.source_id ?? priority.rank}`}>
+                        <div className="inline-meta">
+                          <StatusBadge
+                            value={`priority_${Math.min(priority.rank, 3)}`}
+                            label={`Prioridade ${priority.rank}`}
+                            tone={priority.rank === 2 ? "medium" : "muted"}
+                          />
+                          <StatusBadge
+                            value={priority.source}
+                            label={getPrioritySourceLabel(priority.source)}
+                            tone={getPrioritySourceTone(priority.source)}
+                          />
+                        </div>
+                        <strong>{priority.title}</strong>
+                        <p>{priority.reason}</p>
+                        <p className="muted-copy">{priority.action}</p>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState
+                    eyebrow="Sem fila secundaria"
+                    title="A semana esta concentrada em uma acao principal"
+                    description="Nao ha sinais suficientes para criar outras prioridades sem aumentar ruido."
+                    nextStep="Resolva a prioridade 1 e atualize o painel para recalcular a fila."
+                  />
+                )}
+              </SectionCard>
+            </section>
+          ) : null}
+
+          <section className="two-column-grid two-column-grid--wide-left">
+            <SectionCard
+              title="Candidaturas em atencao"
+              subtitle="Entram aqui apenas etapas quentes, falta de atualizacao ou contexto incompleto."
+              actions={<Link className="button button--ghost" to="/applications">Ver candidaturas</Link>}
+            >
+              {applicationsNeedingAttention.length ? (
+                <div className="list-stack">
+                  {applicationsNeedingAttention.map((application) => (
+                    <article className="list-item application-attention-item" key={application.application_id}>
+                      <div>
+                        <div className="inline-meta">
+                          <StatusBadge value={`priority_${Math.min(application.rank, 3)}`} label={`#${application.rank}`} tone={application.rank === 1 ? "warning" : "medium"} />
+                          <StatusBadge value={application.status} label={application.status_label} />
+                        </div>
+                        <strong>{application.title}</strong>
+                        <p>{application.company_name}</p>
+                        <p>{application.reason}</p>
+                        <p className="muted-copy">{application.suggested_action}</p>
+                        {application.objective_criteria?.length ? (
+                          <div className="selection-pills">
+                            {application.objective_criteria.map((criterion) => (
+                              <span key={criterion}>{criterion}</span>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                      <span className="muted-copy">Atualizada em {formatShortDate(application.updated_at)}</span>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState
+                  eyebrow="Sem alerta operacional"
+                  title="Nenhuma candidatura pede foco imediato"
+                  description="Nao encontramos etapa quente, atraso relevante ou falta critica de contexto no pipeline atual."
+                  nextStep="Use esta folga para agir nas vagas com melhor match ou melhorar o curriculo ativo."
+                />
+              )}
+            </SectionCard>
+
+            <SectionCard
+              title="Vagas para agir agora"
+              subtitle="Matches fortes ainda sem candidatura em andamento."
+              actions={<Link className="button button--ghost" to="/jobs">Abrir vagas</Link>}
+            >
+              {jobsToActNow.length ? (
+                <div className="list-stack">
+                  {jobsToActNow.map((job) => (
+                    <article className="list-item job-action-item" key={job.job_id}>
+                      <div>
+                        <div className="inline-meta">
+                          <StatusBadge value={`priority_${Math.min(job.rank, 3)}`} label={`#${job.rank}`} tone={job.rank === 1 ? "warning" : "medium"} />
+                          <StatusBadge value="ready" label={`${job.match_score}/100 match`} tone={job.match_score >= 85 ? "good" : "medium"} />
+                        </div>
+                        <strong>{job.title}</strong>
+                        <p>{job.company_name}{job.location ? ` - ${job.location}` : ""}</p>
+                        <p>{job.reason}</p>
+                        <p className="muted-copy">{job.suggested_action}</p>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState
+                  eyebrow="Sem vaga acionavel"
+                  title="Nenhum match forte parado agora"
+                  description="As vagas atuais nao passaram do corte de acao imediata ou ja estao no pipeline."
+                  nextStep="Busque novas vagas ou atualize matches depois de ajustar o curriculo."
+                />
+              )}
+            </SectionCard>
+          </section>
+
+          <SectionCard
+            title="Lacunas do curriculo que importam agora"
+            subtitle="Apenas pontos com impacto provavel nas proximas candidaturas ou vagas fortes."
+            actions={<Link className="button button--ghost" to="/resumes">Abrir curriculos</Link>}
+          >
+            {resumeGaps.length ? (
+              <div className="priority-action-grid">
+                {resumeGaps.map((gap) => (
+                  <article className="priority-card" key={gap.gap_type}>
+                    <div className="inline-meta">
+                      <StatusBadge value={`priority_${Math.min(gap.rank, 3)}`} label={`#${gap.rank}`} tone={gap.rank === 1 ? "warning" : "muted"} />
+                    </div>
+                    <strong>{gap.title}</strong>
+                    <p>{gap.impact}</p>
+                    <p className="muted-copy">{gap.guidance}</p>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                eyebrow="Sem lacuna elevada"
+                title="Nada do curriculo precisa subir para o topo agora"
+                description="Nao ha analise pronta ou nenhuma lacuna atual superou o corte de impacto semanal."
+                nextStep="Use as candidaturas e vagas acionaveis como foco principal da semana."
+              />
+            )}
+          </SectionCard>
 
           {activation ? (
             <section className="two-column-grid">
@@ -230,38 +426,7 @@ export function DashboardPage() {
             </SectionCard>
           </section>
 
-          <section className="two-column-grid">
-            <SectionCard title="Proximos passos" subtitle="Acoes prioritarias para manter seu progresso visivel e consistente.">
-              {priorityActions.length ? (
-                <div className="list-stack">
-                  {priorityActions.map((item) => (
-                    <article className="list-item" key={`${item.action_type}-${item.priority}`}>
-                      <div>
-                        <div className="inline-meta">
-                          <strong>{item.title}</strong>
-                          <StatusBadge
-                            value={`priority_${item.priority}`}
-                            label={`Prioridade ${item.priority}`}
-                            tone={item.priority === 1 ? "warning" : item.priority === 2 ? "medium" : "muted"}
-                          />
-                        </div>
-                        <p>{item.detail}</p>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              ) : (
-                <EmptyState
-                  eyebrow="Sem prioridades abertas"
-                  title="Tudo sob controle por aqui"
-                  description="Seu setup atual ja cobre os passos essenciais da ativacao e nao ha nenhum bloqueio imediato visivel."
-                  nextStep="Use Vagas para ampliar a shortlist ou acompanhe Candidaturas para manter o ritmo."
-                  action={<Link className="button button--ghost" to="/jobs">Buscar vagas</Link>}
-                  secondaryAction={<Link className="button button--ghost" to="/applications">Ver candidaturas</Link>}
-                />
-              )}
-            </SectionCard>
-
+          <section>
             <SectionCard title="Previa premium" subtitle="Uma amostra do tipo de orientacao que voce libera com um diagnostico mais profundo.">
               {preview ? (
                 <div className="detail-stack">
