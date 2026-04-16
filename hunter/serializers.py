@@ -261,6 +261,9 @@ class BillingSubscriptionSerializer(serializers.Serializer):
     current_period_end = serializers.DateTimeField(read_only=True, allow_null=True)
     canceled_at = serializers.DateTimeField(read_only=True, allow_null=True)
     expires_at = serializers.DateTimeField(read_only=True, allow_null=True)
+    access_until = serializers.DateTimeField(read_only=True, allow_null=True)
+    is_entitled = serializers.BooleanField(read_only=True)
+    access_state = serializers.CharField(read_only=True)
     features = serializers.ListField(child=serializers.CharField(), read_only=True)
     last_invoice = BillingInvoiceSerializer(read_only=True, allow_null=True)
 
@@ -271,8 +274,29 @@ class BillingOverviewSerializer(serializers.Serializer):
 
 
 class BillingSubscribeSerializer(serializers.Serializer):
-    plan_code = serializers.CharField(max_length=32)
-    billing_cycle = serializers.CharField(max_length=16)
+    plan_code = serializers.CharField(
+        max_length=32,
+        trim_whitespace=True,
+        error_messages={
+            "blank": "Escolha um plano para continuar.",
+            "required": "Escolha um plano para continuar.",
+            "max_length": "A opcao de plano informada nao e valida.",
+        },
+    )
+    billing_cycle = serializers.CharField(
+        max_length=16,
+        trim_whitespace=True,
+        error_messages={
+            "blank": "Escolha um ciclo de cobranca para continuar.",
+            "required": "Escolha um ciclo de cobranca para continuar.",
+            "max_length": "O ciclo de cobranca informado nao e valido.",
+        },
+    )
+
+    def validate(self, attrs):
+        attrs["plan_code"] = attrs["plan_code"].lower()
+        attrs["billing_cycle"] = attrs["billing_cycle"].lower()
+        return attrs
 
 
 class BillingCheckoutSessionSerializer(serializers.Serializer):

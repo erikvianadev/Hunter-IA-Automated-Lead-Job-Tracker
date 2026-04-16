@@ -214,6 +214,7 @@ REST_FRAMEWORK = {
         'rest_framework.filters.SearchFilter',
         'rest_framework.filters.OrderingFilter',
     ],
+    'EXCEPTION_HANDLER': 'project.api_exceptions.product_exception_handler',
 }
 
 RESUME_INGESTION = {

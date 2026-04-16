@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -60,6 +61,8 @@ class BillingApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["subscription"]["plan_code"], BillingService.PLAN_FREE)
         self.assertEqual(response.data["subscription"]["billing_cycle"], "free")
+        self.assertTrue(response.data["subscription"]["is_entitled"])
+        self.assertEqual(response.data["subscription"]["access_state"], "active")
         self.assertIsNone(response.data["subscription"]["last_invoice"])
         self.assertEqual(len(response.data["plans"]), 3)
 
@@ -107,7 +110,36 @@ class BillingApiTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["code"], "billing_action_unavailable")
         self.assertIn("nao precisa de checkout", response.data["detail"].lower())
+
+    def test_subscribe_blocks_duplicate_checkout_for_current_plan(self) -> None:
+        BillingSubscription.objects.create(
+            owner=self.user,
+            plan_code=BillingService.PLAN_PRO,
+            billing_cycle="monthly",
+            status="active",
+            price_amount="29.90",
+            currency="BRL",
+            stripe_customer_id="cus_test_123",
+            stripe_subscription_id="sub_test_123",
+            auto_renew=True,
+            started_at=timezone.now() - timedelta(days=3),
+            current_period_end=timezone.now() + timedelta(days=27),
+        )
+
+        response = self.client.post(
+            "/hunter/api/billing/subscribe/",
+            {
+                "plan_code": BillingService.PLAN_PRO,
+                "billing_cycle": "monthly",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["code"], "billing_action_unavailable")
+        self.assertIn("ja esta ativo", response.data["detail"].lower())
 
     @patch("hunter.services.billing_service.StripeBillingGatewayService.cancel_subscription")
     def test_cancel_marks_remote_subscription_as_canceled_but_keeps_access_window(
@@ -187,6 +219,33 @@ class BillingApiTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["subscription"]["plan_code"], BillingService.PLAN_FREE)
+
+    def test_expired_active_subscription_falls_back_to_free_entitlement(self) -> None:
+        BillingSubscription.objects.create(
+            owner=self.user,
+            plan_code=BillingService.PLAN_PRO,
+            billing_cycle="monthly",
+            status="active",
+            price_amount="29.90",
+            currency="BRL",
+            stripe_customer_id="cus_test_expired",
+            stripe_subscription_id="sub_test_expired",
+            auto_renew=True,
+            started_at=timezone.now() - timedelta(days=60),
+            current_period_end=timezone.now() - timedelta(days=30),
+        )
+
+        response = self.client.get("/hunter/api/billing/subscription/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["subscription"]["plan_code"], BillingService.PLAN_FREE)
+        self.assertEqual(response.data["subscription"]["features"], [
+            "resume_upload",
+            "resume_analysis",
+            "seniority_assessment",
+            "job_matching",
+            "dashboard",
+        ])
 
     def test_subscription_overview_ignores_invoice_owned_by_another_user(self) -> None:
         subscription = BillingSubscription.objects.create(
@@ -326,6 +385,144 @@ class BillingApiTests(TestCase):
         self.assertEqual(invoice.stripe_invoice_id, "in_test_123")
         self.assertEqual(str(invoice.amount), "29.90")
         self.assertEqual(invoice.status, "paid")
+
+    @patch("hunter.services.billing_service.StripeBillingGatewayService.retrieve_subscription")
+    def test_webhook_invoice_without_subscription_id_does_not_attach_blank_local_subscription(
+        self,
+        mock_retrieve_subscription,
+    ) -> None:
+        BillingSubscription.objects.create(
+            owner=self.user,
+            plan_code=BillingService.PLAN_PRO,
+            billing_cycle="monthly",
+            status="active",
+            price_amount="29.90",
+            currency="BRL",
+            stripe_customer_id="",
+            stripe_subscription_id="",
+            auto_renew=True,
+            started_at=timezone.now(),
+            current_period_end=timezone.now() + timedelta(days=30),
+        )
+        payload = {
+            "type": "invoice.paid",
+            "data": {
+                "object": {
+                    "id": "in_without_subscription",
+                    "amount_paid": 2990,
+                    "currency": "brl",
+                    "created": 1775900000,
+                }
+            },
+        }
+
+        response = self.client.post(
+            "/hunter/api/billing/webhook/",
+            data=json.dumps(payload),
+            content_type="application/json",
+            **{"HTTP_STRIPE_SIGNATURE": self._build_signature(payload)},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(BillingInvoice.objects.filter(stripe_invoice_id="in_without_subscription").exists())
+        mock_retrieve_subscription.assert_not_called()
+
+    def test_subscription_webhook_without_customer_does_not_match_blank_customer_record(self) -> None:
+        BillingSubscription.objects.create(
+            owner=self.user,
+            plan_code=BillingService.PLAN_PRO,
+            billing_cycle="monthly",
+            status="active",
+            price_amount="29.90",
+            currency="BRL",
+            stripe_customer_id="",
+            stripe_subscription_id="sub_existing_blank_customer",
+            auto_renew=True,
+            started_at=timezone.now(),
+            current_period_end=timezone.now() + timedelta(days=30),
+        )
+        payload = {
+            "type": "customer.subscription.updated",
+            "data": {
+                "object": {
+                    "id": "sub_unrelated_no_customer",
+                    "status": "active",
+                    "cancel_at_period_end": False,
+                    "current_period_end": 1778400000,
+                    "start_date": 1775808000,
+                    "currency": "brl",
+                    "metadata": {
+                        "plan_code": BillingService.PLAN_PRO,
+                        "billing_cycle": "monthly",
+                    },
+                    "items": {
+                        "data": [
+                            {
+                                "price": {
+                                    "id": "price_monthly_123",
+                                    "unit_amount": 2990,
+                                }
+                            }
+                        ]
+                    },
+                }
+            },
+        }
+
+        response = self.client.post(
+            "/hunter/api/billing/webhook/",
+            data=json.dumps(payload),
+            content_type="application/json",
+            **{"HTTP_STRIPE_SIGNATURE": self._build_signature(payload)},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(
+            BillingSubscription.objects.filter(stripe_subscription_id="sub_unrelated_no_customer").exists()
+        )
+
+    def test_subscription_webhook_without_subscription_id_is_ignored(self) -> None:
+        BillingSubscription.objects.create(
+            owner=self.user,
+            plan_code=BillingService.PLAN_PRO,
+            billing_cycle="monthly",
+            status="active",
+            price_amount="29.90",
+            currency="BRL",
+            stripe_customer_id="cus_existing_blank_subscription",
+            stripe_subscription_id="",
+            auto_renew=True,
+            started_at=timezone.now(),
+            current_period_end=timezone.now() + timedelta(days=30),
+        )
+        payload = {
+            "type": "customer.subscription.updated",
+            "data": {
+                "object": {
+                    "customer": "cus_existing_blank_subscription",
+                    "status": "active",
+                    "cancel_at_period_end": False,
+                    "current_period_end": 1778400000,
+                    "start_date": 1775808000,
+                    "currency": "brl",
+                    "metadata": {
+                        "owner_id": str(self.user.id),
+                        "plan_code": BillingService.PLAN_PRO,
+                        "billing_cycle": "monthly",
+                    },
+                }
+            },
+        }
+
+        response = self.client.post(
+            "/hunter/api/billing/webhook/",
+            data=json.dumps(payload),
+            content_type="application/json",
+            **{"HTTP_STRIPE_SIGNATURE": self._build_signature(payload)},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(BillingSubscription.objects.filter(owner=self.user).count(), 1)
 
     def test_webhook_rejects_invalid_signature(self) -> None:
         payload = {

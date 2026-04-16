@@ -6,7 +6,7 @@ import { useAuth } from "../context/AuthContext";
 import { getErrorMessage } from "../lib/utils";
 
 export function LoginPage() {
-  const { isAuthenticated, login } = useAuth();
+  const { isAuthenticated, login, sessionNotice, clearSessionNotice } = useAuth();
   const [form, setForm] = useState({
     username: "",
     password: ""
@@ -22,6 +22,7 @@ export function LoginPage() {
     event.preventDefault();
     setSubmitting(true);
     setError("");
+    clearSessionNotice();
 
     try {
       await login(form);
@@ -62,6 +63,13 @@ export function LoginPage() {
           <span className="form-card__eyebrow">Entrar</span>
           <h2>Bem-vindo de volta</h2>
           <p>Entre para continuar seu progresso com visibilidade sobre currículo, vagas e próximos passos.</p>
+
+          {sessionNotice ? (
+            <div className="notice notice--warning">
+              <strong>Entre novamente</strong>
+              <p>{sessionNotice}</p>
+            </div>
+          ) : null}
 
           <form className="stack" onSubmit={handleSubmit}>
             <label className="field">

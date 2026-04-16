@@ -442,7 +442,10 @@ class ResumeViewSet(
                 feature_code=BillingService.FEATURE_RESUME_COMPARISON,
             )
         except BillingAccessError as exc:
-            return Response({"detail": str(exc)}, status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {"code": "billing_feature_locked", "detail": str(exc)},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         raw_ids = (request.query_params.get('ids') or "").strip()
         resume_ids: list[int] | None = None
@@ -471,7 +474,10 @@ class ResumeViewSet(
                 feature_code=BillingService.FEATURE_PREMIUM_REPORTS,
             )
         except BillingAccessError as exc:
-            return Response({"detail": str(exc)}, status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {"code": "billing_feature_locked", "detail": str(exc)},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         payload = ResumeReportService().build(resume=resume)
         serializer = ResumeReportSerializer(
@@ -749,7 +755,10 @@ class BillingViewSet(viewsets.GenericViewSet):
                 billing_cycle=serializer.validated_data['billing_cycle'],
             )
         except BillingError as exc:
-            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"code": "billing_action_unavailable", "detail": str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         response_serializer = BillingCheckoutSessionSerializer(payload)
         return Response(response_serializer.data, status=status.HTTP_200_OK)
@@ -759,7 +768,10 @@ class BillingViewSet(viewsets.GenericViewSet):
         try:
             payload = BillingService().cancel(owner=request.user)
         except BillingError as exc:
-            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"code": "billing_action_unavailable", "detail": str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         serializer = BillingSubscriptionSerializer(payload)
         return Response(serializer.data, status=status.HTTP_200_OK)
