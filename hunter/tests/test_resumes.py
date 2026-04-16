@@ -907,6 +907,32 @@ class ResumeApiTests(TestCase):
             response.data["extraction_diagnostics"]["minimum_resume_likeness_confidence"],
         )
 
+    def test_weak_but_legitimate_resume_is_accepted_as_trusted_but_degraded(self) -> None:
+        upload = SimpleUploadedFile(
+            "minimal-cv.docx",
+            build_docx_bytes(
+                "Joao Silva",
+                "Desenvolvedor",
+                "Atuei em projetos de software recentemente.",
+            ),
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+
+        response = self.client.post(
+            "/hunter/api/resumes/",
+            {"file": upload},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        # Deve ser INSUFFICIENT_RESUME_SIGNALS ou COMPLETED, mas o importante é ser is_active=True
+        self.assertTrue(response.data["is_active"])
+        self.assertIn(response.data["parse_status"], [
+            ResumeParseStatus.COMPLETED,
+            ResumeParseStatus.INSUFFICIENT_RESUME_SIGNALS,
+            ResumeParseStatus.BLOCKED_FOR_LOW_RESUME_CONFIDENCE
+        ])
+
     def test_downstream_analysis_and_match_are_blocked_for_non_resume_like_file(self) -> None:
         upload = SimpleUploadedFile(
             "manual.docx",

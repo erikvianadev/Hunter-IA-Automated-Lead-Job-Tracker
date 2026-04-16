@@ -110,6 +110,7 @@ class ResumeSecurityService:
         # 1. COMPLETED: Fluxo normal
         # 2. INSUFFICIENT_RESUME_SIGNALS: Currículo legítimo mas fraco/curto
         # 3. BLOCKED_FOR_LOW_RESUME_CONFIDENCE: Baixa confiança, mas não bloqueio duro
+        # 4. INSUFFICIENT_TEXT: Permitimos passar se tiver o mínimo de sinais de currículo (opcional, mas vamos manter o foco nos 3 acima)
         trusted_statuses = {
             ResumeParseStatus.COMPLETED,
             ResumeParseStatus.INSUFFICIENT_RESUME_SIGNALS,

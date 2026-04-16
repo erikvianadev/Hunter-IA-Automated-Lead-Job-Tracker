@@ -177,6 +177,23 @@ class ResumeAnalysisApiTests(TestCase):
         self.assertEqual(second_response.status_code, 429)
         self.assertEqual(second_response.data["code"], "rate_limited")
 
+    def test_analyzing_degraded_trusted_resume_succeeds(self) -> None:
+        # Resume com status 'insufficient_resume_signals' deve ser analisável se for trusted
+        resume = Resume.objects.create(
+            owner=self.user,
+            file="resumes/user_1/weak.docx",
+            original_filename="weak.docx",
+            extracted_text="Joao Silva. Desenvolvedor Python. Experiencia: Atuei em projetos de software recentemente por 2 anos.",
+            parse_status="insufficient_resume_signals",
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+
+        response = self.client.post(f"/hunter/api/resumes/{resume.id}/analyze/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("overall_score", response.data)
+        self.assertTrue(ResumeAnalysis.objects.filter(resume=resume).exists())
+
     def test_missing_analysis_returns_not_found(self) -> None:
         resume = Resume.objects.create(
             owner=self.user,

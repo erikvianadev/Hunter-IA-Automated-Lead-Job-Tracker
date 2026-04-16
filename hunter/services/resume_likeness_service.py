@@ -289,16 +289,20 @@ class ResumeLikenessService:
         )
         
         # Recalibração da lógica de status
-        is_resume_like = confidence >= self.min_confidence and not strong_unrelated_document
+        # Se houver seções claras ou experiência/contato, reduzimos o peso do strong_unrelated
+        # para evitar que currículos reais de advogados ou contadores sejam bloqueados.
+        has_strong_resume_signals = section_count >= 2 or contact_signals or experience_hits
         
-        # Novo threshold para currículos fracos: 0.25
-        is_weak_resume = not is_resume_like and confidence >= 0.25 and not strong_unrelated_document
+        is_resume_like = confidence >= self.min_confidence and not (strong_unrelated_document and not has_strong_resume_signals)
+        
+        # Novo threshold para currículos fracos: 0.15 (reduzido de 0.25 para ser mais permissivo com currículos legítimos mas curtos)
+        is_weak_resume = not is_resume_like and confidence >= 0.15 and not (strong_unrelated_document and not has_strong_resume_signals)
 
         status = self._choose_status(
             is_resume_like=is_resume_like,
             is_weak_resume=is_weak_resume,
             confidence=confidence,
-            strong_unrelated_document=strong_unrelated_document,
+            strong_unrelated_document=strong_unrelated_document and not has_strong_resume_signals,
         )
         
         diagnostics = {
@@ -432,9 +436,13 @@ class ResumeLikenessService:
             return ResumeParseStatus.INSUFFICIENT_RESUME_SIGNALS
         if strong_unrelated_document:
             return ResumeParseStatus.DOCUMENT_NOT_RESUME_LIKE
-        if confidence >= 0.15:
+        
+        # Se chegou aqui, não é nem resume_like nem weak_resume.
+        # Se a confiança for mínima mas não zero, classificamos como bloqueio por baixa confiança.
+        if confidence >= 0.05:
             return ResumeParseStatus.BLOCKED_FOR_LOW_RESUME_CONFIDENCE
-        return ResumeParseStatus.INSUFFICIENT_RESUME_SIGNALS
+            
+        return ResumeParseStatus.DOCUMENT_NOT_RESUME_LIKE
 
     def _contains_phrase(self, text: str, phrase: str) -> bool:
         normalized_phrase = self._normalize(phrase)
