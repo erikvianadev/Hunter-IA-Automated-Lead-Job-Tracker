@@ -130,6 +130,38 @@ function getJobRecencyLabel(job) {
   return `${job.date_posted ? "Publicada em" : "Adicionada em"} ${formatShortDate(value)} | ${formatRelativeDate(value)}`;
 }
 
+function getJobWorkflowNextAction(job) {
+  if (job.application_status) {
+    return {
+      title: `Acompanhar candidatura ${titleize(job.application_status).toLowerCase()}`,
+      detail: "Esta vaga ja esta no pipeline. Use Candidaturas para atualizar etapa, notas e contexto.",
+      tone: "medium"
+    };
+  }
+
+  if (job.is_saved && job.current_match) {
+    return {
+      title: "Decidir se vira candidatura",
+      detail: `Match atual de ${job.current_match.match_score}/100. Revise a recomendacao e marque como aplicada se fizer sentido.`,
+      tone: "medium"
+    };
+  }
+
+  if (job.is_saved) {
+    return {
+      title: "Completar contexto antes de aplicar",
+      detail: "A vaga esta salva. Atualize o match ou registre por que ela merece entrar no pipeline.",
+      tone: "warning"
+    };
+  }
+
+  return {
+    title: "Salvar para revisar com calma",
+    detail: "Salve a vaga para manter no radar, comparar aderencia e decidir a candidatura sem perder contexto.",
+    tone: "muted"
+  };
+}
+
 function buildSearchSummary(count, shown, filters) {
   const parts = [];
   if (filters.search) parts.push(`termo "${filters.search}"`);
@@ -215,6 +247,7 @@ export function JobsPage() {
     () => getMatchDecisionPresentation(selectedJob?.current_match ?? {}),
     [selectedJob],
   );
+  const selectedJobWorkflowAction = useMemo(() => getJobWorkflowNextAction(selectedJob ?? {}), [selectedJob]);
   const providerSummary = useMemo(() => getProviderSummary(scrapeSummary), [scrapeSummary]);
   const providerBreakdown = useMemo(() => getProviderBreakdown(scrapeSummary), [scrapeSummary]);
   const searchSummary = useMemo(() => buildSearchSummary(jobsState.count, jobsState.items.length, appliedFilters), [appliedFilters, jobsState.count, jobsState.items.length]);
@@ -445,7 +478,9 @@ export function JobsPage() {
               }
             />
           ) : null}
-          {jobsState.items.length ? <div className="list-stack">{jobsState.items.map((job) => <article className={job.id === selectedJobId ? "list-item job-list-item is-selected" : "list-item job-list-item"} key={job.id}>
+          {jobsState.items.length ? <div className="list-stack">{jobsState.items.map((job) => {
+            const workflowNextAction = getJobWorkflowNextAction(job);
+            return <article className={job.id === selectedJobId ? "list-item job-list-item is-selected" : "list-item job-list-item"} key={job.id}>
             <div className="job-list-item__main">
               <div className="inline-meta">
                 <button className="list-item__title-button" type="button" onClick={() => setSelectedJobId(job.id)}>{job.title}</button>
@@ -457,6 +492,11 @@ export function JobsPage() {
               <p>{job.company_name || "Empresa não informada"} | {job.location || "Local não informado"}</p>
               <p className="muted-copy">{job.source ? `${job.source} | ` : ""}{getJobRecencyLabel(job)}</p>
               <p>{getDescriptionPreview(job.description)}</p>
+              <div className={`next-action-card next-action-card--compact tone-${workflowNextAction.tone}`}>
+                <span>Proximo passo</span>
+                <strong>{workflowNextAction.title}</strong>
+                <p>{workflowNextAction.detail}</p>
+              </div>
             </div>
             <div className="action-row action-row--wrap">
               <button className="button button--ghost" type="button" onClick={() => setSelectedJobId(job.id)}>Ver detalhes</button>
@@ -473,10 +513,12 @@ export function JobsPage() {
                 }
                 await Promise.all([refreshJobs(), loadWorkspaceMeta()]);
                 setFeedback("Vaga movida para o fluxo de candidaturas.");
-              })}>{job.application_status === "applied" ? "Aplicada" : "Marcar como aplicada"}</button>
+              })}>{job.application_status === "applied" ? "Aplicada" : job.application_id ? "Mover para aplicada" : "Iniciar candidatura"}</button>
+              {job.application_id ? <Link className="button button--ghost" to="/applications">Abrir pipeline</Link> : null}
               {job.url ? <a className="button button--ghost" href={job.url} target="_blank" rel="noreferrer">Abrir vaga original</a> : null}
             </div>
-          </article>)}</div> : null}
+          </article>;
+          })}</div> : null}
           {jobsState.hasMore ? <div className="jobs-load-more"><button className="button button--ghost" type="button" disabled={jobsLoading} onClick={() => loadJobs({ page: jobsState.page + 1, append: true, nextFilters: appliedFilters, pageSize: JOBS_PAGE_SIZE })}>{jobsLoading ? "Carregando mais vagas..." : "Carregar mais vagas"}</button></div> : null}
         </SectionCard>
 
@@ -486,6 +528,11 @@ export function JobsPage() {
               <div className="inline-meta"><strong>{selectedJob.title}</strong>{selectedJob.application_status ? <StatusBadge value={selectedJob.application_status} /> : null}{!selectedJob.application_status && selectedJob.is_saved ? <StatusBadge value="saved" /> : null}</div>
               <p className="job-detail-company">{selectedJob.company_name || "Empresa não informada"} | {selectedJob.location || "Local não informado"}</p>
               <div className="insight-list insight-list--two"><div><span>Fonte</span><strong>{selectedJob.source || "Indisponível"}</strong></div><div><span>Recência</span><strong>{getJobRecencyLabel(selectedJob)}</strong></div></div>
+              <div className={`next-action-card tone-${selectedJobWorkflowAction.tone}`}>
+                <span>Proximo passo</span>
+                <strong>{selectedJobWorkflowAction.title}</strong>
+                <p>{selectedJobWorkflowAction.detail}</p>
+              </div>
               <div className="action-row action-row--wrap">
                 <button className="button button--ghost" type="button" disabled={busyAction === `save-detail-${selectedJob.id}`} onClick={() => runAction(`save-detail-${selectedJob.id}`, async () => {
                   await request(`/hunter/api/jobs/${selectedJob.id}/save/`, { method: selectedJob.is_saved ? "DELETE" : "POST" });
@@ -500,7 +547,8 @@ export function JobsPage() {
                   }
                   await Promise.all([refreshJobs(), loadWorkspaceMeta()]);
                   setFeedback("Vaga movida para o fluxo de candidaturas.");
-                })}>Marcar como aplicada</button>
+                })}>{selectedJob.application_id ? "Mover para aplicada" : "Iniciar candidatura"}</button>
+                {selectedJob.application_id ? <Link className="button button--ghost" to="/applications">Abrir pipeline</Link> : null}
                 {selectedJob.url ? <a className="button button--ghost" href={selectedJob.url} target="_blank" rel="noreferrer">Abrir anúncio original</a> : null}
               </div>
               {selectedJob.application_id ? <label className="field"><span>Etapa da candidatura</span><select value={selectedJob.application_status ?? "saved"} disabled={busyAction === `stage-${selectedJob.id}`} onChange={(event) => runAction(`stage-${selectedJob.id}`, async () => {

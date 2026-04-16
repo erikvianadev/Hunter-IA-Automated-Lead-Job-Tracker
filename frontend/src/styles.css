@@ -315,6 +315,15 @@ button {
   gap: 8px;
 }
 
+.field--compact {
+  gap: 6px;
+}
+
+.field--compact select {
+  min-height: 44px;
+  padding: 10px 12px;
+}
+
 .field span,
 .stat-card__label,
 .insight-list span,
@@ -762,6 +771,106 @@ select:focus {
   background: color-mix(in srgb, var(--accent-soft) 38%, var(--surface-strong));
 }
 
+.application-stage-strip,
+.application-command-panel,
+.next-action-card,
+.context-card,
+.note-template-row {
+  min-width: 0;
+}
+
+.application-stage-strip {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--secondary) 16%, transparent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--secondary-soft) 36%, var(--surface-strong)), color-mix(in srgb, var(--surface-strong) 88%, transparent));
+}
+
+.application-stage-strip span,
+.next-action-card span,
+.application-command-panel__stage > span,
+.note-template-row > span {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.application-stage-strip strong,
+.next-action-card strong,
+.application-command-panel__stage strong {
+  display: block;
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+
+.application-command-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+  gap: 14px;
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+  background: linear-gradient(135deg, color-mix(in srgb, currentColor 10%, var(--surface-strong)), var(--surface-elevated));
+}
+
+.application-command-panel p,
+.next-action-card p {
+  margin: 6px 0 0;
+}
+
+.next-action-card {
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+  background: color-mix(in srgb, currentColor 9%, var(--surface-strong));
+}
+
+.next-action-card--compact {
+  margin: 10px 0;
+}
+
+.context-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.context-card {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-strong) 82%, transparent);
+}
+
+.context-card--recorded {
+  border-color: color-mix(in srgb, var(--secondary) 20%, transparent);
+}
+
+.context-card--missing {
+  border-color: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.notes-highlights {
+  padding: 10px 0 0 18px;
+}
+
+.note-template-row {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-strong) 72%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
 .notes-preview {
   margin: 0;
   padding-left: 14px;
@@ -958,6 +1067,8 @@ select:focus {
   .stats-grid,
   .plan-grid,
   .insight-list,
+  .application-command-panel,
+  .context-grid,
   .jobs-filter-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -979,6 +1090,8 @@ select:focus {
   .stats-grid,
   .plan-grid,
   .insight-list,
+  .application-command-panel,
+  .context-grid,
   .jobs-filter-grid {
     grid-template-columns: 1fr;
   }

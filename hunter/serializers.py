@@ -29,6 +29,164 @@ SOURCE_LABELS = {
     'indeed.com': 'Indeed',
 }
 
+APPLICATION_STAGE_PRESENTATIONS = {
+    JobApplicationStatus.SAVED: {
+        'label': 'Salva',
+        'tone': 'muted',
+        'title': 'No radar',
+        'summary': 'Vaga separada para decidir se vale entrar no pipeline.',
+    },
+    JobApplicationStatus.APPLIED: {
+        'label': 'Aplicada',
+        'tone': 'good',
+        'title': 'Aplicacao enviada',
+        'summary': 'Agora o foco e acompanhar retorno e registrar atualizacoes.',
+    },
+    JobApplicationStatus.INTERVIEW: {
+        'label': 'Entrevista',
+        'tone': 'medium',
+        'title': 'Conversa ativa',
+        'summary': 'Use este espaco para preparar a conversa e guardar observacoes.',
+    },
+    JobApplicationStatus.REJECTED: {
+        'label': 'Rejeitada',
+        'tone': 'low',
+        'title': 'Processo encerrado',
+        'summary': 'Registre aprendizados uteis antes de arquivar ou seguir adiante.',
+    },
+    JobApplicationStatus.OFFER: {
+        'label': 'Oferta',
+        'tone': 'good',
+        'title': 'Decisao em aberto',
+        'summary': 'Compare proposta, contexto e sinais antes de decidir.',
+    },
+    JobApplicationStatus.ARCHIVED: {
+        'label': 'Arquivada',
+        'tone': 'muted',
+        'title': 'Fora do foco atual',
+        'summary': 'Mantida no historico para consulta, sem exigir acao agora.',
+    },
+}
+
+
+def get_application_stage_presentation(status_value: str) -> dict:
+    return APPLICATION_STAGE_PRESENTATIONS.get(
+        status_value,
+        {
+            'label': status_value,
+            'tone': 'muted',
+            'title': 'Etapa registrada',
+            'summary': 'Acompanhe esta candidatura pelo status atual.',
+        },
+    )
+
+
+def get_note_highlights(notes: str, *, limit: int = 3) -> list[str]:
+    if not notes or not notes.strip():
+        return []
+
+    highlights: list[str] = []
+    for raw_line in notes.splitlines():
+        line = raw_line.strip().lstrip('-*').strip()
+        if not line:
+            continue
+        highlights.append(line if len(line) <= 160 else f'{line[:157].rstrip()}...')
+        if len(highlights) >= limit:
+            break
+
+    if highlights:
+        return highlights
+
+    clean = notes.strip()
+    return [clean if len(clean) <= 160 else f'{clean[:157].rstrip()}...']
+
+
+def build_application_next_action(application, current_match=None) -> dict:
+    has_notes = bool((application.notes or '').strip())
+    has_match = bool(current_match)
+    match_score = current_match.get('match_score') if current_match else None
+    decision_label = current_match.get('decision_label') if current_match else ''
+
+    if application.status == JobApplicationStatus.SAVED:
+        if has_match:
+            return {
+                'title': 'Decidir se esta vaga vira candidatura',
+                'detail': (
+                    f'Revise a aderencia de {match_score}/100'
+                    f'{f" e a recomendacao {decision_label}" if decision_label else ""}. '
+                    'Se fizer sentido, marque como aplicada.'
+                ),
+                'cta_label': 'Marcar como aplicada',
+                'tone': 'medium',
+            }
+        return {
+            'title': 'Avaliar aderencia antes de aplicar',
+            'detail': 'Atualize o match com curriculo ou registre por que esta vaga merece entrar no pipeline.',
+            'cta_label': 'Revisar contexto',
+            'tone': 'warning',
+        }
+
+    if application.status == JobApplicationStatus.APPLIED:
+        if has_notes:
+            return {
+                'title': 'Aguardar retorno e registrar atualizacao',
+                'detail': 'A candidatura ja tem contexto salvo. Mantenha notas de retorno, follow-up ou mudanca de etapa.',
+                'cta_label': 'Registrar atualizacao',
+                'tone': 'medium',
+            }
+        return {
+            'title': 'Registrar contexto do envio',
+            'detail': 'Salve canal, contato, data combinada ou qualquer sinal que ajude no proximo follow-up.',
+            'cta_label': 'Salvar notas',
+            'tone': 'warning',
+        }
+
+    if application.status == JobApplicationStatus.INTERVIEW:
+        if has_notes:
+            return {
+                'title': 'Preparar a proxima conversa',
+                'detail': 'Use as notas existentes para acompanhar pauta, perguntas abertas, feedback e proximos combinados.',
+                'cta_label': 'Atualizar observacoes',
+                'tone': 'medium',
+            }
+        return {
+            'title': 'Preparar conversa e registrar pauta',
+            'detail': 'Anote quem participa, objetivo da entrevista, requisitos a validar e pontos fortes para reforcar.',
+            'cta_label': 'Adicionar pauta',
+            'tone': 'warning',
+        }
+
+    if application.status == JobApplicationStatus.OFFER:
+        return {
+            'title': 'Revisar decisao da oferta',
+            'detail': 'Compare proposta, escopo, salario, riscos e motivos para aceitar, negociar ou recusar.',
+            'cta_label': 'Registrar decisao',
+            'tone': 'good',
+        }
+
+    if application.status == JobApplicationStatus.REJECTED:
+        return {
+            'title': 'Arquivar aprendizado e seguir',
+            'detail': 'Se houver feedback, registre o motivo e o que ajustar antes de tirar esta candidatura do foco.',
+            'cta_label': 'Arquivar',
+            'tone': 'low',
+        }
+
+    if application.status == JobApplicationStatus.ARCHIVED:
+        return {
+            'title': 'Manter no historico',
+            'detail': 'Nada exige acao agora. Restaure somente se a oportunidade voltar a fazer sentido.',
+            'cta_label': 'Restaurar se necessario',
+            'tone': 'muted',
+        }
+
+    return {
+        'title': 'Revisar candidatura',
+        'detail': 'Confira etapa, contexto e notas para definir a proxima acao.',
+        'cta_label': 'Atualizar contexto',
+        'tone': 'medium',
+    }
+
 
 def get_source_label(url: str) -> str:
     hostname = urlparse(url or '').netloc.lower().replace('www.', '')
@@ -608,6 +766,11 @@ class JobApplicationSerializer(serializers.ModelSerializer):
     job_source = serializers.SerializerMethodField()
     job_is_saved = serializers.SerializerMethodField()
     current_match = serializers.SerializerMethodField()
+    stage_presentation = serializers.SerializerMethodField()
+    next_action = serializers.SerializerMethodField()
+    recorded_context = serializers.SerializerMethodField()
+    missing_context = serializers.SerializerMethodField()
+    notes_highlights = serializers.SerializerMethodField()
 
     class Meta:
         model = JobApplication
@@ -627,6 +790,11 @@ class JobApplicationSerializer(serializers.ModelSerializer):
             'notes',
             'applied_at',
             'current_match',
+            'stage_presentation',
+            'next_action',
+            'recorded_context',
+            'missing_context',
+            'notes_highlights',
             'created_at',
             'updated_at',
         ]
@@ -665,6 +833,76 @@ class JobApplicationSerializer(serializers.ModelSerializer):
 
     def get_current_match(self, obj):
         return serialize_preferred_match(self._get_match_records(obj))
+
+    def get_stage_presentation(self, obj):
+        return get_application_stage_presentation(obj.status)
+
+    def get_next_action(self, obj):
+        return build_application_next_action(
+            obj,
+            serialize_preferred_match(self._get_match_records(obj)),
+        )
+
+    def get_recorded_context(self, obj):
+        context = [
+            f"Etapa atual: {get_application_stage_presentation(obj.status)['label']}",
+        ]
+
+        if obj.applied_at:
+            context.append('Data de aplicacao registrada')
+
+        source = get_source_label(obj.job.url)
+        if source:
+            context.append(f'Fonte da vaga: {source}')
+
+        if self.get_job_is_saved(obj):
+            context.append('Vaga salva no workspace')
+
+        current_match = serialize_preferred_match(self._get_match_records(obj))
+        if current_match:
+            context.append(
+                f"Match: {current_match['match_score']}/100 com {current_match['resume_label']}"
+            )
+            if current_match.get('decision_label'):
+                context.append(f"Recomendacao: {current_match['decision_label']}")
+
+        if (obj.notes or '').strip():
+            context.append('Notas de acompanhamento registradas')
+
+        return context
+
+    def get_missing_context(self, obj):
+        missing = []
+        current_match = serialize_preferred_match(self._get_match_records(obj))
+
+        if not current_match:
+            missing.append('Match com curriculo')
+        elif not current_match.get('recommendation'):
+            missing.append('Recomendacao de aderencia')
+
+        if not (obj.notes or '').strip():
+            if obj.status == JobApplicationStatus.INTERVIEW:
+                missing.append('Pauta ou observacoes da entrevista')
+            elif obj.status == JobApplicationStatus.OFFER:
+                missing.append('Criterios para decidir a oferta')
+            elif obj.status == JobApplicationStatus.REJECTED:
+                missing.append('Motivo ou aprendizado da rejeicao')
+            else:
+                missing.append('Notas de acompanhamento')
+
+        if not get_source_label(obj.job.url):
+            missing.append('Fonte da vaga')
+
+        if not obj.job.url:
+            missing.append('Link original da vaga')
+
+        if obj.status != JobApplicationStatus.SAVED and not obj.applied_at:
+            missing.append('Data de aplicacao')
+
+        return missing
+
+    def get_notes_highlights(self, obj):
+        return get_note_highlights(obj.notes)
 
 
 class JobApplicationWorkflowSerializer(serializers.Serializer):
