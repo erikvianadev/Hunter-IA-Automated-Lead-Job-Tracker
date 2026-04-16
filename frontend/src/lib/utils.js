@@ -11,33 +11,34 @@ const DIRECT_LABELS = {
   cancel: "Cancelado",
   canceled: "Cancelada",
   clarity: "Clareza",
-  completed: "Concluido",
+  completed: "Concluído",
   dashboard: "Painel",
   dark: "Escuro",
-  empty_text: "Sem texto legivel",
-  error: "Falha temporaria",
+  empty_text: "Sem texto legível",
+  error: "Falha temporária",
   expired: "Expirado",
   failed: "Falhou",
-  free: "Gratis",
-  healthy: "Disponivel",
+  free: "Grátis",
+  healthy: "Disponível",
   high: "Alta",
   incomplete: "Pagamento pendente",
   incomplete_expired: "Checkout expirado",
   interview: "Entrevista",
-  invalid_file: "Arquivo invalido",
-  issue: "Atencao",
+  internship: "Estágio",
+  invalid_file: "Arquivo inválido",
+  issue: "Atenção",
   job_matching: "Match com vagas",
-  junior: "Junior",
+  junior: "Júnior",
   light: "Claro",
   locked: "Premium",
   low: "Baixa",
-  market_fit: "Aderencia ao mercado",
-  medium: "Media",
+  market_fit: "Aderência ao mercado",
+  medium: "Média",
   mid: "Pleno",
-  missing: "Nao gerado",
+  missing: "Não gerado",
   monthly: "Mensal",
-  multiple_resume_versions: "Multiplas versoes de curriculo",
-  not_set: "Nao definido",
+  multiple_resume_versions: "Múltiplas versões de currículo",
+  not_set: "Não definido",
   offer: "Oferta",
   paid: "Pago",
   parsing_failed: "Falha na leitura",
@@ -48,32 +49,32 @@ const DIRECT_LABELS = {
   priority_1: "Prioridade 1",
   priority_2: "Prioridade 2",
   priority_3: "Prioridade 3",
-  premium_reports: "Relatorios premium",
+  premium_reports: "Relatórios premium",
   priority_high: "Prioridade alta",
-  priority_medium: "Prioridade media",
+  priority_medium: "Prioridade média",
   priority_low: "Prioridade baixa",
   priority_support: "Atendimento prioritario",
   processing: "Em processamento",
   pro: "Pro",
   projects: "Projetos",
-  quarantined_or_blocked_by_policy: "Bloqueado por politica",
+  quarantined_or_blocked_by_policy: "Bloqueado por política",
   ready: "Pronto",
   rejected: "Rejeitada",
-  resume_analysis: "Analise de curriculo",
-  resume_comparison: "Comparacao entre versoes",
-  resume_upload: "Envio de curriculo",
+  resume_analysis: "Análise de currículo",
+  resume_comparison: "Comparação entre versões",
+  resume_upload: "Envio de currículo",
   saved: "Salva",
   scanned_or_image_pdf: "PDF escaneado",
-  senior: "Senior",
+  senior: "Sênior",
   seniority_assessment: "Leitura de senioridade",
   structure: "Estrutura",
   success: "Sucesso",
   system: "Sistema",
   trialing: "Em teste",
   unpaid: "Sem pagamento",
-  unsupported_file_type: "Formato nao suportado",
-  unsupported_or_unsafe_structure: "Estrutura nao suportada",
-  unsupported_structure: "Estrutura nao suportada",
+  unsupported_file_type: "Formato não suportado",
+  unsupported_or_unsafe_structure: "Estrutura não suportada",
+  unsupported_structure: "Estrutura não suportada",
   upload_too_large: "Arquivo grande demais",
   uploaded: "Enviado",
   yearly: "Anual"
@@ -86,18 +87,19 @@ const CHUNK_LABELS = {
   archived: "Arquivada",
   canceled: "Cancelada",
   company: "Empresa",
-  completed: "Concluido",
+  completed: "Concluído",
   dark: "Escuro",
   failed: "Falhou",
-  fit: "Aderencia",
-  free: "Gratis",
+  fit: "Aderência",
+  free: "Grátis",
   high: "Alta",
-  issue: "Atencao",
-  junior: "Junior",
+  internship: "Estágio",
+  issue: "Atenção",
+  junior: "Júnior",
   light: "Claro",
   location: "Local",
   low: "Baixa",
-  medium: "Media",
+  medium: "Média",
   mid: "Pleno",
   monthly: "Mensal",
   paid: "Pago",
@@ -110,51 +112,51 @@ const CHUNK_LABELS = {
   role: "Vaga",
   saved: "Salva",
   score: "Score",
-  senior: "Senior",
+  senior: "Sênior",
   system: "Sistema",
-  title: "Titulo",
-  unsupported: "Nao suportado",
+  title: "Título",
+  unsupported: "Não suportado",
   yearly: "Anual"
 };
 
 const SAFE_ERROR_CODE_MESSAGES = {
-  html_error_response: "Nao foi possivel concluir essa etapa agora. Tente novamente em instantes.",
-  invalid_file: "Nao conseguimos validar esse arquivo como um curriculo PDF ou DOCX confiavel.",
-  invalid_json_response: "A resposta do servidor nao veio no formato esperado. Tente novamente em instantes.",
-  job_search_failed: "Nao foi possivel atualizar a busca de vagas agora. Tente novamente em instantes.",
-  network_error: "Falha de rede ou conexao. Confira sua internet e tente novamente.",
-  unsupported_file_type: "Esse arquivo nao pode ser usado como curriculo. Envie um PDF ou DOCX.",
-  upload_too_large: "O arquivo enviado passou do limite permitido para curriculos."
+  html_error_response: "Não foi possível concluir essa etapa agora. Tente novamente em instantes.",
+  invalid_file: "Não conseguimos validar esse arquivo como um currículo PDF ou DOCX confiável.",
+  invalid_json_response: "A resposta do servidor não veio no formato esperado. Tente novamente em instantes.",
+  job_search_failed: "Não foi possível atualizar a busca de vagas agora. Tente novamente em instantes.",
+  network_error: "Falha de rede ou conexão. Confira sua internet e tente novamente.",
+  unsupported_file_type: "Esse arquivo não pode ser usado como currículo. Envie um PDF ou DOCX.",
+  upload_too_large: "O arquivo enviado passou do limite permitido para currículos."
 };
 
 const USER_MESSAGE_PATTERNS = [
   {
     pattern: /(no active account found|unable to log in with provided credentials|invalid credentials)/i,
-    message: "Usuario ou senha nao conferem. Revise seus dados e tente novamente."
+    message: "Usuário ou senha não conferem. Revise seus dados e tente novamente."
   },
   {
     pattern: /(authentication credentials were not provided|not authenticated)/i,
-    message: "Sua sessao nao foi reconhecida. Entre novamente para continuar."
+    message: "Sua sessão não foi reconhecida. Entre novamente para continuar."
   },
   {
     pattern: /(token is invalid|token is expired|token not valid|given token not valid)/i,
-    message: "Sua sessao expirou. Entre novamente para continuar."
+    message: "Sua sessão expirou. Entre novamente para continuar."
   },
   {
     pattern: /(failed to fetch|networkerror|network error)/i,
-    message: "Nao foi possivel falar com o servidor agora. Tente novamente em instantes."
+    message: "Não foi possível falar com o servidor agora. Tente novamente em instantes."
   },
   {
     pattern: /(unsupported media type|unsupported file|file type not supported)/i,
-    message: "Esse arquivo nao pode ser usado como curriculo. Envie um PDF ou DOCX."
+    message: "Esse arquivo não pode ser usado como currículo. Envie um PDF ou DOCX."
   },
   {
     pattern: /(permission denied|forbidden|not enough permissions)/i,
-    message: "Voce nao tem acesso a essa acao agora."
+    message: "Você não tem acesso a essa ação agora."
   },
   {
     pattern: /(already exists|already taken|username.*not available)/i,
-    message: "Esse nome de usuario nao esta disponivel no momento. Tente outra variacao."
+    message: "Esse nome de usuário não está disponível no momento. Tente outra variação."
   }
 ];
 
@@ -200,7 +202,7 @@ export function formatShortDate(value) {
 
 export function formatRelativeDate(value) {
   if (!value) {
-    return "Sem atualizacao recente";
+    return "Sem atualização recente";
   }
 
   const date = new Date(value);
@@ -331,7 +333,7 @@ export function normalizeUserMessage(message) {
   }
 
   if (looksLikeHtmlDocument(clean) || INFRA_ERROR_PATTERNS.some((pattern) => pattern.test(clean))) {
-    return "Nao foi possivel concluir essa etapa agora. Tente novamente em instantes.";
+    return "Não foi possível concluir essa etapa agora. Tente novamente em instantes.";
   }
 
   const match = USER_MESSAGE_PATTERNS.find((item) => item.pattern.test(clean));

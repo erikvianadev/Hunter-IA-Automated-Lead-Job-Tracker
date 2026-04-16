@@ -325,6 +325,7 @@ button {
 }
 
 .field span,
+.field > label,
 .stat-card__label,
 .insight-list span,
 .app-sidebar__footer span {
@@ -343,6 +344,34 @@ select {
   padding: 13px 14px;
   color: var(--ink);
   outline: none;
+}
+
+.password-field__control {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.password-field__control input {
+  padding-right: 96px;
+}
+
+.password-field__toggle {
+  position: absolute;
+  right: 6px;
+  min-height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 7px 10px;
+  background: color-mix(in srgb, var(--surface-strong) 86%, transparent);
+  color: var(--accent-strong);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.password-field__toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .field textarea {

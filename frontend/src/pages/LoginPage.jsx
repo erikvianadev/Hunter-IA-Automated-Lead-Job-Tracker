@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 
+import { PasswordField } from "../components/PasswordField";
 import { useAuth } from "../context/AuthContext";
 import { getErrorMessage } from "../lib/utils";
 
@@ -25,7 +26,7 @@ export function LoginPage() {
     try {
       await login(form);
     } catch (requestError) {
-      setError(getErrorMessage(requestError, "Nao foi possivel entrar agora. Revise seus dados e tente novamente."));
+      setError(getErrorMessage(requestError, "Não foi possível entrar agora. Revise seus dados e tente novamente."));
     } finally {
       setSubmitting(false);
     }
@@ -34,10 +35,10 @@ export function LoginPage() {
   return (
     <div className="auth-layout">
       <div className="auth-panel auth-panel--hero">
-        <span className="hero-chip">Entrada real, progresso confiavel</span>
-        <h1>Organize sua busca de emprego com mais clareza, ritmo e confianca.</h1>
+        <span className="hero-chip">Entrada real, progresso confiável</span>
+        <h1>Organize sua busca de emprego com mais clareza, ritmo e confiança.</h1>
         <p>
-          O Hunter IA ajuda voce a evoluir seu curriculo, acompanhar cada candidatura
+          O Hunter IA ajuda você a evoluir seu currículo, acompanhar cada candidatura
           e priorizar vagas com mais contexto sobre o que fazer agora.
         </p>
         <div className="hero-metrics">
@@ -46,12 +47,12 @@ export function LoginPage() {
             <span>Entre na sua conta e retome seu workspace sem depender de setup manual</span>
           </article>
           <article>
-            <strong>Progresso em um so lugar</strong>
-            <span>Curriculos, vagas e candidaturas conectados em um fluxo pratico</span>
+            <strong>Progresso em um só lugar</strong>
+            <span>Currículos, vagas e candidaturas conectados em um fluxo prático</span>
           </article>
           <article>
             <strong>Premium quando fizer sentido</strong>
-            <span>Desbloqueie comparacoes e diagnosticos mais profundos quando quiser avancar</span>
+            <span>Desbloqueie comparações e diagnósticos mais profundos quando quiser avançar</span>
           </article>
         </div>
       </div>
@@ -60,11 +61,11 @@ export function LoginPage() {
         <div className="form-card">
           <span className="form-card__eyebrow">Entrar</span>
           <h2>Bem-vindo de volta</h2>
-          <p>Entre para continuar seu progresso com visibilidade sobre curriculo, vagas e proximos passos.</p>
+          <p>Entre para continuar seu progresso com visibilidade sobre currículo, vagas e próximos passos.</p>
 
           <form className="stack" onSubmit={handleSubmit}>
             <label className="field">
-              <span>Nome de usuario</span>
+              <span>Nome de usuário</span>
               <input
                 value={form.username}
                 onChange={(event) => setForm((previous) => ({ ...previous, username: event.target.value }))}
@@ -74,21 +75,18 @@ export function LoginPage() {
               />
             </label>
 
-            <label className="field">
-              <span>Senha</span>
-              <input
-                type="password"
-                value={form.password}
-                onChange={(event) => setForm((previous) => ({ ...previous, password: event.target.value }))}
-                placeholder="Digite sua senha"
-                autoComplete="current-password"
-                required
-              />
-            </label>
+            <PasswordField
+              label="Senha"
+              value={form.password}
+              onChange={(event) => setForm((previous) => ({ ...previous, password: event.target.value }))}
+              placeholder="Digite sua senha"
+              autoComplete="current-password"
+              required
+            />
 
             {error ? (
               <div className="notice notice--blocked">
-                <strong>Nao foi possivel entrar</strong>
+                <strong>Não foi possível entrar</strong>
                 <p>{error}</p>
                 <p>Revise seus dados. Se o problema continuar, tente novamente em instantes.</p>
               </div>
@@ -100,7 +98,7 @@ export function LoginPage() {
           </form>
 
           <div className="auth-support">
-            <span>Ainda nao tem conta?</span>
+            <span>Ainda não tem conta?</span>
             <Link to="/signup">Criar conta gratuita</Link>
           </div>
         </div>

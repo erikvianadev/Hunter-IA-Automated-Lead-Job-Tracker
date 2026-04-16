@@ -51,11 +51,11 @@ function getResumeReadiness(resume) {
     return {
       canAnalyze: false,
       canAssess: false,
-      badgeLabel: "Selecione um curriculo",
+      badgeLabel: "Selecione um currículo",
       badgeTone: "muted",
-      statusTitle: "Selecione um curriculo",
-      statusDetail: "Escolha uma versao da biblioteca para ver o que ja esta pronto.",
-      nextStep: "Depois de selecionar, voce podera acompanhar o preparo do arquivo e abrir os insights disponiveis.",
+      statusTitle: "Selecione um currículo",
+      statusDetail: "Escolha uma versão da biblioteca para ver o que já está pronto.",
+      nextStep: "Depois de selecionar, você poderá acompanhar o preparo do arquivo e abrir os insights disponíveis.",
       noticeTone: "info"
     };
   }
@@ -83,60 +83,60 @@ function getInsightStateMessage(kind, error) {
 
   if (error.status === 404) {
     return kind === "analysis"
-      ? "A analise ainda nao foi gerada para este curriculo."
-      : "A leitura de senioridade ainda nao foi gerada para este curriculo.";
+      ? "A análise ainda não foi gerada para este currículo."
+      : "A leitura de senioridade ainda não foi gerada para este currículo.";
   }
 
   if (error.status === 400) {
     return getErrorMessage(
       error,
       kind === "analysis"
-        ? "Ainda nao ha texto suficiente para gerar a analise. Reexporte o arquivo com texto selecionavel e tente de novo."
-        : "Ainda nao ha conteudo suficiente para estimar senioridade com seguranca.",
+        ? "Ainda não há texto suficiente para gerar a análise. Reexporte o arquivo com texto selecionável e tente de novo."
+        : "Ainda não há conteúdo suficiente para estimar senioridade com segurança.",
     );
   }
 
   if (error.status === 403) {
-    return "Esse insight faz parte do Premium. Faca upgrade para liberar o acesso completo.";
+    return "Esse insight faz parte do Premium. Faça upgrade para liberar o acesso completo.";
   }
 
-  return getErrorMessage(error, "Nao foi possivel carregar este insight agora.");
+  return getErrorMessage(error, "Não foi possível carregar este insight agora.");
 }
 
 function getResumeUploadErrorMessage(error) {
   if (!error) {
-    return "Nao foi possivel enviar esse curriculo agora.";
+    return "Não foi possível enviar esse currículo agora.";
   }
 
   if (error.code === "network_error") {
-    return "Falha de rede ou conexao durante o envio. Confira sua internet e tente novamente.";
+    return "Falha de rede ou conexão durante o envio. Confira sua internet e tente novamente.";
   }
 
   if (error.status === 401) {
-    return "Sua sessao expirou. Entre novamente para enviar o curriculo.";
+    return "Sua sessão expirou. Entre novamente para enviar o currículo.";
   }
 
   if (error.status === 403) {
-    return "Seu acesso nao esta autorizado para enviar curriculos agora.";
+    return "Seu acesso não está autorizado para enviar currículos agora.";
   }
 
   if (error.status === 413) {
-    return "O arquivo enviado passou do limite permitido para curriculos.";
+    return "O arquivo enviado passou do limite permitido para currículos.";
   }
 
   if (error.status === 415) {
-    return "Esse arquivo nao pode ser usado como curriculo. Envie um PDF ou DOCX.";
+    return "Esse arquivo não pode ser usado como currículo. Envie um PDF ou DOCX.";
   }
 
   if (error.status >= 500) {
-    return "O servidor esta temporariamente indisponivel para receber curriculos. Tente novamente em instantes.";
+    return "O servidor está temporariamente indisponível para receber currículos. Tente novamente em instantes.";
   }
 
   if (error.status === 400) {
     return getErrorMessage(error, "Arquivo invalido. Revise o PDF ou DOCX e tente novamente.");
   }
 
-  return getErrorMessage(error, "Nao foi possivel enviar esse curriculo agora.");
+  return getErrorMessage(error, "Não foi possível enviar esse currículo agora.");
 }
 
 function getPriorityDirectiveLabel(summary) {
@@ -214,7 +214,7 @@ export function ResumesPage() {
       const activeResume = items.find((item) => item.is_active) ?? items[0];
       setSelectedResumeId(activeResume.id);
     } catch (requestError) {
-      setError(getErrorMessage(requestError, "Nao foi possivel carregar sua biblioteca de curriculos agora."));
+      setError(getErrorMessage(requestError, "Não foi possível carregar sua biblioteca de currículos agora."));
     } finally {
       setLoading(false);
     }
@@ -238,7 +238,7 @@ export function ResumesPage() {
 
     if (analysisResult.status === "fulfilled") {
       setAnalysis(analysisResult.value);
-      setAnalysisState({ status: "ready", message: "A analise do curriculo ja esta disponivel." });
+      setAnalysisState({ status: "ready", message: "A análise do currículo já está disponível." });
     } else {
       setAnalysis(null);
       setAnalysisState({
@@ -249,7 +249,7 @@ export function ResumesPage() {
 
     if (seniorityResult.status === "fulfilled") {
       setSeniority(seniorityResult.value);
-      setSeniorityState({ status: "ready", message: "A leitura de senioridade ja esta disponivel." });
+      setSeniorityState({ status: "ready", message: "A leitura de senioridade já está disponível." });
     } else {
       setSeniority(null);
       setSeniorityState({
@@ -275,7 +275,7 @@ export function ResumesPage() {
 
     setForm((previous) => ({ ...previous, file }));
     if (!isAllowedResumeFile(file)) {
-      setError("Esse arquivo nao pode ser usado como curriculo. Envie um PDF ou DOCX.");
+      setError("Esse arquivo não pode ser usado como currículo. Envie um PDF ou DOCX.");
       return;
     }
 
@@ -293,7 +293,7 @@ export function ResumesPage() {
       return;
     }
     if (!isAllowedResumeFile(form.file)) {
-      setError("Esse arquivo nao pode ser usado como curriculo. Envie um PDF ou DOCX.");
+      setError("Esse arquivo não pode ser usado como currículo. Envie um PDF ou DOCX.");
       return;
     }
 
@@ -316,7 +316,7 @@ export function ResumesPage() {
         body
       });
       setFeedback(
-        `"${payload.label || payload.original_filename}" foi recebido. Agora vamos preparar o texto para liberar analise, senioridade e comparacoes.`,
+        `"${payload.label || payload.original_filename}" foi recebido. Agora vamos preparar o texto para liberar análise, senioridade e comparações.`,
       );
       setForm({
         file: null,
@@ -343,7 +343,7 @@ export function ResumesPage() {
     try {
       await callback();
     } catch (requestError) {
-      setError(getErrorMessage(requestError, "Nao foi possivel concluir essa acao agora."));
+      setError(getErrorMessage(requestError, "Não foi possível concluir essa ação agora."));
     } finally {
       setBusyAction("");
     }
@@ -359,26 +359,26 @@ export function ResumesPage() {
 
   return (
     <AppShell
-      title="Curriculos"
-      subtitle="Evolua seu curriculo, compare versoes e acompanhe com clareza o que ja esta pronto para gerar insights."
+      title="Currículos"
+      subtitle="Evolua seu currículo, compare versões e acompanhe com clareza o que já está pronto para gerar insights."
     >
       {error ? <div className="notice notice--blocked">{error}</div> : null}
       {feedback ? <div className="notice notice--success">{feedback}</div> : null}
 
       <section className="two-column-grid two-column-grid--wide-left">
         <SectionCard
-          title="Enviar novo curriculo"
-          subtitle="Adicione uma nova versao para revisar, pontuar e usar nas analises de aderencia."
+          title="Enviar novo currículo"
+          subtitle="Adicione uma nova versão para revisar, pontuar e usar nas análises de aderência."
         >
           {!loading && !resumes.length ? (
             <div className="notice notice--info">
-              <strong>Seu primeiro valor comeca aqui</strong>
-              <p>Quando o curriculo entra, voce libera analise, senioridade e os proximos passos mais uteis do produto.</p>
+              <strong>Seu primeiro valor começa aqui</strong>
+              <p>Quando o currículo entra, você libera análise, senioridade e os próximos passos mais úteis do produto.</p>
             </div>
           ) : null}
           <form className="stack" onSubmit={handleUpload}>
             <div className="field">
-              <span>Arquivo do curriculo</span>
+              <span>Arquivo do currículo</span>
               <input
                 ref={fileInputRef}
                 className="sr-only"
@@ -417,7 +417,7 @@ export function ResumesPage() {
                   handleFileSelected(event.dataTransfer.files?.[0] ?? null);
                 }}
               >
-                <strong>{form.file ? "Arquivo selecionado" : "Arraste seu curriculo aqui"}</strong>
+                <strong>{form.file ? "Arquivo selecionado" : "Arraste seu currículo aqui"}</strong>
                 <p>
                   {form.file
                     ? `${form.file.name} (${Math.max(1, Math.round(form.file.size / 1024))} KB)`
@@ -430,11 +430,11 @@ export function ResumesPage() {
             </div>
 
             <label className="field">
-              <span>Nome da versao</span>
+              <span>Nome da versão</span>
               <input
                 value={form.label}
                 onChange={(event) => setForm((previous) => ({ ...previous, label: event.target.value }))}
-                placeholder="Curriculo backend v3"
+                placeholder="Currículo backend v3"
               />
             </label>
 
@@ -450,14 +450,14 @@ export function ResumesPage() {
             </label>
 
             <button className="button button--primary" type="submit" disabled={busyAction === "upload"}>
-              {busyAction === "upload" ? "Enviando curriculo..." : "Enviar curriculo"}
+              {busyAction === "upload" ? "Enviando currículo..." : "Enviar currículo"}
             </button>
           </form>
         </SectionCard>
 
         <SectionCard
-          title="Comparacao premium"
-          subtitle="Compare duas ou tres versoes para entender qual comunica melhor sua experiencia."
+          title="Comparação premium"
+          subtitle="Compare duas ou três versões para entender qual comunica melhor sua experiência."
           actions={
             <button
               className="button button--secondary"
@@ -468,10 +468,10 @@ export function ResumesPage() {
                   try {
                     const payload = await request(`/hunter/api/resumes/compare/?ids=${selectedIds.join(",")}`);
                     setComparison(payload);
-                    setFeedback("Comparacao pronta. Revise abaixo os principais contrastes entre as versoes.");
+                    setFeedback("Comparação pronta. Revise abaixo os principais contrastes entre as versões.");
                   } catch (requestError) {
                     if (requestError.status === 403) {
-                      setError("A comparacao entre versoes faz parte do Premium. Faca upgrade para liberar esse resultado.");
+                      setError("A comparação entre versões faz parte do Premium. Faça upgrade para liberar esse resultado.");
                       return;
                     }
 
@@ -480,12 +480,12 @@ export function ResumesPage() {
                 })
               }
             >
-              {busyAction === "compare" ? "Comparando versoes..." : "Comparar versoes"}
+              {busyAction === "compare" ? "Comparando versões..." : "Comparar versões"}
             </button>
           }
         >
           <p className="muted-copy">
-            Selecione duas ou tres versoes abaixo. Se o seu plano ainda nao incluir essa comparacao, vamos avisar antes
+            Selecione duas ou três versões abaixo. Se o seu plano ainda não incluir essa comparação, vamos avisar antes
             de abrir o resultado.
           </p>
           <div className="selection-pills">
@@ -493,12 +493,12 @@ export function ResumesPage() {
               ? selectedCompareResumes.map((resume) => (
                 <span key={resume.id}>{resume.label || resume.original_filename}</span>
               ))
-              : <span>Selecione as versoes que deseja comparar</span>}
+              : <span>Selecione as versões que deseja comparar</span>}
           </div>
           {comparison ? (
             <div className="detail-stack">
               <strong>{comparison.comparison_summary}</strong>
-              <p>Cargo-alvo mais provavel: {comparison.likely_target_role ?? "-"}</p>
+              <p>Cargo-alvo mais provável: {comparison.likely_target_role ?? "-"}</p>
               <div className="list-stack">
                 {comparison.main_differences.map((item, index) => (
                   <article className="list-item" key={`${item}-${index}`}>
@@ -513,16 +513,16 @@ export function ResumesPage() {
 
       <section className="two-column-grid two-column-grid--wide-left">
         <SectionCard
-          title="Biblioteca de curriculos"
-          subtitle="Escolha sua versao principal e mantenha historico suficiente para revisar evolucoes e comparar resultados."
+          title="Biblioteca de currículos"
+          subtitle="Escolha sua versão principal e mantenha histórico suficiente para revisar evoluções e comparar resultados."
         >
-          {loading ? <div className="loading-panel">Carregando sua biblioteca de curriculos...</div> : null}
+          {loading ? <div className="loading-panel">Carregando sua biblioteca de currículos...</div> : null}
           {!loading && !resumes.length ? (
             <EmptyState
-              eyebrow="Etapa 1 da ativacao"
-              title="Nenhum curriculo por aqui ainda"
-              description="Sem um curriculo ativo, a plataforma ainda nao consegue gerar analise, senioridade ou recomendar proximos ajustes com contexto."
-              nextStep="Escolha um arquivo em PDF ou DOCX, envie a sua melhor versao atual e depois gere a analise do curriculo."
+              eyebrow="Etapa 1 da ativação"
+              title="Nenhum currículo por aqui ainda"
+              description="Sem um currículo ativo, a plataforma ainda não consegue gerar análise, senioridade ou recomendar próximos ajustes com contexto."
+              nextStep="Escolha um arquivo em PDF ou DOCX, envie a sua melhor versão atual e depois gere a análise do currículo."
               action={<button className="button button--secondary" type="button" onClick={openFilePicker}>Escolher arquivo</button>}
             />
           ) : null}
@@ -550,7 +550,7 @@ export function ResumesPage() {
                         <StatusBadge value={resume.parse_status} label={resumePresentation.label} tone={resumePresentation.tone} />
                         {resume.is_active ? <StatusBadge value="active" /> : null}
                       </div>
-                      <p>{resume.target_role || "Adicione um cargo-alvo para receber orientacoes mais uteis."}</p>
+                      <p>{resume.target_role || "Adicione um cargo-alvo para receber orientações mais úteis."}</p>
                       <p className="muted-copy">Atualizado em {formatShortDate(resume.updated_at)}</p>
                     </div>
 
@@ -570,7 +570,7 @@ export function ResumesPage() {
                           runResumeAction(`activate-${resume.id}`, async () => {
                             await request(`/hunter/api/resumes/${resume.id}/activate/`, { method: "POST" });
                             await loadResumes();
-                            setFeedback("Este agora e o curriculo principal usado nas analises e nos matches.");
+                            setFeedback("Este agora é o currículo principal usado nas análises e nos matches.");
                           })
                         }
                       >
@@ -586,7 +586,7 @@ export function ResumesPage() {
                             }
                             await request(`/hunter/api/resumes/${resume.id}/`, { method: "DELETE" });
                             await loadResumes(false);
-                            setFeedback("Curriculo removido da sua biblioteca.");
+                            setFeedback("Currículo removido da sua biblioteca.");
                           })
                         }
                       >
@@ -601,8 +601,8 @@ export function ResumesPage() {
         </SectionCard>
 
         <SectionCard
-          title="Insights do curriculo"
-          subtitle="Entenda o que ja esta pronto, o que ainda depende de texto utilizavel e o que faz parte do Premium."
+          title="Insights do currículo"
+          subtitle="Entenda o que já está pronto, o que ainda depende de texto utilizável e o que faz parte do Premium."
           actions={
             selectedResume ? (
               <div className="action-row action-row--wrap">
@@ -610,20 +610,20 @@ export function ResumesPage() {
                   className="button button--secondary"
                   type="button"
                   disabled={!readiness.canAnalyze || busyAction === "analyze"}
-                  title={!readiness.canAnalyze ? `${readiness.statusDetail} ${readiness.nextStep}` : "Gerar analise do curriculo"}
+                  title={!readiness.canAnalyze ? `${readiness.statusDetail} ${readiness.nextStep}` : "Gerar análise do currículo"}
                   onClick={() =>
                     runResumeAction("analyze", async () => {
                       const payload = await request(`/hunter/api/resumes/${selectedResume.id}/analyze/`, {
                         method: "POST"
                       });
                       setAnalysis(payload);
-                      setAnalysisState({ status: "ready", message: "A analise do curriculo ja esta pronta." });
+                      setAnalysisState({ status: "ready", message: "A análise do currículo já está pronta." });
                       await loadResumes();
-                      setFeedback("Analise concluida. Revise abaixo os pontos fortes e os proximos ajustes.");
+                      setFeedback("Análise concluída. Revise abaixo os pontos fortes e os próximos ajustes.");
                     })
                   }
                 >
-                  {busyAction === "analyze" ? "Analisando..." : "Analisar curriculo"}
+                  {busyAction === "analyze" ? "Analisando..." : "Analisar currículo"}
                 </button>
                 <button
                   className="button button--secondary"
@@ -640,8 +640,8 @@ export function ResumesPage() {
                         method: "POST"
                       });
                       setSeniority(payload);
-                      setSeniorityState({ status: "ready", message: "A leitura de senioridade ja esta pronta." });
-                      setFeedback("Leitura de senioridade pronta. Agora voce pode revisar o nivel mais aderente.");
+                      setSeniorityState({ status: "ready", message: "A leitura de senioridade já está pronta." });
+                      setFeedback("Leitura de senioridade pronta. Agora você pode revisar o nível mais aderente.");
                     })
                   }
                 >
@@ -656,7 +656,7 @@ export function ResumesPage() {
                       try {
                         const payload = await request(`/hunter/api/resumes/${selectedResume.id}/report/`);
                         setReport(payload);
-                        setReportState({ status: "ready", message: "O insight premium ja esta disponivel." });
+                        setReportState({ status: "ready", message: "O insight premium já está disponível." });
                         setFeedback("Insight premium aberto com sucesso.");
                       } catch (requestError) {
                         setReport(null);
@@ -664,8 +664,8 @@ export function ResumesPage() {
                           status: requestError.status === 403 ? "locked" : "blocked",
                           message:
                             requestError.status === 403
-                              ? "Esse insight faz parte do Premium. Faca upgrade para liberar a visao completa."
-                              : getErrorMessage(requestError, "Nao foi possivel abrir o insight premium agora.")
+                              ? "Esse insight faz parte do Premium. Faça upgrade para liberar a visão completa."
+                              : getErrorMessage(requestError, "Não foi possível abrir o insight premium agora.")
                         });
 
                         if (requestError.status !== 403) {
@@ -694,19 +694,19 @@ export function ResumesPage() {
 
               {selectedResume.file_url ? (
                 <a href={selectedResume.file_url} target="_blank" rel="noreferrer">
-                  Abrir curriculo enviado
+                  Abrir currículo enviado
                 </a>
               ) : null}
 
-              <p>{selectedResume.target_role || "Adicione um cargo-alvo para receber orientacoes mais uteis."}</p>
+              <p>{selectedResume.target_role || "Adicione um cargo-alvo para receber orientações mais úteis."}</p>
 
               <div className="insight-list">
                 <div>
-                  <span>Status do curriculo</span>
+                  <span>Status do currículo</span>
                   <strong>{readiness.badgeLabel}</strong>
                 </div>
                 <div>
-                  <span>Analise</span>
+                  <span>Análise</span>
                   <strong>{analysis ? `${analysis.overall_score}/100` : analysisPresentation.label}</strong>
                 </div>
                 <div>
@@ -747,7 +747,7 @@ export function ResumesPage() {
 
               {analysis ? (
                 <div className="detail-stack">
-                  <strong>Destaques da analise</strong>
+                  <strong>Destaques da análise</strong>
                   <div className="insight-list insight-list--four">
                     <div>
                       <span>Estrutura</span>
@@ -758,7 +758,7 @@ export function ResumesPage() {
                       <strong>{analysis.clarity_score}/100</strong>
                     </div>
                     <div>
-                      <span>Aderencia</span>
+                      <span>Aderência</span>
                       <strong>{analysis.market_fit_score}/100</strong>
                     </div>
                     <div>
@@ -808,7 +808,7 @@ export function ResumesPage() {
 
                   {analysis.working_signals?.length ? (
                     <div>
-                      <strong>O que ja esta funcionando</strong>
+                      <strong>O que já está funcionando</strong>
                       <div className="signal-list">
                         {analysis.working_signals.slice(0, 3).map((item, index) => (
                           <article className="signal-card signal-card--positive" key={`${item.title}-${index}`}>
@@ -823,7 +823,7 @@ export function ResumesPage() {
 
                   {analysis.missing_signals?.length ? (
                     <div>
-                      <strong>O que esta te segurando</strong>
+                      <strong>O que está te segurando</strong>
                       <div className="signal-list">
                         {analysis.missing_signals.slice(0, 3).map((item, index) => (
                           <article className="signal-card signal-card--warning" key={`${item.title}-${index}`}>
@@ -843,7 +843,7 @@ export function ResumesPage() {
                   <strong>Leitura de senioridade</strong>
                   <p>{titleize(seniority.recommended_track)}</p>
                   <p className="muted-copy">
-                    Junior {seniority.junior_score} | Pleno {seniority.mid_score} | Senior {seniority.senior_score}
+                    Estágio {seniority.internship_score} | Júnior {seniority.junior_score} | Pleno {seniority.mid_score} | Sênior {seniority.senior_score}
                   </p>
                 </div>
               ) : null}
@@ -862,11 +862,11 @@ export function ResumesPage() {
             </div>
           ) : (
             <EmptyState
-              eyebrow="Nenhuma versao selecionada"
-              title="Selecione um curriculo"
-              description="Os insights aparecem quando voce escolhe uma versao da biblioteca para analisar ou acompanhar."
-              nextStep="Selecione um curriculo da lista ao lado ou envie uma nova versao para continuar sua ativacao."
-              action={<button className="button button--secondary" type="button" onClick={openFilePicker}>Enviar curriculo</button>}
+              eyebrow="Nenhuma versão selecionada"
+              title="Selecione um currículo"
+              description="Os insights aparecem quando você escolhe uma versão da biblioteca para analisar ou acompanhar."
+              nextStep="Selecione um currículo da lista ao lado ou envie uma nova versão para continuar sua ativação."
+              action={<button className="button button--secondary" type="button" onClick={openFilePicker}>Enviar currículo</button>}
               secondaryAction={<Link className="button button--ghost" to="/billing">Ver planos</Link>}
             />
           )}

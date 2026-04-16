@@ -21,32 +21,32 @@ const APPLICATION_STAGE_FALLBACKS = {
   applied: {
     label: "Aplicada",
     tone: "good",
-    title: "Aplicacao enviada",
-    summary: "Agora o foco e acompanhar retorno e registrar atualizacoes."
+    title: "Aplicação enviada",
+    summary: "Agora o foco é acompanhar retorno e registrar atualizações."
   },
   interview: {
     label: "Entrevista",
     tone: "medium",
     title: "Conversa ativa",
-    summary: "Use este espaco para preparar a conversa e guardar observacoes."
+    summary: "Use este espaço para preparar a conversa e guardar observações."
   },
   rejected: {
     label: "Rejeitada",
     tone: "low",
     title: "Processo encerrado",
-    summary: "Registre aprendizados uteis antes de arquivar ou seguir adiante."
+    summary: "Registre aprendizados úteis antes de arquivar ou seguir adiante."
   },
   offer: {
     label: "Oferta",
     tone: "good",
-    title: "Decisao em aberto",
+    title: "Decisão em aberto",
     summary: "Compare proposta, contexto e sinais antes de decidir."
   },
   archived: {
     label: "Arquivada",
     tone: "muted",
     title: "Fora do foco atual",
-    summary: "Mantida no historico para consulta, sem exigir acao agora."
+    summary: "Mantida no histórico para consulta, sem exigir ação agora."
   }
 };
 const APPLICATION_STAGE_OPTIONS = APPLICATION_STATUSES.map((status) => ({
@@ -91,7 +91,7 @@ const QUICK_ACTIONS = {
 const NOTE_TEMPLATES = [
   {
     label: "Entrevista",
-    value: "Entrevista:\n- Participantes:\n- Pontos a validar:\n- Proximo combinado:"
+    value: "Entrevista:\n- Participantes:\n- Pontos a validar:\n- Próximo combinado:"
   },
   {
     label: "Prazo",
@@ -99,11 +99,11 @@ const NOTE_TEMPLATES = [
   },
   {
     label: "Continuar ou parar",
-    value: "Decisao:\n- Motivos para continuar:\n- Riscos ou requisitos faltantes:\n- Sinal para parar:"
+    value: "Decisão:\n- Motivos para continuar:\n- Riscos ou requisitos faltantes:\n- Sinal para parar:"
   },
   {
     label: "Retorno recebido",
-    value: "Atualizacao recebida:\n- O que mudou:\n- Proxima etapa:\n- Observacao importante:"
+    value: "Atualização recebida:\n- O que mudou:\n- Próxima etapa:\n- Observação importante:"
   }
 ];
 
@@ -129,10 +129,10 @@ function getApplicationNextAction(application) {
 
   if (application?.status === "applied") {
     return {
-      title: application.notes?.trim() ? "Aguardar retorno e registrar atualizacao" : "Registrar contexto do envio",
+      title: application.notes?.trim() ? "Aguardar retorno e registrar atualização" : "Registrar contexto do envio",
       detail: application.notes?.trim()
-        ? "Mantenha notas de retorno, follow-up ou mudanca de etapa."
-        : "Salve canal, contato, data combinada ou qualquer sinal util para o proximo follow-up.",
+        ? "Mantenha notas de retorno, follow-up ou mudança de etapa."
+        : "Salve canal, contato, data combinada ou qualquer sinal útil para o próximo follow-up.",
       cta_label: application.notes?.trim() ? "Atualizar notas" : "Salvar notas",
       tone: application.notes?.trim() ? "medium" : "warning"
     };
@@ -140,16 +140,16 @@ function getApplicationNextAction(application) {
 
   if (application?.status === "interview") {
     return {
-      title: "Preparar conversa e registrar observacoes",
-      detail: "Anote pauta, perguntas abertas, feedback e proximos combinados.",
-      cta_label: "Atualizar observacoes",
+      title: "Preparar conversa e registrar observações",
+      detail: "Anote pauta, perguntas abertas, feedback e próximos combinados.",
+      cta_label: "Atualizar observações",
       tone: "medium"
     };
   }
 
   return {
     title: "Revisar candidatura",
-    detail: "Confira etapa, contexto e notas para definir a proxima acao.",
+    detail: "Confira etapa, contexto e notas para definir a próxima ação.",
     cta_label: "Atualizar contexto",
     tone: "medium"
   };
@@ -161,7 +161,7 @@ function getRecordedContext(application) {
   }
 
   const context = [`Etapa atual: ${getApplicationStage(application).label}`];
-  if (application?.applied_at) context.push("Data de aplicacao registrada");
+  if (application?.applied_at) context.push("Data de aplicação registrada");
   if (application?.job_source) context.push(`Fonte da vaga: ${application.job_source}`);
   if (application?.current_match) {
     context.push(`Match: ${application.current_match.match_score}/100 com ${application.current_match.resume_label}`);
@@ -176,7 +176,7 @@ function getMissingContext(application) {
   }
 
   const missing = [];
-  if (!application?.current_match) missing.push("Match com curriculo");
+  if (!application?.current_match) missing.push("Match com currículo");
   if (!application?.notes?.trim()) missing.push("Notas de acompanhamento");
   if (!application?.job_url) missing.push("Link original da vaga");
   return missing;
@@ -232,18 +232,18 @@ function getApplicationsEmptyStateContent({ resumeCount, jobCount, savedCount, h
     return {
       eyebrow: "Nenhum item para este filtro",
       title: "Nenhuma candidatura apareceu com este recorte",
-      description: "Seu pipeline pode ter itens, mas este recorte nao mostra nenhuma etapa para acompanhar agora.",
-      nextStep: "Limpe os filtros ou ajuste a etapa buscada para reencontrar a candidatura que precisa de atualizacao.",
+      description: "Seu pipeline pode ter itens, mas este recorte não mostra nenhuma etapa para acompanhar agora.",
+      nextStep: "Limpe os filtros ou ajuste a etapa buscada para reencontrar a candidatura que precisa de atualização.",
       actionType: "filters"
     };
   }
 
   if (resumeCount === 0) {
     return {
-      eyebrow: "Fluxo ainda no inicio",
-      title: "Falta o curriculo que conecta vaga, match e candidatura",
-      description: "Sem curriculo, a candidatura perde contexto de aderencia e fica mais dificil decidir o proximo passo.",
-      nextStep: "Abra Curriculos, envie sua versao principal e depois volte para salvar vagas ou iniciar candidaturas com match.",
+      eyebrow: "Fluxo ainda no início",
+      title: "Falta o currículo que conecta vaga, match e candidatura",
+      description: "Sem currículo, a candidatura perde contexto de aderência e fica mais difícil decidir o próximo passo.",
+      nextStep: "Abra Currículos, envie sua versão principal e depois volte para salvar vagas ou iniciar candidaturas com match.",
       actionType: "resume"
     };
   }
@@ -251,8 +251,8 @@ function getApplicationsEmptyStateContent({ resumeCount, jobCount, savedCount, h
   if (jobCount === 0) {
     return {
       eyebrow: "Ainda sem oportunidades no radar",
-      title: "Sua busca de vagas ainda nao gerou oportunidades para acompanhar",
-      description: "Sem vagas no workspace, ainda nao existe uma oportunidade concreta para salvar, aplicar ou acompanhar.",
+      title: "Sua busca de vagas ainda não gerou oportunidades para acompanhar",
+      description: "Sem vagas no workspace, ainda não existe uma oportunidade concreta para salvar, aplicar ou acompanhar.",
       nextStep: "Abra Vagas, rode a busca inicial e monte uma shortlist antes de acompanhar etapas aqui.",
       actionType: "jobs"
     };
@@ -262,7 +262,7 @@ function getApplicationsEmptyStateContent({ resumeCount, jobCount, savedCount, h
     return {
       eyebrow: "Nenhuma vaga priorizada",
       title: "Falta escolher a primeira vaga para transformar em candidatura",
-      description: "Salvar ou aplicar em uma vaga cria o ponto de partida do seu pipeline e deixa o proximo follow-up visivel.",
+      description: "Salvar ou aplicar em uma vaga cria o ponto de partida do seu pipeline e deixa o próximo follow-up visível.",
       nextStep: "Abra Vagas, salve as oportunidades mais promissoras ou marque a primeira como aplicada.",
       actionType: "jobs"
     };
@@ -271,7 +271,7 @@ function getApplicationsEmptyStateContent({ resumeCount, jobCount, savedCount, h
   return {
     eyebrow: "Pipeline ainda vazio",
     title: "Nenhuma candidatura rastreada ainda",
-    description: "Voce ja tem base para agir, mas ainda nao existe uma candidatura com etapa, contexto e notas para acompanhar.",
+    description: "Você já tem base para agir, mas ainda não existe uma candidatura com etapa, contexto e notas para acompanhar.",
     nextStep: "Volte para Vagas e marque a primeira oportunidade como aplicada para abrir o painel operacional dela aqui.",
     actionType: "jobs"
   };
@@ -418,13 +418,13 @@ export function ApplicationsPage() {
     { label: "Rastreadas", value: totalCount, helper: "Carregadas do seu pipeline" },
     { label: "Em movimento", value: (statusCounts.applied ?? 0) + (statusCounts.interview ?? 0) + (statusCounts.offer ?? 0), helper: "Pedem acompanhamento real" },
     { label: "Sem notas", value: applications.filter((application) => !application.notes?.trim()).length, helper: "Precisam de contexto salvo" },
-    { label: "Ofertas", value: statusCounts.offer ?? 0, helper: "Decisoes positivas em aberto" }
+    { label: "Ofertas", value: statusCounts.offer ?? 0, helper: "Decisões positivas em aberto" }
   ];
 
   return (
     <AppShell
       title="Candidaturas"
-      subtitle="Gerencie seu pipeline de candidatura com etapa clara, proxima acao, contexto de vaga/curriculo e notas de acompanhamento."
+      subtitle="Gerencie seu pipeline de candidatura com etapa clara, próxima ação, contexto de vaga/currículo e notas de acompanhamento."
       actions={
         <button className="button button--ghost" type="button" onClick={loadApplications}>
           Atualizar rastreador
@@ -535,7 +535,7 @@ export function ApplicationsPage() {
               nextStep={applicationsEmptyState.nextStep}
               action={
                 applicationsEmptyState.actionType === "resume" ? (
-                  <Link className="button button--secondary" to="/resumes">Enviar curriculo</Link>
+                  <Link className="button button--secondary" to="/resumes">Enviar currículo</Link>
                 ) : applicationsEmptyState.actionType === "filters" ? (
                   <button
                     className="button button--secondary"
@@ -599,7 +599,7 @@ export function ApplicationsPage() {
                     </p>
 
                     <div className={`next-action-card next-action-card--compact tone-${nextAction.tone || "medium"}`}>
-                      <span>Proxima acao</span>
+                      <span>Próxima ação</span>
                       <strong>{nextAction.title}</strong>
                       <p>{nextAction.detail}</p>
                     </div>
@@ -659,7 +659,7 @@ export function ApplicationsPage() {
             <EmptyState
               eyebrow="Falta abrir um item do pipeline"
               title="Selecione uma candidatura"
-              description="Ao abrir uma candidatura, voce consegue entender a etapa atual, registrar contexto e decidir o proximo follow-up com mais seguranca."
+              description="Ao abrir uma candidatura, você consegue entender a etapa atual, registrar contexto e decidir o próximo follow-up com mais segurança."
               nextStep="Escolha um item da lista para atualizar o status, salvar notas e revisar o contexto da vaga."
             />
           ) : (
@@ -675,7 +675,7 @@ export function ApplicationsPage() {
                 </div>
 
                 <div className={`next-action-card tone-${selectedNextAction.tone || "medium"}`}>
-                  <span>Proxima acao recomendada</span>
+                  <span>Próxima ação recomendada</span>
                   <strong>{selectedNextAction.title}</strong>
                   <p>{selectedNextAction.detail}</p>
                 </div>
@@ -765,11 +765,11 @@ export function ApplicationsPage() {
               <SectionCard
                 className="job-detail-subcard"
                 title="Contexto operacional"
-                subtitle="Veja rapidamente o que ja esta registrado e o que ainda falta para decidir o proximo passo."
+              subtitle="Veja rapidamente o que já está registrado e o que ainda falta para decidir o próximo passo."
               >
                 <div className="context-grid">
                   <article className="context-card context-card--recorded">
-                    <strong>Ja registrado</strong>
+                    <strong>Já registrado</strong>
                     <ul className="plain-list">
                       {selectedRecordedContext.map((item, index) => (
                         <li key={`${item}-${index}`}>{item}</li>
@@ -791,14 +791,14 @@ export function ApplicationsPage() {
                         ))}
                       </ul>
                     ) : (
-                      <p className="muted-copy">O contexto essencial para acompanhar esta candidatura ja esta visivel.</p>
+                      <p className="muted-copy">O contexto essencial para acompanhar esta candidatura já está visível.</p>
                     )}
                   </article>
                 </div>
                 {selectedApplication.current_match ? (
                   <div className={`notice notice--${selectedDecision.tone || getMatchNoticeTone(selectedApplication.current_match.match_score)}`}>
                     <div className="inline-meta">
-                      <strong>Curriculo e match atual</strong>
+                      <strong>Currículo e match atual</strong>
                       <span className={`status-badge tone-${getScoreTone(selectedApplication.current_match.match_score)}`}>
                         {selectedApplication.current_match.match_score}/100
                       </span>
@@ -809,7 +809,7 @@ export function ApplicationsPage() {
                 ) : (
                   <div className="notice notice--info">
                     <strong>Match ainda ausente</strong>
-                    <p>Atualize a aderencia pelo workspace de vagas para ver curriculo usado, score e recomendacao antes do proximo passo.</p>
+                    <p>Atualize a aderência pelo workspace de vagas para ver currículo usado, score e recomendação antes do próximo passo.</p>
                   </div>
                 )}
               </SectionCard>
@@ -838,7 +838,7 @@ export function ApplicationsPage() {
                 </div>
 
                 <div className="note-template-row">
-                  <span>Modelos rapidos</span>
+                  <span>Modelos rápidos</span>
                   <div className="action-row action-row--wrap">
                     {NOTE_TEMPLATES.map((template) => (
                       <button

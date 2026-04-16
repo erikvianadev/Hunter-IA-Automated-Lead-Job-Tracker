@@ -21,8 +21,8 @@ function getPrioritySourceLabel(source) {
     application: "Candidatura",
     job: "Vaga",
     jobs: "Vagas",
-    resume: "Curriculo",
-    resume_gap: "Curriculo",
+    resume: "Currículo",
+    resume_gap: "Currículo",
     setup: "Setup"
   };
 
@@ -50,7 +50,7 @@ export function DashboardPage() {
       const payload = await request("/hunter/api/resumes/dashboard/");
       setDashboard(payload);
     } catch (requestError) {
-      setError(getErrorMessage(requestError, "Nao foi possivel carregar sua visao geral agora."));
+      setError(getErrorMessage(requestError, "Não foi possível carregar sua visão geral agora."));
     } finally {
       setLoading(false);
     }
@@ -81,10 +81,10 @@ export function DashboardPage() {
   return (
     <AppShell
       title="Seu progresso"
-      subtitle="Acompanhe curriculo, candidaturas e qualidade das vagas em uma visao unica e facil de agir."
+      subtitle="Acompanhe currículo, candidaturas e qualidade das vagas em uma visão única e fácil de agir."
       actions={
         <button className="button button--ghost" type="button" onClick={loadDashboard}>
-          Atualizar visao geral
+          Atualizar visão geral
         </button>
       }
     >
@@ -95,12 +95,12 @@ export function DashboardPage() {
         <>
           <section className="stats-grid">
             <StatCard
-              label="Curriculos"
+              label="Currículos"
               value={summary.total_resumes}
               helper={
                 summary.total_resumes
-                  ? summary.active_resume_label ?? "Defina um curriculo principal para guiar os insights"
-                  : "Comece enviando seu primeiro curriculo para liberar o fluxo principal."
+                  ? summary.active_resume_label ?? "Defina um currículo principal para guiar os insights"
+                  : "Comece enviando seu primeiro currículo para liberar o fluxo principal."
               }
             />
             <StatCard
@@ -109,7 +109,7 @@ export function DashboardPage() {
               helper={
                 summary.total_applications
                   ? "Acompanhe cada etapa com mais clareza"
-                  : "Quando voce marcar vagas como aplicadas, seu pipeline aparece aqui."
+                  : "Quando você marcar vagas como aplicadas, seu pipeline aparece aqui."
               }
             />
             <StatCard
@@ -117,8 +117,8 @@ export function DashboardPage() {
               value={summary.total_matches}
               helper={
                 summary.average_match_score != null
-                  ? `Aderencia media de ${summary.average_match_score}`
-                  : "Gere aderencia com vagas para descobrir onde vale focar."
+                  ? `Aderência média de ${summary.average_match_score}`
+                  : "Gere aderência com vagas para descobrir onde vale focar."
               }
             />
             <StatCard
@@ -126,7 +126,7 @@ export function DashboardPage() {
               value={summary.total_saved_jobs}
               helper={
                 summary.top_match_score != null
-                  ? `Melhor aderencia de ${summary.top_match_score}`
+                  ? `Melhor aderência de ${summary.top_match_score}`
                   : "Monte sua shortlist salvando vagas com potencial."
               }
             />
@@ -154,7 +154,7 @@ export function DashboardPage() {
                     <p>{mainPriority.reason}</p>
                   </div>
                   <div>
-                    <span>Acao recomendada</span>
+                    <span>Ação recomendada</span>
                     <p>{mainPriority.action}</p>
                   </div>
                 </div>
@@ -165,7 +165,7 @@ export function DashboardPage() {
 
               <SectionCard
                 title="Fila executiva"
-                subtitle="O que fazer depois da prioridade 1, em ordem de utilidade pratica."
+                subtitle="O que fazer depois da prioridade 1, em ordem de utilidade prática."
               >
                 {secondaryPriorities.length ? (
                   <div className="weekly-secondary-list">
@@ -191,9 +191,9 @@ export function DashboardPage() {
                   </div>
                 ) : (
                   <EmptyState
-                    eyebrow="Sem fila secundaria"
-                    title="A semana esta concentrada em uma acao principal"
-                    description="Nao ha sinais suficientes para criar outras prioridades sem aumentar ruido."
+                    eyebrow="Sem fila secundária"
+                    title="A semana está concentrada em uma ação principal"
+                    description="Não há sinais suficientes para criar outras prioridades sem aumentar ruído."
                     nextStep="Resolva a prioridade 1 e atualize o painel para recalcular a fila."
                   />
                 )}
@@ -203,8 +203,8 @@ export function DashboardPage() {
 
           <section className="two-column-grid two-column-grid--wide-left">
             <SectionCard
-              title="Candidaturas em atencao"
-              subtitle="Entram aqui apenas etapas quentes, falta de atualizacao ou contexto incompleto."
+              title="Candidaturas em atenção"
+              subtitle="Entram aqui apenas etapas quentes, falta de atualização ou contexto incompleto."
               actions={<Link className="button button--ghost" to="/applications">Ver candidaturas</Link>}
             >
               {applicationsNeedingAttention.length ? (
@@ -236,8 +236,8 @@ export function DashboardPage() {
                 <EmptyState
                   eyebrow="Sem alerta operacional"
                   title="Nenhuma candidatura pede foco imediato"
-                  description="Nao encontramos etapa quente, atraso relevante ou falta critica de contexto no pipeline atual."
-                  nextStep="Use esta folga para agir nas vagas com melhor match ou melhorar o curriculo ativo."
+                  description="Não encontramos etapa quente, atraso relevante ou falta crítica de contexto no pipeline atual."
+                  nextStep="Use esta folga para agir nas vagas com melhor match ou melhorar o currículo ativo."
                 />
               )}
             </SectionCard>
@@ -266,19 +266,19 @@ export function DashboardPage() {
                 </div>
               ) : (
                 <EmptyState
-                  eyebrow="Sem vaga acionavel"
+                  eyebrow="Sem vaga acionável"
                   title="Nenhum match forte parado agora"
-                  description="As vagas atuais nao passaram do corte de acao imediata ou ja estao no pipeline."
-                  nextStep="Busque novas vagas ou atualize matches depois de ajustar o curriculo."
+                  description="As vagas atuais não passaram do corte de ação imediata ou já estão no pipeline."
+                  nextStep="Busque novas vagas ou atualize matches depois de ajustar o currículo."
                 />
               )}
             </SectionCard>
           </section>
 
           <SectionCard
-            title="Lacunas do curriculo que importam agora"
-            subtitle="Apenas pontos com impacto provavel nas proximas candidaturas ou vagas fortes."
-            actions={<Link className="button button--ghost" to="/resumes">Abrir curriculos</Link>}
+            title="Lacunas do currículo que importam agora"
+            subtitle="Apenas pontos com impacto provável nas próximas candidaturas ou vagas fortes."
+            actions={<Link className="button button--ghost" to="/resumes">Abrir currículos</Link>}
           >
             {resumeGaps.length ? (
               <div className="priority-action-grid">
@@ -296,9 +296,9 @@ export function DashboardPage() {
             ) : (
               <EmptyState
                 eyebrow="Sem lacuna elevada"
-                title="Nada do curriculo precisa subir para o topo agora"
-                description="Nao ha analise pronta ou nenhuma lacuna atual superou o corte de impacto semanal."
-                nextStep="Use as candidaturas e vagas acionaveis como foco principal da semana."
+                title="Nada do currículo precisa subir para o topo agora"
+                description="Não há análise pronta ou nenhuma lacuna atual superou o corte de impacto semanal."
+                nextStep="Use as candidaturas e vagas acionáveis como foco principal da semana."
               />
             )}
           </SectionCard>
@@ -306,7 +306,7 @@ export function DashboardPage() {
           {activation ? (
             <section className="two-column-grid">
               <SectionCard
-                title="Ativacao inicial"
+                title="Ativação inicial"
                 subtitle="Um caminho curto para chegar ao primeiro valor com clareza."
                 actions={
                   nextBestAction ? (
@@ -329,7 +329,7 @@ export function DashboardPage() {
                   <div className="activation-progress" aria-hidden="true">
                     <span style={{ width: `${activation.progress_percent}%` }} />
                   </div>
-                  <p className="muted-copy">{activation.progress_percent}% do caminho inicial concluido.</p>
+                  <p className="muted-copy">{activation.progress_percent}% do caminho inicial concluído.</p>
                   {nextBestAction ? (
                     <div className="notice notice--info">
                       <strong>{nextBestAction.title}</strong>
@@ -340,8 +340,8 @@ export function DashboardPage() {
               </SectionCard>
 
               <SectionCard
-                title="Checklist de ativacao"
-                subtitle="Veja o que ja foi destravado e o que falta para consolidar seu fluxo inicial."
+                title="Checklist de ativação"
+                subtitle="Veja o que já foi destravado e o que falta para consolidar seu fluxo inicial."
               >
                 <div className="activation-checklist">
                   {activationChecklist.map((step) => {
@@ -373,8 +373,8 @@ export function DashboardPage() {
 
           <section className="two-column-grid">
             <SectionCard
-              title="Curriculo em foco"
-              subtitle="A versao principal que alimenta seus insights e recomendacoes de aderencia."
+              title="Currículo em foco"
+              subtitle="A versão principal que alimenta seus insights e recomendações de aderência."
             >
               {dashboard.active_resume ? (
                 <div className="detail-stack">
@@ -386,7 +386,7 @@ export function DashboardPage() {
                       tone={activeResumePresentation.tone}
                     />
                   </div>
-                  <p>{dashboard.active_resume.target_role || "Adicione um cargo-alvo para receber orientacoes mais precisas."}</p>
+                  <p>{dashboard.active_resume.target_role || "Adicione um cargo-alvo para receber orientações mais precisas."}</p>
                   <p className="muted-copy">Atualizado em {formatShortDate(dashboard.active_resume.updated_at)}</p>
                   <div className={`notice notice--${activeResumePresentation.tone === "good" ? "success" : activeResumePresentation.tone === "warning" ? "warning" : activeResumePresentation.tone === "blocked" ? "blocked" : "info"}`}>
                     <strong>{activeResumePresentation.title}</strong>
@@ -397,21 +397,21 @@ export function DashboardPage() {
               ) : (
                 <EmptyState
                   eyebrow="Sem base para os insights"
-                  title="Adicione seu primeiro curriculo"
-                  description="Sem um curriculo principal, o produto ainda nao consegue gerar analise, senioridade ou aderencia com vagas."
-                  nextStep="Abra Curriculos, envie uma versao em PDF ou DOCX e use esse arquivo como base do seu fluxo inicial."
-                  action={<Link className="button button--secondary" to="/resumes">Enviar curriculo</Link>}
+                  title="Adicione seu primeiro currículo"
+                  description="Sem um currículo principal, o produto ainda não consegue gerar análise, senioridade ou aderência com vagas."
+                  nextStep="Abra Currículos, envie uma versão em PDF ou DOCX e use esse arquivo como base do seu fluxo inicial."
+                  action={<Link className="button button--secondary" to="/resumes">Enviar currículo</Link>}
                 />
               )}
             </SectionCard>
 
             <SectionCard
-              title="Direcao do perfil"
-              subtitle="Uma leitura rapida de onde seu curriculo atual esta mais forte hoje."
+              title="Direção do perfil"
+              subtitle="Uma leitura rápida de onde seu currículo atual está mais forte hoje."
             >
               <div className="insight-list">
                 <div>
-                  <span>Nivel mais aderente</span>
+                  <span>Nível mais aderente</span>
                   <strong>{titleize(profileInsights.recommended_track)}</strong>
                 </div>
                 <div>
@@ -427,38 +427,38 @@ export function DashboardPage() {
           </section>
 
           <section>
-            <SectionCard title="Previa premium" subtitle="Uma amostra do tipo de orientacao que voce libera com um diagnostico mais profundo.">
+            <SectionCard title="Prévia premium" subtitle="Uma amostra do tipo de orientação que você libera com um diagnóstico mais profundo.">
               {preview ? (
                 <div className="detail-stack">
                   <p>{preview.executive_summary}</p>
                   <div className="insight-list">
                     <div>
-                      <span>Area principal de melhoria</span>
+                      <span>Área principal de melhoria</span>
                       <strong>{preview.top_gap ?? "-"}</strong>
                     </div>
                     <div>
-                      <span>Melhor proximo passo</span>
+                      <span>Melhor próximo passo</span>
                       <strong>{preview.top_priority_action ?? "-"}</strong>
                     </div>
                     <div>
-                      <span>Aderencia media</span>
+                      <span>Aderência média</span>
                       <strong>{preview.average_match_score ?? "-"}</strong>
                     </div>
                   </div>
                 </div>
               ) : (
                 <EmptyState
-                  eyebrow="Insight ainda indisponivel"
-                  title="Nenhuma previa premium ainda"
-                  description="A previa premium aparece quando seu curriculo ja passou por analise e leitura de senioridade."
+                  eyebrow="Insight ainda indisponível"
+                  title="Nenhuma prévia premium ainda"
+                  description="A prévia premium aparece quando seu currículo já passou por análise e leitura de senioridade."
                   nextStep={
                     dashboard.active_resume
-                      ? "Abra Curriculos e gere a analise e a senioridade da versao principal para liberar uma orientacao mais rica."
-                      : "Envie um curriculo primeiro e depois gere analise e senioridade para desbloquear esta camada."
+                      ? "Abra Currículos e gere a análise e a senioridade da versão principal para liberar uma orientação mais rica."
+                      : "Envie um currículo primeiro e depois gere análise e senioridade para desbloquear esta camada."
                   }
                   action={
                     <Link className="button button--ghost" to={dashboard.active_resume ? "/resumes" : "/billing"}>
-                      {dashboard.active_resume ? "Abrir curriculos" : "Ver planos"}
+                      {dashboard.active_resume ? "Abrir currículos" : "Ver planos"}
                     </Link>
                   }
                 />

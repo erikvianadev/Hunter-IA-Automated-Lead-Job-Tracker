@@ -57,8 +57,8 @@ function getProviderBreakdown(payload) {
 function getScrapeFeedbackMessage(payload) {
   if (!payload) return "";
   const rawScraped = payload.raw_scraped ?? 0;
-  if (!rawScraped) return "A coleta terminou sem vagas aproveitaveis desta vez. Tente um cargo mais amplo ou alivie o filtro de local.";
-  return `Coleta concluida. Encontramos ${rawScraped} vagas, mantivemos ${payload.scraped ?? 0} unicas e salvamos ${payload.saved ?? 0} no workspace.`;
+  if (!rawScraped) return "A coleta terminou sem vagas aproveitáveis desta vez. Tente um cargo mais amplo ou alivie o filtro de local.";
+  return `Coleta concluída. Encontramos ${rawScraped} vagas, mantivemos ${payload.scraped ?? 0} únicas e salvamos ${payload.saved ?? 0} no workspace.`;
 }
 
 function getScoreTone(score) {
@@ -87,17 +87,17 @@ function buildJobsOverviewCardsFallback({ jobsCount = 0, metaLoading = false, wo
     {
       label: "Vagas salvas",
       value: metaLoading ? "..." : savedCount,
-      helper: savedCount ? "Prontas para revisao" : "Salve oportunidades para comparar com calma."
+      helper: savedCount ? "Prontas para revisão" : "Salve oportunidades para comparar com calma."
     },
     {
       label: "Candidaturas",
       value: metaLoading ? "..." : applicationCount,
-      helper: applicationCount ? "Ja em andamento" : "Marque vagas como aplicadas para acompanhar as etapas."
+      helper: applicationCount ? "Já em andamento" : "Marque vagas como aplicadas para acompanhar as etapas."
     },
     {
       label: "Matches gerados",
       value: metaLoading ? "..." : matchCount,
-      helper: matchCount ? "Com visibilidade de aderencia" : "Atualize a aderencia para descobrir onde vale focar."
+      helper: matchCount ? "Com visibilidade de aderência" : "Atualize a aderência para descobrir onde vale focar."
     }
   ];
 }
@@ -107,7 +107,7 @@ function ExpandableDescription({ text, collapsedChars = 560 }) {
   const content = (text || "").trim();
 
   if (!content) {
-    return <p className="job-description">Nenhuma descricao detalhada foi capturada para esta vaga ainda.</p>;
+    return <p className="job-description">Nenhuma descrição detalhada foi capturada para esta vaga ainda.</p>;
   }
 
   const canCollapse = content.length > collapsedChars;
@@ -134,7 +134,7 @@ function getJobWorkflowNextAction(job) {
   if (job.application_status) {
     return {
       title: `Acompanhar candidatura ${titleize(job.application_status).toLowerCase()}`,
-      detail: "Esta vaga ja esta no pipeline. Use Candidaturas para atualizar etapa, notas e contexto.",
+      detail: "Esta vaga já está no pipeline. Use Candidaturas para atualizar etapa, notas e contexto.",
       tone: "medium"
     };
   }
@@ -142,7 +142,7 @@ function getJobWorkflowNextAction(job) {
   if (job.is_saved && job.current_match) {
     return {
       title: "Decidir se vira candidatura",
-      detail: `Match atual de ${job.current_match.match_score}/100. Revise a recomendacao e marque como aplicada se fizer sentido.`,
+      detail: `Match atual de ${job.current_match.match_score}/100. Revise a recomendação e marque como aplicada se fizer sentido.`,
       tone: "medium"
     };
   }
@@ -150,14 +150,14 @@ function getJobWorkflowNextAction(job) {
   if (job.is_saved) {
     return {
       title: "Completar contexto antes de aplicar",
-      detail: "A vaga esta salva. Atualize o match ou registre por que ela merece entrar no pipeline.",
+      detail: "A vaga está salva. Atualize o match ou registre por que ela merece entrar no pipeline.",
       tone: "warning"
     };
   }
 
   return {
     title: "Salvar para revisar com calma",
-    detail: "Salve a vaga para manter no radar, comparar aderencia e decidir a candidatura sem perder contexto.",
+    detail: "Salve a vaga para manter no radar, comparar aderência e decidir a candidatura sem perder contexto.",
     tone: "muted"
   };
 }
@@ -178,7 +178,7 @@ function getJobsEmptyStateContent({ hasResume, jobsCount, savedCount, applicatio
     return {
       eyebrow: "Nenhum resultado para os filtros",
       title: "Nenhuma vaga apareceu com este recorte",
-      description: "Seu workspace pode ter vagas salvas, mas os filtros atuais esconderam todas as opcoes neste momento.",
+      description: "Seu workspace pode ter vagas salvas, mas os filtros atuais esconderam todas as opções neste momento.",
       nextStep: "Limpe os filtros ou rode uma nova busca para ampliar a shortlist.",
       actionType: "search"
     };
@@ -187,9 +187,9 @@ function getJobsEmptyStateContent({ hasResume, jobsCount, savedCount, applicatio
   if (!hasResume) {
     return {
       eyebrow: "Base do fluxo ainda ausente",
-      title: "Envie um curriculo antes de buscar em volume",
-      description: "O curriculo ajuda a transformar busca em aderencia, prioridade e proximos passos mais confiaveis.",
-      nextStep: "Abra Curriculos, envie sua versao principal e depois volte para buscar vagas com mais contexto.",
+      title: "Envie um currículo antes de buscar em volume",
+      description: "O currículo ajuda a transformar busca em aderência, prioridade e próximos passos mais confiáveis.",
+      nextStep: "Abra Currículos, envie sua versão principal e depois volte para buscar vagas com mais contexto.",
       actionType: "resume"
     };
   }
@@ -197,18 +197,18 @@ function getJobsEmptyStateContent({ hasResume, jobsCount, savedCount, applicatio
   if (jobsCount === 0) {
     return {
       eyebrow: "Shortlist vazia",
-      title: "Sua busca inicial de vagas ainda nao aconteceu",
-      description: "Sem vagas no workspace, voce ainda nao consegue comparar oportunidades nem decidir onde agir primeiro.",
-      nextStep: "Use a busca desta pagina para trazer as primeiras vagas e montar sua shortlist inicial.",
+      title: "Sua busca inicial de vagas ainda não aconteceu",
+      description: "Sem vagas no workspace, você ainda não consegue comparar oportunidades nem decidir onde agir primeiro.",
+      nextStep: "Use a busca desta página para trazer as primeiras vagas e montar sua shortlist inicial.",
       actionType: "search"
     };
   }
 
   if (savedCount === 0 && applicationCount === 0) {
     return {
-      eyebrow: "Falta a primeira acao",
-      title: "Voce ja encontrou vagas, mas ainda nao tomou a primeira acao",
-      description: "Salvar uma vaga ou iniciar uma candidatura e o passo que transforma pesquisa em progresso visivel.",
+      eyebrow: "Falta a primeira ação",
+      title: "Você já encontrou vagas, mas ainda não tomou a primeira ação",
+      description: "Salvar uma vaga ou iniciar uma candidatura é o passo que transforma pesquisa em progresso visível.",
       nextStep: "Escolha uma vaga da lista, salve as mais promissoras ou marque a primeira candidatura como iniciada.",
       actionType: "select"
     };
@@ -217,7 +217,7 @@ function getJobsEmptyStateContent({ hasResume, jobsCount, savedCount, applicatio
   return {
     eyebrow: "Sem resultados para estes filtros",
     title: "Nenhuma vaga encontrada",
-    description: "Seu workspace existe, mas os filtros atuais nao retornaram oportunidades para revisar agora.",
+    description: "Seu workspace existe, mas os filtros atuais não retornaram oportunidades para revisar agora.",
     nextStep: "Limpe os filtros ou rode uma nova busca para trazer mais vagas para o workspace.",
     actionType: "search"
   };
@@ -454,7 +454,7 @@ export function JobsPage() {
               nextStep={jobsEmptyState.nextStep}
               action={
                 jobsEmptyState.actionType === "resume" ? (
-                  <Link className="button button--secondary" to="/resumes">Enviar curriculo</Link>
+                  <Link className="button button--secondary" to="/resumes">Enviar currículo</Link>
                 ) : jobsEmptyState.actionType === "search" ? (
                   <button className="button button--secondary" type="button" disabled={scrapeLoading} onClick={submitScrapeSearch}>
                     {scrapeLoading ? "Buscando vagas..." : "Buscar vagas agora"}
@@ -493,7 +493,7 @@ export function JobsPage() {
               <p className="muted-copy">{job.source ? `${job.source} | ` : ""}{getJobRecencyLabel(job)}</p>
               <p>{getDescriptionPreview(job.description)}</p>
               <div className={`next-action-card next-action-card--compact tone-${workflowNextAction.tone}`}>
-                <span>Proximo passo</span>
+                <span>Próximo passo</span>
                 <strong>{workflowNextAction.title}</strong>
                 <p>{workflowNextAction.detail}</p>
               </div>
@@ -523,13 +523,13 @@ export function JobsPage() {
         </SectionCard>
 
         <SectionCard title="Detalhes da vaga" subtitle="Deixe o próximo passo óbvio com acesso ao anúncio original, controle de status e visibilidade de aderência.">
-          {!selectedJob ? <EmptyState eyebrow="Falta abrir uma oportunidade" title="Selecione uma vaga" description="Os detalhes da oportunidade mostram por que ela importa, como agir agora e qual e a aderencia com seu curriculo." nextStep="Escolha uma vaga da lista ao lado para salvar, iniciar candidatura ou atualizar o match." /> : (
+          {!selectedJob ? <EmptyState eyebrow="Falta abrir uma oportunidade" title="Selecione uma vaga" description="Os detalhes da oportunidade mostram por que ela importa, como agir agora e qual é a aderência com seu currículo." nextStep="Escolha uma vaga da lista ao lado para salvar, iniciar candidatura ou atualizar o match." /> : (
             <div className="detail-stack">
               <div className="inline-meta"><strong>{selectedJob.title}</strong>{selectedJob.application_status ? <StatusBadge value={selectedJob.application_status} /> : null}{!selectedJob.application_status && selectedJob.is_saved ? <StatusBadge value="saved" /> : null}</div>
               <p className="job-detail-company">{selectedJob.company_name || "Empresa não informada"} | {selectedJob.location || "Local não informado"}</p>
               <div className="insight-list insight-list--two"><div><span>Fonte</span><strong>{selectedJob.source || "Indisponível"}</strong></div><div><span>Recência</span><strong>{getJobRecencyLabel(selectedJob)}</strong></div></div>
               <div className={`next-action-card tone-${selectedJobWorkflowAction.tone}`}>
-                <span>Proximo passo</span>
+                <span>Próximo passo</span>
                 <strong>{selectedJobWorkflowAction.title}</strong>
                 <p>{selectedJobWorkflowAction.detail}</p>
               </div>
