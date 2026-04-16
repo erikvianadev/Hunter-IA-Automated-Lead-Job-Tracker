@@ -17,6 +17,8 @@ class PersistenceResult:
     created: int = 0
     updated: int = 0
     unchanged: int = 0
+    skipped: int = 0
+    errors: list[dict[str, str]] = field(default_factory=list)
     jobs: list[Job] = field(default_factory=list)
 
     @property
@@ -33,75 +35,36 @@ class JobPersistenceService:
             "url": Job._meta.get_field("url").max_length,
         }
 
-    @transaction.atomic
     def save_jobs(self, *, owner, jobs: list[JobResult]) -> PersistenceResult:
         persisted_jobs: list[Job] = []
         created = 0
         updated = 0
         unchanged = 0
+        skipped = 0
+        errors: list[dict[str, str]] = []
 
         for job in jobs:
-            normalized_url = self._normalize_url_for_storage(job.canonical_url())
-            defaults = {
-                "title": self._normalize_text_for_storage(job.title, "title"),
-                "company_name": self._normalize_text_for_storage(job.company, "company_name"),
-                "location": self._normalize_text_for_storage(job.location, "location"),
-                "description": (job.description or "").strip(),
-            }
-
-            if normalized_url:
-                existing_jobs = list(
-                    Job.objects.select_for_update()
-                    .filter(owner=owner, url=normalized_url)
-                    .order_by("id")
+            try:
+                with transaction.atomic():
+                    obj, was_created, changed = self._save_one_job(owner=owner, job=job)
+            except ValueError as exc:
+                skipped += 1
+                errors.append({"reason": str(exc)})
+                logger.warning(
+                    "persistence_job_skipped owner_id=%s reason=%s",
+                    getattr(owner, "id", None),
+                    exc,
                 )
-                obj = existing_jobs[0] if existing_jobs else None
-                was_created = obj is None
-                if obj is None:
-                    obj = Job.objects.create(owner=owner, url=normalized_url, **defaults)
-                elif len(existing_jobs) > 1:
-                    logger.warning(
-                        "persistence_duplicate_rows owner_id=%s url=%s duplicate_count=%d",
-                        getattr(owner, "id", None),
-                        normalized_url,
-                        len(existing_jobs),
-                    )
-            else:
-                obj = (
-                    Job.objects.select_for_update()
-                    .filter(
-                        owner=owner,
-                        title=job.title,
-                        company_name=job.company,
-                        location=job.location,
-                    )
-                    .order_by("id")
-                    .first()
+                continue
+            except Exception as exc:  # noqa: BLE001
+                skipped += 1
+                errors.append({"reason": "unexpected_persistence_error"})
+                logger.exception(
+                    "persistence_job_failed owner_id=%s error=%s",
+                    getattr(owner, "id", None),
+                    exc,
                 )
-                was_created = obj is None
-                if obj is None:
-                    obj = Job.objects.create(owner=owner, url="", **defaults)
-
-            changed = was_created
-            if not was_created:
-                for field_name, candidate_value in defaults.items():
-                    if candidate_value and getattr(obj, field_name) != candidate_value:
-                        setattr(obj, field_name, candidate_value)
-                        changed = True
-                if normalized_url and obj.url != normalized_url:
-                    obj.url = normalized_url
-                    changed = True
-                if changed:
-                    obj.save(
-                        update_fields=[
-                            "title",
-                            "company_name",
-                            "location",
-                            "description",
-                            "url",
-                            "updated_at",
-                        ]
-                    )
+                continue
 
             persisted_jobs.append(obj)
             if was_created:
@@ -112,22 +75,93 @@ class JobPersistenceService:
                 unchanged += 1
 
         logger.info(
-            "persistence_completed owner_id=%s total=%d created=%d updated=%d unchanged=%d",
+            "persistence_completed owner_id=%s total=%d created=%d updated=%d unchanged=%d skipped=%d",
             getattr(owner, "id", None),
             len(jobs),
             created,
             updated,
             unchanged,
+            skipped,
         )
         return PersistenceResult(
             created=created,
             updated=updated,
             unchanged=unchanged,
+            skipped=skipped,
+            errors=errors,
             jobs=persisted_jobs,
         )
 
+    def _save_one_job(self, *, owner, job: JobResult) -> tuple[Job, bool, bool]:
+        if not isinstance(job, JobResult):
+            raise ValueError("invalid_job_payload")
+
+        normalized_url = self._normalize_url_for_storage(job.canonical_url())
+        defaults = {
+            "title": self._normalize_text_for_storage(job.title, "title"),
+            "company_name": self._normalize_text_for_storage(job.company, "company_name"),
+            "location": self._normalize_text_for_storage(job.location, "location"),
+            "description": self._normalize_description_for_storage(job.description),
+        }
+        self._validate_defaults(defaults, normalized_url)
+
+        if normalized_url:
+            existing_jobs = list(
+                Job.objects.select_for_update()
+                .filter(owner=owner, url=normalized_url)
+                .order_by("id")
+            )
+            obj = existing_jobs[0] if existing_jobs else None
+            was_created = obj is None
+            if obj is None:
+                obj = Job.objects.create(owner=owner, url=normalized_url, **defaults)
+            elif len(existing_jobs) > 1:
+                logger.warning(
+                    "persistence_duplicate_rows owner_id=%s url=%s duplicate_count=%d",
+                    getattr(owner, "id", None),
+                    normalized_url,
+                    len(existing_jobs),
+                )
+        else:
+            obj = (
+                Job.objects.select_for_update()
+                .filter(
+                    owner=owner,
+                    title=defaults["title"],
+                    company_name=defaults["company_name"],
+                    location=defaults["location"],
+                )
+                .order_by("id")
+                .first()
+            )
+            was_created = obj is None
+            if obj is None:
+                obj = Job.objects.create(owner=owner, url="", **defaults)
+
+        changed = was_created
+        if not was_created:
+            for field_name, candidate_value in defaults.items():
+                if candidate_value and getattr(obj, field_name) != candidate_value:
+                    setattr(obj, field_name, candidate_value)
+                    changed = True
+            if normalized_url and obj.url != normalized_url:
+                obj.url = normalized_url
+                changed = True
+            if changed:
+                obj.save(
+                    update_fields=[
+                        "title",
+                        "company_name",
+                        "location",
+                        "description",
+                        "url",
+                        "updated_at",
+                    ]
+                )
+        return obj, was_created, changed
+
     def _normalize_text_for_storage(self, value: str, field_name: str) -> str:
-        normalized = (value or "").strip()
+        normalized = str(value or "").strip()
         max_length = self.field_max_lengths.get(field_name)
         if not max_length or len(normalized) <= max_length:
             return normalized
@@ -140,6 +174,9 @@ class JobPersistenceService:
             len(trimmed),
         )
         return trimmed
+
+    def _normalize_description_for_storage(self, value: str) -> str:
+        return str(value or "").strip()
 
     def _normalize_url_for_storage(self, value: str) -> str:
         normalized = (value or "").strip()
@@ -165,3 +202,13 @@ class JobPersistenceService:
             max_length,
         )
         return ""
+
+    def _validate_defaults(self, defaults: dict[str, str], normalized_url: str) -> None:
+        if not defaults["title"]:
+            raise ValueError("missing_title")
+        if not defaults["company_name"]:
+            raise ValueError("missing_company")
+        if not defaults["location"]:
+            raise ValueError("missing_location")
+        if not normalized_url:
+            raise ValueError("missing_actionable_link")

@@ -20,24 +20,28 @@ const SORT_OPTIONS = [
   { value: "title", label: "Cargo A-Z" }
 ];
 
-function buildScrapeFeedback(payload) {
-  if (!payload) return "";
-  const rawScraped = payload.raw_scraped ?? 0;
-  if (!rawScraped) return "A busca terminou, mas nenhum provider retornou vagas compatíveis. Tente um cargo mais amplo ou uma localização menos restrita.";
-  return `Busca concluída. ${rawScraped} vagas foram coletadas, ${payload.scraped ?? 0} ficaram após a deduplicação e ${payload.saved ?? 0} foram salvas.`;
-}
-
 function getProviderSummary(payload) {
   if (!payload) return [];
   return [
-    { label: "Providers verificados", value: payload.providers_run?.length ?? 0 },
+    { label: "Fontes verificadas", value: payload.provider_status_summary?.total ?? payload.providers_run?.length ?? 0 },
     { label: "Coletadas", value: payload.raw_scraped ?? 0 },
     { label: "Únicas", value: payload.scraped ?? 0 },
-    { label: "Salvas", value: payload.saved ?? 0 }
+    { label: "Salvas/atualizadas", value: payload.saved ?? 0 }
   ];
 }
 
 function getProviderBreakdown(payload) {
+  if (Array.isArray(payload?.provider_health) && payload.provider_health.length) {
+    return payload.provider_health
+      .map((item) => ({
+        provider: titleize(item.provider),
+        jobsFound: item.jobs_found ?? 0,
+        tone: item.tone ?? "muted",
+        statusLabel: item.label ?? "Status atualizado"
+      }))
+      .sort((left, right) => right.jobsFound - left.jobsFound || left.provider.localeCompare(right.provider));
+  }
+
   if (!payload?.provider_job_counts) return [];
   return Object.entries(payload.provider_job_counts)
     .map(([provider, jobsFound]) => {
@@ -48,7 +52,7 @@ function getProviderBreakdown(payload) {
         provider: titleize(provider),
         jobsFound,
         tone: blocked ? "blocked" : failed ? "warning" : "good",
-        statusLabel: blocked ? "blocked" : failed ? "issue" : "healthy"
+        statusLabel: blocked ? "Fonte bloqueada" : failed ? "Fonte instável" : "Disponível"
       };
     })
     .sort((left, right) => right.jobsFound - left.jobsFound || left.provider.localeCompare(right.provider));
@@ -56,6 +60,7 @@ function getProviderBreakdown(payload) {
 
 function getScrapeFeedbackMessage(payload) {
   if (!payload) return "";
+  if (payload.message) return payload.message;
   const rawScraped = payload.raw_scraped ?? 0;
   if (!rawScraped) return "A coleta terminou sem vagas aproveitáveis desta vez. Tente um cargo mais amplo ou alivie o filtro de local.";
   return `Coleta concluída. Encontramos ${rawScraped} vagas, mantivemos ${payload.scraped ?? 0} únicas e salvamos ${payload.saved ?? 0} no workspace.`;
@@ -422,22 +427,24 @@ export function JobsPage() {
           </form>
         </SectionCard>
 
-        <SectionCard title="Buscar vagas novas" subtitle="Rode o scraping dos providers ativos, veja o resumo da coleta e acompanhe quais fontes estão contribuindo.">
+        <SectionCard title="Buscar vagas novas" subtitle="Consulte as fontes ativas, veja o resumo da coleta e acompanhe quais delas contribuíram com vagas aproveitáveis.">
           <form className="stack" onSubmit={handleScrape}>
             <div className="jobs-filter-grid">
               <label className="field"><span>Cargo</span><input value={scrapeForm.query} onChange={(event) => setScrapeForm((previous) => ({ ...previous, query: event.target.value }))} /></label>
               <label className="field"><span>Local</span><input value={scrapeForm.location} onChange={(event) => setScrapeForm((previous) => ({ ...previous, location: event.target.value }))} /></label>
             </div>
-            <button className="button button--secondary" type="submit" disabled={scrapeLoading}>{scrapeLoading ? "Consultando providers..." : "Buscar vagas"}</button>
+            <button className="button button--secondary" type="submit" disabled={scrapeLoading}>{scrapeLoading ? "Consultando fontes..." : "Buscar vagas"}</button>
           </form>
-          {scrapeLoading ? <div className="loading-inline">Verificando providers, removendo duplicadas e salvando novas vagas...</div> : null}
+          {scrapeLoading ? <div className="loading-inline">Verificando fontes, removendo duplicadas e salvando vagas aproveitáveis...</div> : null}
           {scrapeSummary ? (
             <div className="detail-stack">
-              <div className="inline-meta"><strong>Última coleta</strong><StatusBadge value={scrapeSummary.status} tone="medium" /></div>
+              <div className="inline-meta"><strong>Última coleta</strong><StatusBadge value={scrapeSummary.status} label={scrapeSummary.status_label} tone={scrapeSummary.status_tone ?? "medium"} /></div>
               <div className="insight-list insight-list--four">{providerSummary.map((item) => <div key={item.label}><span>{item.label}</span><strong>{item.value}</strong></div>)}</div>
-              {providerBreakdown.length ? <div className="provider-breakdown">{providerBreakdown.map((item) => <article className="provider-breakdown__card" key={item.provider}><div className="inline-meta"><strong>{item.provider}</strong><StatusBadge value={item.statusLabel} tone={item.tone} /></div><p className="muted-copy">{item.jobsFound} vagas contribuíram para o resultado</p></article>)}</div> : null}
+              {providerBreakdown.length ? <div className="provider-breakdown">{providerBreakdown.map((item) => <article className="provider-breakdown__card" key={item.provider}><div className="inline-meta"><strong>{item.provider}</strong><StatusBadge value={item.statusLabel} label={item.statusLabel} tone={item.tone} /></div><p className="muted-copy">{item.jobsFound} vagas contribuíram para o resultado</p></article>)}</div> : null}
               {(scrapeSummary.raw_scraped ?? 0) === 0 ? <div className="notice notice--info">Nenhuma vaga compatível foi encontrada desta vez. Tente termos mais amplos, como "Software Engineer", ou remova restrições de local.</div> : null}
               {(scrapeSummary.duplicates_removed ?? 0) > 0 ? <p className="muted-copy">{scrapeSummary.duplicates_removed} vagas sobrepostas foram removidas antes de salvar.</p> : null}
+              {(scrapeSummary.quality_filtered ?? 0) > 0 ? <p className="muted-copy">{scrapeSummary.quality_filtered} itens incompletos foram filtrados para manter a lista final mais confiável.</p> : null}
+              {(scrapeSummary.persistence_skipped ?? 0) > 0 ? <p className="muted-copy">{scrapeSummary.persistence_skipped} itens inconsistentes foram ignorados durante o salvamento.</p> : null}
             </div>
           ) : null}
         </SectionCard>

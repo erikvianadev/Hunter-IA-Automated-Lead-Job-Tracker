@@ -8,7 +8,7 @@ from django.core.management.base import BaseCommand, CommandError
 from hunter.providers.registry import build_enabled_providers, get_unknown_provider_names
 from hunter.scrape_summary import build_scrape_summary
 from hunter.services.job_aggregation_service import JobAggregationService
-from hunter.services.job_persistence_service import JobPersistenceService
+from hunter.services.job_persistence_service import JobPersistenceService, PersistenceResult
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ class Command(BaseCommand):
             location=location,
         )
 
-        saved = 0
+        persistence = PersistenceResult()
         user_model = get_user_model()
         owner = None
         if username:
@@ -63,22 +63,24 @@ class Command(BaseCommand):
 
         if owner is not None:
             persistence = JobPersistenceService().save_jobs(owner=owner, jobs=aggregation.jobs)
-            saved = persistence.saved
 
-        summary = build_scrape_summary(aggregation=aggregation, saved=saved)
+        summary = build_scrape_summary(aggregation=aggregation, persistence=persistence)
 
         logger.info(
-            "scrape_command_completed status=%s providers_run=%s providers_succeeded=%s providers_failed=%s providers_blocked=%s providers_invalid_response=%s provider_job_counts=%s raw_scraped=%d scraped=%d saved=%d duplicates_removed=%d",
+            "scrape_command_completed status=%s providers_run=%s providers_succeeded=%s providers_failed=%s providers_blocked=%s providers_invalid_response=%s providers_unavailable=%s provider_job_counts=%s raw_scraped=%d scraped=%d saved=%d persistence_skipped=%d quality_filtered=%d duplicates_removed=%d",
             summary["status"],
             summary["providers_run"],
             summary["providers_succeeded"],
             summary["providers_failed"],
             summary["providers_blocked"],
             summary["providers_invalid_response"],
+            summary["providers_unavailable"],
             summary["provider_job_counts"],
             summary["raw_scraped"],
             summary["scraped"],
             summary["saved"],
+            summary["persistence_skipped"],
+            summary["quality_filtered"],
             summary["duplicates_removed"],
         )
 
@@ -90,9 +92,12 @@ class Command(BaseCommand):
                     "providers_failed={providers_failed} "
                     "providers_blocked={providers_blocked} "
                     "providers_invalid_response={providers_invalid_response} "
+                    "providers_unavailable={providers_unavailable} "
                     "provider_job_counts={provider_job_counts} "
                     "raw_scraped={raw_scraped} "
                     "scraped={scraped} saved={saved} "
+                    "persistence_skipped={persistence_skipped} "
+                    "quality_filtered={quality_filtered} "
                     "duplicates_removed={duplicates_removed}"
                 ).format(
                     status=summary["status"],
@@ -103,6 +108,7 @@ class Command(BaseCommand):
                     providers_invalid_response=",".join(
                         summary["providers_invalid_response"]
                     ),
+                    providers_unavailable=",".join(summary["providers_unavailable"]),
                     provider_job_counts=",".join(
                         f"{provider}:{count}"
                         for provider, count in summary["provider_job_counts"].items()
@@ -110,6 +116,8 @@ class Command(BaseCommand):
                     raw_scraped=summary["raw_scraped"],
                     scraped=summary["scraped"],
                     saved=summary["saved"],
+                    persistence_skipped=summary["persistence_skipped"],
+                    quality_filtered=summary["quality_filtered"],
                     duplicates_removed=summary["duplicates_removed"],
                 )
             )

@@ -8,13 +8,15 @@ from hunter.providers.base import (
     BaseJobProvider,
     FAILURE_BLOCKED,
     FAILURE_INVALID_RESPONSE,
+    FAILURE_UNAVAILABLE,
     ProviderBlockedError,
     ProviderInvalidResponseError,
+    ProviderUnavailableError,
 )
 from hunter.scrape_summary import build_scrape_summary
 from hunter.services.job_aggregation_service import JobAggregationService
 from hunter.services.job_deduplication_service import JobDeduplicationService
-from hunter.services.job_persistence_service import JobPersistenceService
+from hunter.services.job_persistence_service import JobPersistenceService, PersistenceResult
 
 
 class StaticProvider(BaseJobProvider):
@@ -51,6 +53,13 @@ class InvalidResponseProvider(BaseJobProvider):
         raise ProviderInvalidResponseError("bad payload")
 
 
+class UnavailableProvider(BaseJobProvider):
+    name = "unavailable"
+
+    def fetch_jobs(self, *, query: str, location: str = "", max_pages: int = 1):
+        raise ProviderUnavailableError("network timeout")
+
+
 class DeduplicationServiceTests(SimpleTestCase):
     def test_deduplicates_by_url_then_fallback_key(self) -> None:
         jobs = [
@@ -58,7 +67,7 @@ class DeduplicationServiceTests(SimpleTestCase):
                 title="Data Scientist",
                 company="Acme",
                 location="Remote",
-                link="https://example.com/jobs/1?b=2&a=1",
+                link="https://www.example.com/jobs/1?b=2&a=1&utm_source=newsletter",
                 source="remoteok",
             ),
             JobResult.create(
@@ -79,7 +88,7 @@ class DeduplicationServiceTests(SimpleTestCase):
             JobResult.create(
                 title="Platform Engineer",
                 company="Beta",
-                location="Remote",
+                location="Worldwide",
                 link="",
                 description="Same role elsewhere",
                 source="indeed",
@@ -150,6 +159,47 @@ class AggregationServiceTests(SimpleTestCase):
         self.assertEqual(result.provider_job_counts, {"static": 1, "invalid": 0})
         self.assertEqual(result.raw_scraped, 1)
 
+    def test_tracks_unavailable_provider_separately(self) -> None:
+        result = JobAggregationService(providers=[UnavailableProvider()]).aggregate(
+            query="data scientist",
+            location="remote",
+        )
+
+        self.assertEqual(result.status, "total_failure")
+        self.assertEqual(result.providers_unavailable, ["unavailable"])
+        self.assertEqual(result.provider_failure_counts, {FAILURE_UNAVAILABLE: 1})
+
+    def test_filters_weak_provider_payloads_before_visible_results(self) -> None:
+        result = JobAggregationService(
+            providers=[
+                StaticProvider(
+                    [
+                        JobResult.create(
+                            title="Backend Engineer",
+                            company="Acme",
+                            location="Remote",
+                            link="https://example.com/jobs/1",
+                            source="remotive",
+                        ),
+                        JobResult.create(
+                            title="Untitled",
+                            company="",
+                            location="",
+                            link="",
+                            source="remotive",
+                        ),
+                    ]
+                )
+            ]
+        ).aggregate(query="backend engineer", location="remote")
+
+        self.assertEqual(result.status, "success")
+        self.assertEqual(result.raw_scraped, 2)
+        self.assertEqual(result.scraped, 1)
+        self.assertEqual(result.quality_filtered, 1)
+        self.assertEqual(result.quality_issue_counts["missing_company"], 1)
+        self.assertEqual(result.quality_issue_counts["missing_actionable_link"], 1)
+
     def test_closes_provider_sessions_after_aggregation(self) -> None:
         provider = ClosableProvider(
             [
@@ -195,12 +245,17 @@ class AggregationServiceTests(SimpleTestCase):
             ]
         ).aggregate(query="backend engineer", location="remote")
 
-        summary = build_scrape_summary(aggregation=aggregation, saved=1)
+        summary = build_scrape_summary(
+            aggregation=aggregation,
+            persistence=PersistenceResult(created=1),
+        )
 
         self.assertEqual(summary["provider_job_counts"], {"static": 2, "invalid": 0})
         self.assertEqual(summary["raw_scraped"], 2)
         self.assertEqual(summary["scraped"], 1)
         self.assertEqual(summary["saved"], 1)
+        self.assertEqual(summary["status"], "partial_success")
+        self.assertEqual(summary["status_label"], "Coleta parcial")
 
 
 class PersistenceServiceTests(TestCase):
@@ -287,3 +342,32 @@ class PersistenceServiceTests(TestCase):
             .description,
             "Merged description",
         )
+
+    def test_skips_bad_rows_without_losing_good_rows(self) -> None:
+        result = JobPersistenceService().save_jobs(
+            owner=self.user,
+            jobs=[
+                JobResult.create(
+                    title="Backend Engineer",
+                    company="Acme",
+                    location="Remote",
+                    description="Good row",
+                    link="https://example.com/jobs/good",
+                    source="remotive",
+                ),
+                JobResult.create(
+                    title="",
+                    company="",
+                    location="Remote",
+                    description="Bad row",
+                    link="",
+                    source="remotive",
+                ),
+                object(),
+            ],
+        )
+
+        self.assertEqual(result.created, 1)
+        self.assertEqual(result.skipped, 2)
+        self.assertEqual(result.saved, 1)
+        self.assertEqual(self.user.jobs.count(), 1)

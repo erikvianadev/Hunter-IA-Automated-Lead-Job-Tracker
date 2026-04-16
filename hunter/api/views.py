@@ -65,24 +65,27 @@ class ScrapeJobsView(APIView):
             )
 
             logger.info(
-                "scrape_request_completed user=%s status=%s raw_scraped=%d scraped=%d saved=%d providers_failed=%d providers_blocked=%d providers_invalid_response=%d duplicates_removed=%d provider_job_counts=%s",
+                "scrape_request_completed user=%s status=%s raw_scraped=%d scraped=%d saved=%d persistence_skipped=%d providers_failed=%d providers_blocked=%d providers_invalid_response=%d providers_unavailable=%d duplicates_removed=%d quality_filtered=%d provider_job_counts=%s",
                 request.user.username,
                 aggregation.status,
                 aggregation.raw_scraped,
                 aggregation.scraped,
                 persistence.saved,
+                persistence.skipped,
                 len(aggregation.providers_failed),
                 len(aggregation.providers_blocked),
                 len(aggregation.providers_invalid_response),
+                len(aggregation.providers_unavailable),
                 aggregation.duplicates_removed,
+                aggregation.quality_filtered,
                 aggregation.provider_job_counts,
             )
 
             payload = build_scrape_summary(
                 aggregation=aggregation,
-                saved=persistence.saved,
+                persistence=persistence,
             )
-            if aggregation.status == "error":
+            if aggregation.status == "total_failure":
                 return Response(
                     {
                         **payload,

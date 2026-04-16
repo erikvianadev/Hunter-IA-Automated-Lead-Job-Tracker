@@ -67,24 +67,40 @@ class ScrapeJobsApiTests(TestCase):
             list(response.data.keys()),
             [
                 "status",
+                "status_label",
+                "status_tone",
+                "message",
                 "providers_run",
                 "providers_succeeded",
                 "providers_failed",
                 "providers_blocked",
                 "providers_invalid_response",
+                "providers_unavailable",
+                "providers_parse_error",
+                "provider_failure_counts",
+                "provider_status_summary",
+                "provider_health",
                 "provider_job_counts",
                 "raw_scraped",
                 "scraped",
                 "saved",
+                "created",
+                "updated",
+                "unchanged",
+                "persistence_skipped",
                 "duplicates_removed",
+                "quality_filtered",
+                "quality_issue_counts",
             ],
         )
         self.assertEqual(response.data["status"], "partial_success")
+        self.assertEqual(response.data["status_label"], "Coleta parcial")
         self.assertEqual(response.data["providers_run"], ["remotive", "indeed", "remoteok"])
         self.assertEqual(response.data["providers_succeeded"], ["remotive"])
         self.assertEqual(response.data["providers_failed"], ["indeed", "remoteok"])
         self.assertEqual(response.data["providers_blocked"], ["indeed"])
         self.assertEqual(response.data["providers_invalid_response"], ["remoteok"])
+        self.assertEqual(response.data["providers_unavailable"], [])
         self.assertEqual(response.data["provider_job_counts"], {"remotive": 1, "indeed": 0, "remoteok": 0})
         self.assertEqual(response.data["raw_scraped"], 1)
         self.assertEqual(response.data["scraped"], 0)
@@ -123,7 +139,8 @@ class ScrapeJobsApiTests(TestCase):
             response.data["detail"],
             "Nao foi possivel atualizar a busca de vagas agora. Tente novamente em instantes.",
         )
-        self.assertEqual(response.data["status"], "error")
+        self.assertEqual(response.data["status"], "total_failure")
+        self.assertEqual(response.data["status_label"], "Coleta indisponivel")
 
 
 class ProjectHealthEndpointsTests(TestCase):

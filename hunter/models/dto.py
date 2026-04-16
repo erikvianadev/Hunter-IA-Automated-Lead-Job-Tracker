@@ -3,6 +3,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
+_TRACKING_QUERY_PREFIXES = ("utm_",)
+_TRACKING_QUERY_KEYS = {
+    "fbclid",
+    "gclid",
+    "igshid",
+    "mc_cid",
+    "mc_eid",
+    "ref",
+}
+
 
 def canonicalize_url(value: str) -> str:
     raw = (value or "").strip()
@@ -10,18 +20,30 @@ def canonicalize_url(value: str) -> str:
         return ""
 
     parts = urlsplit(raw)
-    query_items = sorted(parse_qsl(parts.query, keep_blank_values=False))
+    query_items = sorted(
+        (key, value)
+        for key, value in parse_qsl(parts.query, keep_blank_values=False)
+        if not _is_tracking_query_key(key)
+    )
     normalized_path = parts.path.rstrip("/") or parts.path
+    normalized_netloc = parts.netloc.lower()
+    if normalized_netloc.startswith("www."):
+        normalized_netloc = normalized_netloc[4:]
 
     return urlunsplit(
         (
             parts.scheme.lower(),
-            parts.netloc.lower(),
+            normalized_netloc,
             normalized_path,
             urlencode(query_items),
             "",
         )
     )
+
+
+def _is_tracking_query_key(key: str) -> bool:
+    normalized = key.lower()
+    return normalized in _TRACKING_QUERY_KEYS or normalized.startswith(_TRACKING_QUERY_PREFIXES)
 
 
 def normalize_key_part(value: str | None) -> str:
