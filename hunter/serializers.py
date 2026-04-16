@@ -664,6 +664,11 @@ class ResumeComparisonItemSerializer(serializers.Serializer):
     recommended_track = serializers.CharField(read_only=True, allow_null=True)
     average_match_score = serializers.FloatField(read_only=True, allow_null=True)
     best_match_score = serializers.IntegerField(read_only=True, allow_null=True)
+    strength_areas = serializers.ListField(child=serializers.DictField(), read_only=True)
+    weak_areas = serializers.ListField(child=serializers.DictField(), read_only=True)
+    use_now_for = serializers.ListField(child=serializers.CharField(), read_only=True)
+    caution_for = serializers.ListField(child=serializers.CharField(), read_only=True)
+    decision_note = serializers.CharField(read_only=True)
     created_at = serializers.DateTimeField(read_only=True)
     updated_at = serializers.DateTimeField(read_only=True)
 
@@ -675,6 +680,26 @@ class ResumeComparisonAreaWinnersSerializer(serializers.Serializer):
     market_fit = ResumeComparisonItemSerializer(read_only=True, allow_null=True)
 
 
+class ResumeComparisonAreaDetailSerializer(serializers.Serializer):
+    key = serializers.CharField(read_only=True)
+    label = serializers.CharField(read_only=True)
+    winner = ResumeComparisonItemSerializer(read_only=True, allow_null=True)
+    spread = serializers.IntegerField(read_only=True, allow_null=True)
+    scores = serializers.ListField(child=serializers.DictField(), read_only=True)
+    decision_note = serializers.CharField(read_only=True)
+
+
+class ResumeRoutingRecommendationSerializer(serializers.Serializer):
+    context_key = serializers.CharField(read_only=True)
+    title = serializers.CharField(read_only=True)
+    recommended_resume = ResumeComparisonItemSerializer(read_only=True, allow_null=True)
+    why = serializers.CharField(read_only=True)
+    when_to_use = serializers.CharField(read_only=True)
+    watch_out = serializers.CharField(read_only=True)
+    next_step = serializers.CharField(read_only=True)
+    confidence = serializers.CharField(read_only=True)
+
+
 class ResumeComparisonSerializer(serializers.Serializer):
     compared_resumes = ResumeComparisonItemSerializer(many=True, read_only=True)
     best_resume_by_score = ResumeComparisonItemSerializer(read_only=True, allow_null=True)
@@ -683,6 +708,9 @@ class ResumeComparisonSerializer(serializers.Serializer):
     comparison_summary = serializers.CharField(read_only=True)
     main_differences = serializers.ListField(child=serializers.CharField(), read_only=True)
     stronger_areas = ResumeComparisonAreaWinnersSerializer(read_only=True)
+    area_comparison = ResumeComparisonAreaDetailSerializer(many=True, read_only=True)
+    routing_recommendations = ResumeRoutingRecommendationSerializer(many=True, read_only=True)
+    use_now_recommendation = ResumeRoutingRecommendationSerializer(read_only=True, allow_null=True)
 
 
 class TagSerializer(serializers.ModelSerializer):

@@ -46,6 +46,26 @@ function toNoticeTone(tone) {
   return "info";
 }
 
+function getComparisonResumeLabel(resume) {
+  return resume?.label || "Currículo sem nome";
+}
+
+function formatComparisonScore(score) {
+  return score === null || score === undefined ? "sem score" : `${score}/100`;
+}
+
+function getConfidenceTone(confidence) {
+  if (confidence === "alta") {
+    return "good";
+  }
+
+  if (confidence === "media" || confidence === "média") {
+    return "medium";
+  }
+
+  return "muted";
+}
+
 function getResumeReadiness(resume) {
   if (!resume) {
     return {
@@ -513,16 +533,111 @@ export function ResumesPage() {
             </div>
           ) : null}
           {comparison ? (
-            <div className="detail-stack">
-              <strong>{comparison.comparison_summary}</strong>
-              <p>Cargo-alvo mais provável: {comparison.likely_target_role ?? "-"}</p>
-              <div className="list-stack">
-                {comparison.main_differences.map((item, index) => (
-                  <article className="list-item" key={`${item}-${index}`}>
-                    <p>{item}</p>
-                  </article>
-                ))}
+            <div className="detail-stack comparison-panel">
+              <div className="notice notice--info">
+                <strong>{comparison.comparison_summary}</strong>
+                <p>Cargo-alvo mais provável: {comparison.likely_target_role ?? "ainda indefinido"}</p>
               </div>
+
+              {comparison.use_now_recommendation ? (
+                <div className="comparison-command-panel">
+                  <div>
+                    <span className="status-badge tone-good">Usar agora</span>
+                    <h3>{getComparisonResumeLabel(comparison.use_now_recommendation.recommended_resume)}</h3>
+                    <p>{comparison.use_now_recommendation.when_to_use}</p>
+                  </div>
+                  <div>
+                    <strong>{comparison.use_now_recommendation.title}</strong>
+                    <p>{comparison.use_now_recommendation.why}</p>
+                    <p className="muted-copy">{comparison.use_now_recommendation.watch_out}</p>
+                  </div>
+                </div>
+              ) : null}
+
+              {comparison.routing_recommendations?.length ? (
+                <div className="detail-stack">
+                  <strong>Roteamento por contexto</strong>
+                  <div className="comparison-routing-grid">
+                    {comparison.routing_recommendations.map((route) => (
+                      <article className="context-card" key={route.context_key}>
+                        <div className="inline-meta">
+                          <strong>{route.title}</strong>
+                          <span className={`status-badge tone-${getConfidenceTone(route.confidence)}`}>
+                            {route.confidence}
+                          </span>
+                        </div>
+                        <p><strong>{getComparisonResumeLabel(route.recommended_resume)}</strong></p>
+                        <p>{route.when_to_use}</p>
+                        <p className="muted-copy">{route.next_step}</p>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {comparison.compared_resumes?.length ? (
+                <div className="detail-stack">
+                  <strong>Forças e limites de cada versão</strong>
+                  <div className="comparison-resume-grid">
+                    {comparison.compared_resumes.map((resume) => (
+                      <article className="context-card" key={resume.id}>
+                        <div className="inline-meta">
+                          <strong>{getComparisonResumeLabel(resume)}</strong>
+                          {resume.is_active ? <span className="status-badge tone-good">Principal</span> : null}
+                        </div>
+                        <p>{resume.decision_note}</p>
+                        <div className="comparison-mini-section">
+                          <span>Mais forte para</span>
+                          <ul className="plain-list">
+                            {(resume.use_now_for ?? []).slice(0, 3).map((item) => (
+                              <li key={item}>{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                        {resume.weak_areas?.length ? (
+                          <div className="comparison-mini-section">
+                            <span>Ponto de atenção</span>
+                            <p className="muted-copy">
+                              {resume.weak_areas[0].label}: {formatComparisonScore(resume.weak_areas[0].score)}
+                            </p>
+                          </div>
+                        ) : null}
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {comparison.area_comparison?.length ? (
+                <div className="detail-stack">
+                  <strong>Diferenças que mudam a decisão</strong>
+                  <div className="list-stack">
+                    {comparison.area_comparison.map((area) => (
+                      <article className="list-item comparison-area-row" key={area.key}>
+                        <div>
+                          <strong>{area.label}</strong>
+                          <p>{area.decision_note}</p>
+                        </div>
+                        <div className="comparison-score-row">
+                          {(area.scores ?? []).map((score) => (
+                            <span className="status-badge tone-muted" key={`${area.key}-${score.resume_id}`}>
+                              {score.resume_label}: {formatComparisonScore(score.score)}
+                            </span>
+                          ))}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              ) : comparison.main_differences?.length ? (
+                <div className="list-stack">
+                  {comparison.main_differences.map((item, index) => (
+                    <article className="list-item" key={`${item}-${index}`}>
+                      <p>{item}</p>
+                    </article>
+                  ))}
+                </div>
+              ) : null}
             </div>
           ) : null}
         </SectionCard>

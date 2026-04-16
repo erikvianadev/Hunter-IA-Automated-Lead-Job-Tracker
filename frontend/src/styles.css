@@ -962,6 +962,72 @@ select:focus {
   border-color: color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
+.comparison-panel {
+  gap: 18px;
+}
+
+.comparison-command-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 16px;
+  padding: 18px;
+  border-radius: var(--radius-lg);
+  border: 1px solid color-mix(in srgb, var(--secondary) 24%, transparent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--secondary-soft) 62%, var(--surface-strong)), var(--surface-elevated));
+}
+
+.comparison-command-panel h3,
+.comparison-command-panel p,
+.comparison-command-panel strong,
+.comparison-mini-section p {
+  margin: 0;
+}
+
+.comparison-command-panel h3 {
+  margin-top: 10px;
+  font-size: 1.45rem;
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+}
+
+.comparison-command-panel > *,
+.comparison-area-row > *,
+.comparison-score-row > * {
+  min-width: 0;
+}
+
+.comparison-routing-grid,
+.comparison-resume-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.comparison-mini-section {
+  display: grid;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.comparison-mini-section > span {
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.comparison-area-row {
+  align-items: flex-start;
+}
+
+.comparison-score-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  max-width: min(100%, 520px);
+}
+
 .notes-highlights {
   padding: 10px 0 0 18px;
 }
@@ -1180,7 +1246,10 @@ select:focus {
 .detail-stack,
 .list-stack,
 .provider-breakdown,
-.jobs-filter-grid {
+.jobs-filter-grid,
+.comparison-command-panel,
+.comparison-routing-grid,
+.comparison-resume-grid {
   min-width: 0;
 }
 
@@ -1220,6 +1289,9 @@ select:focus {
     .insight-list,
     .weekly-priority-hero__reason,
     .application-command-panel,
+    .comparison-command-panel,
+    .comparison-routing-grid,
+    .comparison-resume-grid,
     .context-grid,
     .jobs-filter-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1243,6 +1315,9 @@ select:focus {
   .plan-grid,
   .insight-list,
   .application-command-panel,
+  .comparison-command-panel,
+  .comparison-routing-grid,
+  .comparison-resume-grid,
   .context-grid,
   .jobs-filter-grid {
     grid-template-columns: 1fr;
