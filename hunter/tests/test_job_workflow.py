@@ -426,3 +426,24 @@ class JobWorkflowApiTests(TestCase):
         self.assertEqual(payload["current_match"]["match_score"], 88)
         self.assertEqual(payload["current_match"]["resume_label"], "Primary Backend Resume")
         self.assertEqual(payload["current_match"]["decision_label"], "Aplicar agora")
+        self.assertEqual(payload["stage_presentation"]["label"], "Entrevista")
+        self.assertEqual(payload["next_action"]["title"], "Preparar a proxima conversa")
+        self.assertIn("Notas de acompanhamento registradas", payload["recorded_context"])
+        self.assertIn("Hiring manager chat booked", payload["notes_highlights"])
+        self.assertNotIn("Notas de acompanhamento", payload["missing_context"])
+
+    def test_application_payload_surfaces_missing_operational_context(self) -> None:
+        application = JobApplication.objects.create(
+            owner=self.user,
+            job=self.job,
+            status=JobApplicationStatus.APPLIED,
+            notes="",
+        )
+
+        response = self.client.get(f"/hunter/api/applications/{application.id}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["next_action"]["title"], "Registrar contexto do envio")
+        self.assertIn("Notas de acompanhamento", response.data["missing_context"])
+        self.assertIn("Match com curriculo", response.data["missing_context"])
+        self.assertEqual(response.data["notes_highlights"], [])

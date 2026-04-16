@@ -11,6 +11,48 @@ import { getMatchDecisionPresentation, getMatchNoticeTone } from "../lib/present
 import { formatDate, formatRelativeDate, formatShortDate, getErrorMessage, titleize } from "../lib/utils";
 
 const APPLICATION_STATUSES = ["saved", "applied", "interview", "rejected", "offer", "archived"];
+const APPLICATION_STAGE_FALLBACKS = {
+  saved: {
+    label: "Salva",
+    tone: "muted",
+    title: "No radar",
+    summary: "Vaga separada para decidir se vale entrar no pipeline."
+  },
+  applied: {
+    label: "Aplicada",
+    tone: "good",
+    title: "Aplicacao enviada",
+    summary: "Agora o foco e acompanhar retorno e registrar atualizacoes."
+  },
+  interview: {
+    label: "Entrevista",
+    tone: "medium",
+    title: "Conversa ativa",
+    summary: "Use este espaco para preparar a conversa e guardar observacoes."
+  },
+  rejected: {
+    label: "Rejeitada",
+    tone: "low",
+    title: "Processo encerrado",
+    summary: "Registre aprendizados uteis antes de arquivar ou seguir adiante."
+  },
+  offer: {
+    label: "Oferta",
+    tone: "good",
+    title: "Decisao em aberto",
+    summary: "Compare proposta, contexto e sinais antes de decidir."
+  },
+  archived: {
+    label: "Arquivada",
+    tone: "muted",
+    title: "Fora do foco atual",
+    summary: "Mantida no historico para consulta, sem exigir acao agora."
+  }
+};
+const APPLICATION_STAGE_OPTIONS = APPLICATION_STATUSES.map((status) => ({
+  value: status,
+  ...APPLICATION_STAGE_FALLBACKS[status]
+}));
 const ORDER_OPTIONS = [
   { value: "-updated_at", label: "Atualizadas recentemente" },
   { value: "-applied_at", label: "Aplicadas recentemente" },
@@ -46,11 +88,98 @@ const QUICK_ACTIONS = {
     { status: "applied", label: "Restaurar para aplicadas", variant: "ghost" }
   ]
 };
+const NOTE_TEMPLATES = [
+  {
+    label: "Entrevista",
+    value: "Entrevista:\n- Participantes:\n- Pontos a validar:\n- Proximo combinado:"
+  },
+  {
+    label: "Prazo",
+    value: "Prazo / follow-up:\n- Data combinada:\n- Quem acionar:\n- O que enviar:"
+  },
+  {
+    label: "Continuar ou parar",
+    value: "Decisao:\n- Motivos para continuar:\n- Riscos ou requisitos faltantes:\n- Sinal para parar:"
+  },
+  {
+    label: "Retorno recebido",
+    value: "Atualizacao recebida:\n- O que mudou:\n- Proxima etapa:\n- Observacao importante:"
+  }
+];
 
 function getScoreTone(score) {
   if (score >= 80) return "good";
   if (score >= 60) return "warning";
   return "blocked";
+}
+
+function getApplicationStage(application) {
+  return application?.stage_presentation ?? APPLICATION_STAGE_FALLBACKS[application?.status] ?? {
+    label: titleize(application?.status),
+    tone: "muted",
+    title: "Etapa registrada",
+    summary: "Acompanhe esta candidatura pelo status atual."
+  };
+}
+
+function getApplicationNextAction(application) {
+  if (application?.next_action) {
+    return application.next_action;
+  }
+
+  if (application?.status === "applied") {
+    return {
+      title: application.notes?.trim() ? "Aguardar retorno e registrar atualizacao" : "Registrar contexto do envio",
+      detail: application.notes?.trim()
+        ? "Mantenha notas de retorno, follow-up ou mudanca de etapa."
+        : "Salve canal, contato, data combinada ou qualquer sinal util para o proximo follow-up.",
+      cta_label: application.notes?.trim() ? "Atualizar notas" : "Salvar notas",
+      tone: application.notes?.trim() ? "medium" : "warning"
+    };
+  }
+
+  if (application?.status === "interview") {
+    return {
+      title: "Preparar conversa e registrar observacoes",
+      detail: "Anote pauta, perguntas abertas, feedback e proximos combinados.",
+      cta_label: "Atualizar observacoes",
+      tone: "medium"
+    };
+  }
+
+  return {
+    title: "Revisar candidatura",
+    detail: "Confira etapa, contexto e notas para definir a proxima acao.",
+    cta_label: "Atualizar contexto",
+    tone: "medium"
+  };
+}
+
+function getRecordedContext(application) {
+  if (application?.recorded_context?.length) {
+    return application.recorded_context;
+  }
+
+  const context = [`Etapa atual: ${getApplicationStage(application).label}`];
+  if (application?.applied_at) context.push("Data de aplicacao registrada");
+  if (application?.job_source) context.push(`Fonte da vaga: ${application.job_source}`);
+  if (application?.current_match) {
+    context.push(`Match: ${application.current_match.match_score}/100 com ${application.current_match.resume_label}`);
+  }
+  if (application?.notes?.trim()) context.push("Notas de acompanhamento registradas");
+  return context;
+}
+
+function getMissingContext(application) {
+  if (application?.missing_context?.length) {
+    return application.missing_context;
+  }
+
+  const missing = [];
+  if (!application?.current_match) missing.push("Match com curriculo");
+  if (!application?.notes?.trim()) missing.push("Notas de acompanhamento");
+  if (!application?.job_url) missing.push("Link original da vaga");
+  return missing;
 }
 
 function getSummaryPreview(text, fallback) {
@@ -103,8 +232,8 @@ function getApplicationsEmptyStateContent({ resumeCount, jobCount, savedCount, h
     return {
       eyebrow: "Nenhum item para este filtro",
       title: "Nenhuma candidatura apareceu com este recorte",
-      description: "Seu pipeline pode ter itens, mas os filtros atuais nao deixaram nenhuma candidatura visivel agora.",
-      nextStep: "Limpe os filtros ou ajuste a etapa buscada para reencontrar oportunidades ja rastreadas.",
+      description: "Seu pipeline pode ter itens, mas este recorte nao mostra nenhuma etapa para acompanhar agora.",
+      nextStep: "Limpe os filtros ou ajuste a etapa buscada para reencontrar a candidatura que precisa de atualizacao.",
       actionType: "filters"
     };
   }
@@ -112,9 +241,9 @@ function getApplicationsEmptyStateContent({ resumeCount, jobCount, savedCount, h
   if (resumeCount === 0) {
     return {
       eyebrow: "Fluxo ainda no inicio",
-      title: "Envie um curriculo antes de abrir candidaturas",
-      description: "O curriculo organiza o contexto da sua busca e deixa mais claro em quais vagas vale investir energia.",
-      nextStep: "Abra Curriculos, envie sua versao principal e depois volte para buscar vagas ou iniciar candidaturas.",
+      title: "Falta o curriculo que conecta vaga, match e candidatura",
+      description: "Sem curriculo, a candidatura perde contexto de aderencia e fica mais dificil decidir o proximo passo.",
+      nextStep: "Abra Curriculos, envie sua versao principal e depois volte para salvar vagas ou iniciar candidaturas com match.",
       actionType: "resume"
     };
   }
@@ -123,8 +252,8 @@ function getApplicationsEmptyStateContent({ resumeCount, jobCount, savedCount, h
     return {
       eyebrow: "Ainda sem oportunidades no radar",
       title: "Sua busca de vagas ainda nao gerou oportunidades para acompanhar",
-      description: "Sem vagas no workspace, ainda nao ha de onde iniciar e rastrear candidaturas.",
-      nextStep: "Abra Vagas, rode a busca inicial e monte sua shortlist antes de acompanhar o pipeline aqui.",
+      description: "Sem vagas no workspace, ainda nao existe uma oportunidade concreta para salvar, aplicar ou acompanhar.",
+      nextStep: "Abra Vagas, rode a busca inicial e monte uma shortlist antes de acompanhar etapas aqui.",
       actionType: "jobs"
     };
   }
@@ -142,8 +271,8 @@ function getApplicationsEmptyStateContent({ resumeCount, jobCount, savedCount, h
   return {
     eyebrow: "Pipeline ainda vazio",
     title: "Nenhuma candidatura rastreada ainda",
-    description: "Voce ja tem base para agir, mas ainda nao iniciou nenhuma candidatura para acompanhar por etapa.",
-    nextStep: "Volte para Vagas e marque a primeira oportunidade como aplicada para comecar a rastrear o fluxo aqui.",
+    description: "Voce ja tem base para agir, mas ainda nao existe uma candidatura com etapa, contexto e notas para acompanhar.",
+    nextStep: "Volte para Vagas e marque a primeira oportunidade como aplicada para abrir o painel operacional dela aqui.",
     actionType: "jobs"
   };
 }
@@ -170,6 +299,10 @@ export function ApplicationsPage() {
     () => getMatchDecisionPresentation(selectedApplication?.current_match ?? {}),
     [selectedApplication],
   );
+  const selectedStage = useMemo(() => getApplicationStage(selectedApplication), [selectedApplication]);
+  const selectedNextAction = useMemo(() => getApplicationNextAction(selectedApplication), [selectedApplication]);
+  const selectedRecordedContext = useMemo(() => getRecordedContext(selectedApplication), [selectedApplication]);
+  const selectedMissingContext = useMemo(() => getMissingContext(selectedApplication), [selectedApplication]);
   const statusCounts = useMemo(() => getStatusCounts(applications), [applications]);
   const trackerSummary = useMemo(
     () => buildTrackerSummary(totalCount, applications.length, appliedFilters),
@@ -192,6 +325,11 @@ export function ApplicationsPage() {
   const savedNotesPreview = selectedApplication?.notes?.trim()
     ? getSummaryPreview(selectedApplication.notes, "")
     : "Nenhuma nota salva ainda. Use este espaço para registrar contexto, próximas ações e sinais importantes.";
+  const selectedNotesHighlights = selectedApplication?.notes_highlights?.length
+    ? selectedApplication.notes_highlights
+    : selectedApplication?.notes?.trim()
+      ? [getSummaryPreview(selectedApplication.notes, "")]
+      : [];
 
   async function loadApplications() {
     setLoading(true);
@@ -265,17 +403,28 @@ export function ApplicationsPage() {
     }
   }
 
+  function appendNoteTemplate(application, template) {
+    setEditingNotes((previous) => {
+      const currentValue = previous[application.id] ?? "";
+      const separator = currentValue.trim() ? "\n\n" : "";
+      return {
+        ...previous,
+        [application.id]: `${currentValue}${separator}${template.value}`
+      };
+    });
+  }
+
   const overviewCards = [
     { label: "Rastreadas", value: totalCount, helper: "Carregadas do seu pipeline" },
-    { label: "Pedem ação", value: (statusCounts.saved ?? 0) + (statusCounts.applied ?? 0), helper: "Salvas ou aplicadas recentemente" },
-    { label: "Em entrevista", value: statusCounts.interview ?? 0, helper: "Conversas ativas" },
-    { label: "Ofertas", value: statusCounts.offer ?? 0, helper: "Resultados positivos em andamento" }
+    { label: "Em movimento", value: (statusCounts.applied ?? 0) + (statusCounts.interview ?? 0) + (statusCounts.offer ?? 0), helper: "Pedem acompanhamento real" },
+    { label: "Sem notas", value: applications.filter((application) => !application.notes?.trim()).length, helper: "Precisam de contexto salvo" },
+    { label: "Ofertas", value: statusCounts.offer ?? 0, helper: "Decisoes positivas em aberto" }
   ];
 
   return (
     <AppShell
       title="Candidaturas"
-      subtitle="Transforme candidaturas rastreadas em um fluxo claro, com triagem rápida, detalhes úteis e notas mais visíveis."
+      subtitle="Gerencie seu pipeline de candidatura com etapa clara, proxima acao, contexto de vaga/curriculo e notas de acompanhamento."
       actions={
         <button className="button button--ghost" type="button" onClick={loadApplications}>
           Atualizar rastreador
@@ -408,17 +557,28 @@ export function ApplicationsPage() {
 
           {!loading && applications.length ? (
             <div className="list-stack">
-              {applications.map((application) => (
+              {applications.map((application) => {
+                const stage = getApplicationStage(application);
+                const nextAction = getApplicationNextAction(application);
+                const missingContext = getMissingContext(application);
+                return (
                 <article
                   className={application.id === selectedApplicationId ? "list-item application-list-item is-selected" : "list-item application-list-item"}
                   key={application.id}
                 >
                   <div className="application-list-item__main">
+                    <div className="application-stage-strip">
+                      <div>
+                        <span>Etapa atual</span>
+                        <strong>{stage.title}</strong>
+                      </div>
+                      <StatusBadge value={application.status} label={stage.label} tone={stage.tone} />
+                    </div>
+
                     <div className="inline-meta">
                       <button className="list-item__title-button" type="button" onClick={() => setSelectedApplicationId(application.id)}>
                         {application.job_title}
                       </button>
-                      <StatusBadge value={application.status} />
                       {application.job_source ? <span className="status-badge tone-muted">{application.job_source}</span> : null}
                       {application.current_match ? (
                         <span className={`status-badge tone-${getScoreTone(application.current_match.match_score)}`}>
@@ -438,16 +598,43 @@ export function ApplicationsPage() {
                       Atualizada {formatRelativeDate(application.updated_at)}
                     </p>
 
+                    <div className={`next-action-card next-action-card--compact tone-${nextAction.tone || "medium"}`}>
+                      <span>Proxima acao</span>
+                      <strong>{nextAction.title}</strong>
+                      <p>{nextAction.detail}</p>
+                    </div>
+
                     <p className={application.notes?.trim() ? "notes-preview notes-preview--inline" : ""}>{getApplicationListPreview(application)}</p>
 
                     <div className="selection-pills">
                       {application.job_is_saved ? <span>Salva no workspace de vagas</span> : null}
                       {application.current_match?.resume_label ? <span>Currículo: {application.current_match.resume_label}</span> : null}
                       {application.notes?.trim() ? <span>Com notas</span> : <span>Sem notas</span>}
+                      {missingContext.length ? <span>Faltam {missingContext.length} itens</span> : <span>Contexto completo</span>}
                     </div>
                   </div>
 
                   <div className="action-row action-row--wrap">
+                    <label className="field field--compact">
+                      <span>Mover etapa</span>
+                      <select
+                        value={application.status}
+                        disabled={busyAction === `application-${application.id}`}
+                        onChange={(event) =>
+                          updateApplication(
+                            application,
+                            { status: event.target.value },
+                            `Candidatura movida para ${titleize(event.target.value).toLowerCase()}.`,
+                          )
+                        }
+                      >
+                        {APPLICATION_STAGE_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                     <button className="button button--ghost" type="button" onClick={() => setSelectedApplicationId(application.id)}>
                       Ver detalhes
                     </button>
@@ -458,7 +645,8 @@ export function ApplicationsPage() {
                     ) : null}
                   </div>
                 </article>
-              ))}
+                );
+              })}
             </div>
           ) : null}
         </SectionCard>
@@ -476,9 +664,25 @@ export function ApplicationsPage() {
             />
           ) : (
             <div className="detail-stack">
+              <div className={`application-command-panel tone-${selectedStage.tone || "medium"}`}>
+                <div className="application-command-panel__stage">
+                  <span>Etapa atual</span>
+                  <div className="inline-meta">
+                    <strong>{selectedStage.title}</strong>
+                    <StatusBadge value={selectedApplication.status} label={selectedStage.label} tone={selectedStage.tone} />
+                  </div>
+                  <p>{selectedStage.summary}</p>
+                </div>
+
+                <div className={`next-action-card tone-${selectedNextAction.tone || "medium"}`}>
+                  <span>Proxima acao recomendada</span>
+                  <strong>{selectedNextAction.title}</strong>
+                  <p>{selectedNextAction.detail}</p>
+                </div>
+              </div>
+
               <div className="inline-meta">
                 <strong>{selectedApplication.job_title}</strong>
-                <StatusBadge value={selectedApplication.status} />
                 {selectedApplication.current_match ? (
                   <span className={`status-badge tone-${getScoreTone(selectedApplication.current_match.match_score)}`}>
                     {selectedApplication.current_match.match_score}/100 aderência
@@ -524,9 +728,9 @@ export function ApplicationsPage() {
                       )
                     }
                   >
-                    {APPLICATION_STATUSES.map((status) => (
-                      <option key={status} value={status}>
-                        {titleize(status)}
+                    {APPLICATION_STAGE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
                       </option>
                     ))}
                   </select>
@@ -560,6 +764,58 @@ export function ApplicationsPage() {
 
               <SectionCard
                 className="job-detail-subcard"
+                title="Contexto operacional"
+                subtitle="Veja rapidamente o que ja esta registrado e o que ainda falta para decidir o proximo passo."
+              >
+                <div className="context-grid">
+                  <article className="context-card context-card--recorded">
+                    <strong>Ja registrado</strong>
+                    <ul className="plain-list">
+                      {selectedRecordedContext.map((item, index) => (
+                        <li key={`${item}-${index}`}>{item}</li>
+                      ))}
+                    </ul>
+                  </article>
+
+                  <article className="context-card context-card--missing">
+                    <div className="inline-meta">
+                      <strong>Ainda falta</strong>
+                      <span className={`status-badge ${selectedMissingContext.length ? "tone-warning" : "tone-good"}`}>
+                        {selectedMissingContext.length ? `${selectedMissingContext.length} itens` : "Tudo essencial"}
+                      </span>
+                    </div>
+                    {selectedMissingContext.length ? (
+                      <ul className="plain-list">
+                        {selectedMissingContext.map((item, index) => (
+                          <li key={`${item}-${index}`}>{item}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="muted-copy">O contexto essencial para acompanhar esta candidatura ja esta visivel.</p>
+                    )}
+                  </article>
+                </div>
+                {selectedApplication.current_match ? (
+                  <div className={`notice notice--${selectedDecision.tone || getMatchNoticeTone(selectedApplication.current_match.match_score)}`}>
+                    <div className="inline-meta">
+                      <strong>Curriculo e match atual</strong>
+                      <span className={`status-badge tone-${getScoreTone(selectedApplication.current_match.match_score)}`}>
+                        {selectedApplication.current_match.match_score}/100
+                      </span>
+                      <span className="status-badge tone-muted">{selectedApplication.current_match.resume_label}</span>
+                    </div>
+                    <p>{selectedApplication.current_match.recommendation}</p>
+                  </div>
+                ) : (
+                  <div className="notice notice--info">
+                    <strong>Match ainda ausente</strong>
+                    <p>Atualize a aderencia pelo workspace de vagas para ver curriculo usado, score e recomendacao antes do proximo passo.</p>
+                  </div>
+                )}
+              </SectionCard>
+
+              <SectionCard
+                className="job-detail-subcard"
                 title="Notas e próximos passos"
                 subtitle="Registre retornos de recrutadores, preparo para entrevistas, bloqueios e ações práticas."
               >
@@ -572,6 +828,29 @@ export function ApplicationsPage() {
                     {notesChanged ? <span className="status-badge tone-medium">Rascunho alterado</span> : null}
                   </div>
                   <p className={selectedApplication.notes?.trim() ? "notes-preview" : "muted-copy"}>{savedNotesPreview}</p>
+                  {selectedNotesHighlights.length ? (
+                    <ul className="plain-list notes-highlights">
+                      {selectedNotesHighlights.map((item, index) => (
+                        <li key={`${item}-${index}`}>{item}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+
+                <div className="note-template-row">
+                  <span>Modelos rapidos</span>
+                  <div className="action-row action-row--wrap">
+                    {NOTE_TEMPLATES.map((template) => (
+                      <button
+                        key={template.label}
+                        className="button button--ghost"
+                        type="button"
+                        onClick={() => appendNoteTemplate(selectedApplication, template)}
+                      >
+                        {template.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <label className="field">
@@ -604,7 +883,7 @@ export function ApplicationsPage() {
                       )
                     }
                   >
-                    Salvar notas
+                    Salvar notas da candidatura
                   </button>
                   <button
                     className="button button--ghost"
