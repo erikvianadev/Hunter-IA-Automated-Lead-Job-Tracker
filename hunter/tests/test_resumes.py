@@ -788,6 +788,108 @@ class ResumeApiTests(TestCase):
         self.assertEqual(response.data["extraction_diagnostics"]["likely_scanned_pdf"], True)
         self.assertIn("text PDF or upload a DOCX", response.data["extraction_diagnostics"]["suggestion"])
 
+    def test_arbitrary_extractable_docx_is_received_but_blocked_as_non_resume(self) -> None:
+        upload = SimpleUploadedFile(
+            "relatorio.docx",
+            build_docx_bytes(
+                "Relatorio financeiro trimestral",
+                "Este documento descreve clausula de faturamento, nota fiscal, boleto e regulamento interno.",
+                "Sumario executivo com conclusoes administrativas sem historico profissional do candidato.",
+            ),
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+
+        response = self.client.post(
+            "/hunter/api/resumes/",
+            {"file": upload},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["parse_status"], ResumeParseStatus.DOCUMENT_NOT_RESUME_LIKE)
+        self.assertFalse(response.data["is_active"])
+        self.assertEqual(
+            response.data["extraction_diagnostics"]["failure_reason"],
+            ResumeParseStatus.DOCUMENT_NOT_RESUME_LIKE,
+        )
+        self.assertTrue(response.data["extraction_diagnostics"]["blocked_for_low_resume_confidence"])
+        self.assertIn(
+            "nao parece um curriculo",
+            response.data["extraction_diagnostics"]["user_message"],
+        )
+
+    def test_valid_resume_like_docx_still_becomes_active(self) -> None:
+        upload = SimpleUploadedFile(
+            "backend-cv.docx",
+            build_docx_bytes(
+                "Jane Doe",
+                "Backend Engineer",
+                "Resumo",
+                "Engenheira backend com experiencia em Python, Django, SQL, Docker e APIs.",
+                "Experiencia",
+                "Desenvolvi APIs e melhorei a confiabilidade de sistemas em producao.",
+                "Habilidades",
+                "Python, Django, SQL, Docker, AWS",
+                "Projetos",
+                "Plataforma de vagas com dashboards e metricas de uso.",
+            ),
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+
+        response = self.client.post(
+            "/hunter/api/resumes/",
+            {"file": upload},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["parse_status"], ResumeParseStatus.COMPLETED)
+        self.assertTrue(response.data["is_active"])
+        self.assertTrue(response.data["extraction_diagnostics"]["resume_likeness_validated"])
+        self.assertGreaterEqual(
+            response.data["extraction_diagnostics"]["resume_likeness_confidence"],
+            response.data["extraction_diagnostics"]["minimum_resume_likeness_confidence"],
+        )
+
+    def test_downstream_analysis_and_match_are_blocked_for_non_resume_like_file(self) -> None:
+        upload = SimpleUploadedFile(
+            "manual.docx",
+            build_docx_bytes(
+                "Manual de instrucoes do equipamento",
+                "Capitulo um com regulamento, termos de uso e politica interna.",
+                "Este documento apenas descreve operacao, manutencao e garantia do equipamento.",
+            ),
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+        upload_response = self.client.post(
+            "/hunter/api/resumes/",
+            {"file": upload},
+            format="multipart",
+        )
+        resume_id = upload_response.data["id"]
+        job = Job.objects.create(
+            owner=self.user,
+            title="Backend Engineer",
+            company_name="Acme",
+            location="Remote",
+            description="Python Django APIs SQL Docker",
+            url="https://example.com/jobs/backend",
+        )
+
+        analysis_response = self.client.post(f"/hunter/api/resumes/{resume_id}/analyze/")
+        match_response = self.client.post(
+            f"/hunter/api/jobs/{job.id}/match/",
+            {"resume_id": resume_id},
+            format="json",
+        )
+
+        self.assertEqual(upload_response.data["parse_status"], ResumeParseStatus.DOCUMENT_NOT_RESUME_LIKE)
+        self.assertEqual(analysis_response.status_code, 400)
+        self.assertIn("nao parece um curriculo", analysis_response.data["detail"])
+        self.assertEqual(match_response.status_code, 400)
+        self.assertIn("nao parece um curriculo", match_response.data["detail"])
+        self.assertFalse(JobMatch.objects.filter(owner=self.user, job=job).exists())
+
 
 class ResumeTextExtractionServiceTests(TestCase):
     def test_extracts_text_from_docx(self) -> None:

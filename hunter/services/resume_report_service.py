@@ -187,7 +187,7 @@ class ResumeReportService:
     def _build_priority_actions(self, *, analysis, seniority, top_gaps: list[str], trust_decision) -> list[str]:
         actions: list[str] = []
         if not trust_decision.trusted:
-            actions.append("Envie um PDF ou DOCX mais limpo antes de rodar analise, senioridade ou aderencia.")
+            actions.append("Envie um CV real em PDF ou DOCX antes de rodar analise, senioridade ou aderencia.")
             suggestion = trust_decision.diagnostics.get("suggestion")
             if isinstance(suggestion, str) and suggestion:
                 actions.append(suggestion)
