@@ -18,10 +18,10 @@ export function BillingResultPage({ kind }) {
             <p>{presentation.message}</p>
             <p>{presentation.nextStep}</p>
           </div>
-          {sessionId ? <p className="muted-copy">Referencia do checkout: {sessionId}</p> : null}
+          {sessionId ? <p className="muted-copy">Referência segura da confirmação: {sessionId}</p> : null}
           <div className="action-row action-row--wrap">
             <Link className="button button--primary" to="/billing">
-              Ir para planos
+              Conferir acesso
             </Link>
             <Link className="button button--ghost" to="/dashboard">
               Voltar ao painel

@@ -6,8 +6,11 @@ import { SectionCard } from "../components/SectionCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { useAuth } from "../context/AuthContext";
 import {
+  getBillingCycleLabel,
   getBillingFeatureLabel,
+  getBillingFeaturePresentation,
   getBillingPlanLabel,
+  getBillingPlanPresentation,
   getBillingStatusPresentation
 } from "../lib/presentation";
 import { formatCurrency, formatDate, getErrorMessage, titleize } from "../lib/utils";
@@ -28,7 +31,7 @@ export function BillingPage() {
       const payload = await request("/hunter/api/billing/subscription/");
       setOverview(payload);
     } catch (requestError) {
-      setError(getErrorMessage(requestError, "Nao foi possivel carregar os detalhes do seu plano agora."));
+      setError(getErrorMessage(requestError, "Não foi possível carregar os detalhes do seu plano agora."));
     } finally {
       setLoading(false);
     }
@@ -54,7 +57,7 @@ export function BillingPage() {
       setFeedback("Abrindo o checkout seguro para confirmar seu upgrade...");
       window.location.href = payload.checkout_url;
     } catch (requestError) {
-      setError(getErrorMessage(requestError, "Nao foi possivel abrir o checkout agora."));
+      setError(getErrorMessage(requestError, "Não foi possível abrir o checkout agora."));
     } finally {
       setBusyAction("");
     }
@@ -70,10 +73,10 @@ export function BillingPage() {
         method: "POST",
         body: JSON.stringify({})
       });
-      setFeedback("Renovacao automatica desativada. Seu acesso atual continua valido ate o fim do ciclo.");
+      setFeedback("Renovação automática desativada. Seu acesso atual continua válido até o fim do ciclo.");
       await loadOverview();
     } catch (requestError) {
-      setError(getErrorMessage(requestError, "Nao foi possivel atualizar sua assinatura agora."));
+      setError(getErrorMessage(requestError, "Não foi possível atualizar sua assinatura agora."));
     } finally {
       setBusyAction("");
     }
@@ -84,11 +87,14 @@ export function BillingPage() {
   const lastInvoiceStatus = subscription?.last_invoice
     ? getBillingStatusPresentation(subscription.last_invoice.status)
     : null;
+  const currentPlanPresentation = subscription
+    ? getBillingPlanPresentation({ ...subscription, name: subscription.plan_name })
+    : null;
 
   return (
     <AppShell
       title="Planos"
-      subtitle="Escolha o plano certo para liberar insights mais profundos e conduzir sua busca com mais confianca."
+      subtitle="Escolha pelo resultado que você quer melhorar: decisões de currículo, priorização de vagas e clareza para aplicar."
       actions={
         <button className="button button--ghost" type="button" onClick={loadOverview}>
           Atualizar planos
@@ -101,7 +107,7 @@ export function BillingPage() {
       <section className="two-column-grid">
         <SectionCard
           title="Seu plano atual"
-          subtitle="Veja o que esta ativo hoje, o que isso significa para seu acesso e quando o ciclo atual termina."
+          subtitle="Veja o que está ativo hoje e como isso apoia sua busca neste momento."
           actions={
             subscription?.plan_code !== "free" ? (
               <button
@@ -110,7 +116,7 @@ export function BillingPage() {
                 disabled={busyAction === "cancel"}
                 onClick={cancelSubscription}
               >
-                {busyAction === "cancel" ? "Atualizando..." : "Desativar renovacao"}
+                {busyAction === "cancel" ? "Atualizando..." : "Desativar renovação"}
               </button>
             ) : null
           }
@@ -125,24 +131,36 @@ export function BillingPage() {
                   label={subscriptionStatus.label}
                   tone={subscriptionStatus.tone}
                 />
-                <StatusBadge value={subscription.billing_cycle} />
+                <StatusBadge value={subscription.billing_cycle} label={getBillingCycleLabel(subscription.billing_cycle)} />
               </div>
+              {currentPlanPresentation ? (
+                <div className="billing-value-note">
+                  <span>{currentPlanPresentation.eyebrow}</span>
+                  <p>{currentPlanPresentation.outcome}</p>
+                </div>
+              ) : null}
               <p>
-                {formatCurrency(subscription.price_amount, subscription.currency)} | Renovacao{" "}
-                {subscription.auto_renew ? "ativa" : "desativada"}
+                {formatCurrency(subscription.price_amount, subscription.currency)} | {getBillingCycleLabel(subscription.billing_cycle)}
+                {subscription.plan_code !== "free" ? ` | Renovação ${subscription.auto_renew ? "ativa" : "desativada"}` : ""}
               </p>
               <p className="muted-copy">
-                Iniciado em {formatDate(subscription.started_at)}
+                {subscription.started_at ? `Iniciado em ${formatDate(subscription.started_at)}` : "Disponível na sua conta"}
                 {subscription.current_period_end ? ` | Ciclo atual termina em ${formatDate(subscription.current_period_end)}` : ""}
               </p>
               <div className={`notice notice--${subscriptionStatus.tone === "good" ? "success" : subscriptionStatus.tone === "warning" ? "warning" : subscriptionStatus.tone === "blocked" ? "blocked" : "info"}`}>
                 <strong>
-                  {subscription.auto_renew ? "Seu acesso segue protegido" : "Sua renovacao automatica esta desligada"}
+                  {subscription.plan_code === "free"
+                    ? "Você já tem a base para organizar a busca"
+                    : subscription.auto_renew
+                      ? "Seu acesso premium segue ativo"
+                      : "Sua renovação automática está desligada"}
                 </strong>
                 <p>
-                  {subscription.auto_renew
-                    ? "Enquanto a renovacao estiver ativa, seu plano continua pronto para os recursos premium incluidos."
-                    : "Seu plano continua disponivel ate o fim do ciclo atual. Depois disso, o acesso volta para o nivel correspondente."}
+                  {subscription.plan_code === "free"
+                    ? "Use o gratuito para validar currículo, senioridade e matches. O upgrade passa a fazer sentido quando você precisa comparar versões e priorizar ações com mais profundidade."
+                    : subscription.auto_renew
+                      ? "Enquanto a renovação estiver ativa, você mantém diagnósticos profundos, comparação de versões e suporte para decidir melhor antes de aplicar."
+                      : "Seu plano continua disponível até o fim do ciclo atual. Depois disso, o acesso volta para o nível correspondente."}
                 </p>
               </div>
               {subscription.features?.length ? (
@@ -166,75 +184,91 @@ export function BillingPage() {
           {!loading && !subscription ? (
             <EmptyState
               title="Nenhum plano encontrado"
-              description="Assim que sua assinatura estiver disponivel, os detalhes vao aparecer aqui."
+              description="Assim que sua assinatura estiver disponível, os detalhes vão aparecer aqui."
             />
           ) : null}
         </SectionCard>
 
         <SectionCard
-          title="Depois do checkout"
-          subtitle="Se o pagamento ja foi concluido, volte aqui para confirmar o plano e o acesso liberado."
+          title="Confirmação do pagamento"
+          subtitle="O upgrade é confirmado com segurança antes de liberar os recursos premium."
         >
           <div className="detail-stack">
             <div className="notice notice--info">
-              <strong>Confirmacao em alguns instantes</strong>
+              <strong>Confirmação em alguns instantes</strong>
               <p>Depois do checkout, o plano pode levar alguns instantes para aparecer atualizado.</p>
-              <p>Se ainda nao mudou, atualize esta pagina daqui a pouco.</p>
+              <p>Se ainda não mudou, atualize esta página daqui a pouco.</p>
             </div>
-            <p>
-              Pagamento concluido: <code>/billing/success</code>
-            </p>
-            <p>
-              Checkout interrompido: <code>/billing/cancel</code>
-            </p>
             <p className="muted-copy">
-              A cobranca e a validacao final do acesso continuam protegidas pelo backend. Aqui voce acompanha o resultado
-              de forma mais clara.
+              A cobrança e a validação final do acesso continuam protegidas pelo backend. Aqui você acompanha o resultado
+              sem precisar interpretar códigos de checkout.
             </p>
           </div>
         </SectionCard>
       </section>
 
       <SectionCard
-        title="Opcoes de upgrade"
-        subtitle="Desbloqueie comparacoes avancadas e insights premium quando quiser mais profundidade na sua estrategia."
+        title="Opções de upgrade"
+        subtitle="Compare os planos pelo que eles ajudam você a decidir, não só pelos recursos liberados."
       >
-        {loading ? <div className="loading-panel">Carregando planos disponiveis...</div> : null}
+        {loading ? <div className="loading-panel">Carregando planos disponíveis...</div> : null}
         {!loading && !overview?.plans?.length ? (
           <EmptyState
-            title="Nenhum plano disponivel agora"
-            description="Atualize a pagina em instantes para tentar novamente."
+            title="Nenhum plano disponível agora"
+            description="Atualize a página em instantes para tentar novamente."
           />
         ) : null}
         {!loading && overview?.plans?.length ? (
           <div className="plan-grid">
-            {overview.plans.map((plan) => (
-              <article className={plan.highlighted ? "plan-card is-highlighted" : "plan-card"} key={`${plan.code}-${plan.billing_cycle}`}>
-                <div className="inline-meta">
-                  <strong>{getBillingPlanLabel(plan)}</strong>
-                  {plan.is_current ? <StatusBadge value="active" label="Plano atual" /> : null}
-                </div>
-                <h3>{formatCurrency(plan.price_amount, plan.currency)}</h3>
-                <p>{titleize(plan.billing_cycle)}</p>
-                <ul className="plain-list">
-                  {plan.features.map((feature) => (
-                    <li key={feature}>{getBillingFeatureLabel(feature)}</li>
-                  ))}
-                </ul>
-                <button
-                  className={plan.highlighted ? "button button--primary" : "button button--secondary"}
-                  type="button"
-                  disabled={plan.is_current || plan.code === "free" || busyAction === `${plan.code}-${plan.billing_cycle}`}
-                  onClick={() => subscribe(plan.code, plan.billing_cycle)}
-                >
-                  {plan.is_current
-                    ? "Plano atual"
-                    : busyAction === `${plan.code}-${plan.billing_cycle}`
-                      ? "Abrindo checkout..."
-                      : "Escolher este plano"}
-                </button>
-              </article>
-            ))}
+            {overview.plans.map((plan) => {
+              const planPresentation = getBillingPlanPresentation(plan);
+              const visibleFeatures = plan.features.map((feature) => getBillingFeaturePresentation(feature));
+              const actionKey = `${plan.code}-${plan.billing_cycle}`;
+              const actionLabel = plan.is_current
+                ? "Plano atual"
+                : plan.code === "free"
+                  ? "Incluído no gratuito"
+                  : busyAction === actionKey
+                    ? "Abrindo checkout..."
+                    : planPresentation.cta;
+
+              return (
+                <article className={plan.highlighted ? "plan-card is-highlighted" : "plan-card"} key={`${plan.code}-${plan.billing_cycle}`}>
+                  <div className="plan-card__intro">
+                    <span className="plan-card__eyebrow">{planPresentation.eyebrow}</span>
+                    <div className="inline-meta">
+                      <strong>{planPresentation.label || getBillingPlanLabel(plan)}</strong>
+                      {plan.is_current ? <StatusBadge value="active" label="Plano atual" /> : null}
+                    </div>
+                    <p>{planPresentation.description}</p>
+                  </div>
+                  <div>
+                    <h3>{formatCurrency(plan.price_amount, plan.currency)}</h3>
+                    <p className="muted-copy">{getBillingCycleLabel(plan.billing_cycle)}</p>
+                  </div>
+                  <div className="billing-value-note">
+                    <span>Melhor para</span>
+                    <p>{planPresentation.bestFor}</p>
+                  </div>
+                  <ul className="billing-feature-list">
+                    {visibleFeatures.map((feature) => (
+                      <li key={feature.label}>
+                        <strong>{feature.label}</strong>
+                        <span>{feature.description}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <button
+                    className={plan.highlighted ? "button button--primary" : "button button--secondary"}
+                    type="button"
+                    disabled={plan.is_current || plan.code === "free" || busyAction === actionKey}
+                    onClick={() => subscribe(plan.code, plan.billing_cycle)}
+                  >
+                    {actionLabel}
+                  </button>
+                </article>
+              );
+            })}
           </div>
         ) : null}
       </SectionCard>

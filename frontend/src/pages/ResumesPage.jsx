@@ -97,7 +97,7 @@ function getInsightStateMessage(kind, error) {
   }
 
   if (error.status === 403) {
-    return "Esse insight faz parte do Premium. Faça upgrade para liberar o acesso completo.";
+    return "Esse diagnóstico é premium porque aprofunda prioridades, lacunas e próximos ajustes do currículo.";
   }
 
   return getErrorMessage(error, "Não foi possível carregar este insight agora.");
@@ -160,6 +160,7 @@ export function ResumesPage() {
   const [report, setReport] = useState(null);
   const [reportState, setReportState] = useState({ status: "idle", message: "" });
   const [comparison, setComparison] = useState(null);
+  const [comparisonUpgradePrompt, setComparisonUpgradePrompt] = useState(false);
   const [form, setForm] = useState({
     file: null,
     label: "",
@@ -350,6 +351,7 @@ export function ResumesPage() {
   }
 
   function toggleCompareSelection(resumeId) {
+    setComparisonUpgradePrompt(false);
     setSelectedIds((previous) =>
       previous.includes(resumeId)
         ? previous.filter((id) => id !== resumeId)
@@ -457,7 +459,7 @@ export function ResumesPage() {
 
         <SectionCard
           title="Comparação premium"
-          subtitle="Compare duas ou três versões para entender qual comunica melhor sua experiência."
+          subtitle="Compare duas ou três versões para decidir qual currículo comunica melhor sua experiência antes de aplicar."
           actions={
             <button
               className="button button--secondary"
@@ -468,10 +470,11 @@ export function ResumesPage() {
                   try {
                     const payload = await request(`/hunter/api/resumes/compare/?ids=${selectedIds.join(",")}`);
                     setComparison(payload);
+                    setComparisonUpgradePrompt(false);
                     setFeedback("Comparação pronta. Revise abaixo os principais contrastes entre as versões.");
                   } catch (requestError) {
                     if (requestError.status === 403) {
-                      setError("A comparação entre versões faz parte do Premium. Faça upgrade para liberar esse resultado.");
+                      setComparisonUpgradePrompt(true);
                       return;
                     }
 
@@ -485,8 +488,8 @@ export function ResumesPage() {
           }
         >
           <p className="muted-copy">
-            Selecione duas ou três versões abaixo. Se o seu plano ainda não incluir essa comparação, vamos avisar antes
-            de abrir o resultado.
+            Use quando estiver em dúvida entre versões, cargos-alvo ou formas de contar sua experiência. Se o seu plano
+            ainda não incluir essa comparação, mostramos o próximo passo sem perder sua seleção.
           </p>
           <div className="selection-pills">
             {selectedCompareResumes.length
@@ -495,6 +498,20 @@ export function ResumesPage() {
               ))
               : <span>Selecione as versões que deseja comparar</span>}
           </div>
+          {comparisonUpgradePrompt ? (
+            <div className="notice notice--premium">
+              <strong>Upgrade útil para esta decisão</strong>
+              <p>
+                A comparação premium ajuda a escolher a versão mais forte antes de aplicar, em vez de testar currículos
+                no escuro.
+              </p>
+              <div className="action-row action-row--wrap">
+                <Link className="button button--primary" to="/billing">
+                  Ver upgrade para comparar versões
+                </Link>
+              </div>
+            </div>
+          ) : null}
           {comparison ? (
             <div className="detail-stack">
               <strong>{comparison.comparison_summary}</strong>
@@ -656,16 +673,16 @@ export function ResumesPage() {
                       try {
                         const payload = await request(`/hunter/api/resumes/${selectedResume.id}/report/`);
                         setReport(payload);
-                        setReportState({ status: "ready", message: "O insight premium já está disponível." });
-                        setFeedback("Insight premium aberto com sucesso.");
+                        setReportState({ status: "ready", message: "O diagnóstico premium já está disponível." });
+                        setFeedback("Diagnóstico premium aberto com sucesso.");
                       } catch (requestError) {
                         setReport(null);
                         setReportState({
                           status: requestError.status === 403 ? "locked" : "blocked",
                           message:
                             requestError.status === 403
-                              ? "Esse insight faz parte do Premium. Faça upgrade para liberar a visão completa."
-                              : getErrorMessage(requestError, "Não foi possível abrir o insight premium agora.")
+                              ? "O Premium libera uma leitura mais profunda deste currículo, com prioridades, lacunas e ações para decidir melhor antes de aplicar."
+                              : getErrorMessage(requestError, "Não foi possível abrir o diagnóstico premium agora.")
                         });
 
                         if (requestError.status !== 403) {
@@ -675,7 +692,7 @@ export function ResumesPage() {
                     })
                   }
                 >
-                  {busyAction === "report" ? "Abrindo insight..." : "Abrir insight premium"}
+                  {busyAction === "report" ? "Abrindo diagnóstico..." : "Abrir diagnóstico premium"}
                 </button>
               </div>
             ) : null
@@ -742,6 +759,13 @@ export function ResumesPage() {
                   <strong>{reportPresentation.title}</strong>
                   <p>{reportState.message}</p>
                   <p>{reportPresentation.nextStep}</p>
+                  {reportState.status === "locked" ? (
+                    <div className="action-row action-row--wrap">
+                      <Link className="button button--primary" to="/billing">
+                        Ver upgrade para este diagnóstico
+                      </Link>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
 
@@ -850,7 +874,7 @@ export function ResumesPage() {
 
               {report ? (
                 <div className="detail-stack">
-                  <strong>Insight premium</strong>
+                  <strong>Diagnóstico premium</strong>
                   <p>{report.executive_summary}</p>
                   <ul className="plain-list">
                     {(report.priority_actions ?? []).map((item, index) => (

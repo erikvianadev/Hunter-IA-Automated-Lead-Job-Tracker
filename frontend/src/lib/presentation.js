@@ -143,24 +143,85 @@ const RESUME_PARSE_PRESENTATIONS = {
 const INSIGHT_LABELS = {
   analysis: "a análise do currículo",
   seniority: "a leitura de senioridade",
-  report: "o insight premium"
+  report: "o diagnóstico premium"
 };
 
-const BILLING_FEATURE_LABELS = {
-  dashboard: "Painel com progresso e prioridades",
-  job_matching: "Match com vagas",
-  multiple_resume_versions: "Múltiplas versões de currículo",
-  premium_reports: "Relatórios premium",
-  priority_support: "Atendimento prioritário",
-  resume_analysis: "Análise de currículo",
-  resume_comparison: "Comparação entre versões",
-  resume_upload: "Envio de currículo",
-  seniority_assessment: "Leitura de senioridade"
+const BILLING_FEATURE_PRESENTATIONS = {
+  dashboard: {
+    label: "Painel de progresso",
+    description: "Acompanhe prioridades, currículo ativo e próximos passos da busca."
+  },
+  job_matching: {
+    label: "Aderência com vagas",
+    description: "Compare seu currículo com oportunidades para decidir onde vale investir energia."
+  },
+  multiple_resume_versions: {
+    label: "Versões para cada estratégia",
+    description: "Mantenha variações do currículo por cargo, senioridade ou foco de candidatura."
+  },
+  premium_reports: {
+    label: "Diagnóstico premium",
+    description: "Receba uma leitura mais profunda de lacunas, prioridades e ações de maior impacto."
+  },
+  priority_support: {
+    label: "Suporte prioritário",
+    description: "Tenha prioridade quando precisar resolver dúvidas sobre uso e acesso."
+  },
+  resume_analysis: {
+    label: "Análise do currículo",
+    description: "Veja clareza, estrutura, aderência e sinais que fortalecem sua apresentação."
+  },
+  resume_comparison: {
+    label: "Comparação entre versões",
+    description: "Entenda qual versão comunica melhor sua experiência antes de aplicar."
+  },
+  resume_upload: {
+    label: "Envio de currículo",
+    description: "Use PDF ou DOCX como base para análises, senioridade e matches."
+  },
+  seniority_assessment: {
+    label: "Leitura de senioridade",
+    description: "Entenda o nível mais coerente para posicionar seu currículo e suas vagas."
+  }
 };
 
 const BILLING_PLAN_LABELS = {
   free: "Plano gratuito",
+  pro: "Pro",
   "pro annual": "Pro anual"
+};
+
+const BILLING_PLAN_PRESENTATIONS = {
+  free: {
+    eyebrow: "Base organizada",
+    label: "Plano gratuito",
+    description: "Para preparar a base da sua busca: enviar currículo, entender senioridade e começar a comparar vagas com mais clareza.",
+    outcome: "Ajuda você a sair do achismo inicial e enxergar o que já está pronto para usar.",
+    bestFor: "Comece aqui quando ainda está estruturando currículo, cargo-alvo e primeiras oportunidades.",
+    cta: "Plano atual"
+  },
+  "pro-monthly": {
+    eyebrow: "Mais decisão por candidatura",
+    label: "Pro mensal",
+    description: "Para transformar análise em decisões melhores: escolher a versão certa, priorizar ajustes e aprofundar o diagnóstico antes de aplicar.",
+    outcome: "Ajuda você a decidir com mais confiança onde ajustar, qual versão usar e quais vagas merecem foco.",
+    bestFor: "Faz sentido quando você já está comparando oportunidades ou quer acelerar uma rodada de candidaturas.",
+    cta: "Melhorar meus resultados"
+  },
+  "pro-yearly": {
+    eyebrow: "Rotina premium contínua",
+    label: "Pro anual",
+    description: "Para manter uma busca consistente ao longo do tempo, com diagnósticos profundos e comparações sempre que sua estratégia mudar.",
+    outcome: "Ajuda você a manter evolução do currículo, priorização de vagas e aprendizado entre ciclos.",
+    bestFor: "Faz sentido quando Hunter IA vira parte da sua rotina de carreira, não só de uma candidatura pontual.",
+    cta: "Assinar o Pro anual"
+  }
+};
+
+const BILLING_CYCLE_PRESENTATIONS = {
+  free: "Sem cobrança",
+  monthly: "Cobrança mensal",
+  yearly: "Cobrança anual"
 };
 
 export function getResumeParsePresentation(parseStatus, options = {}) {
@@ -213,9 +274,9 @@ export function getResumeInsightPresentation(kind, state) {
     return {
       label: "Premium",
       tone: "premium",
-      title: "Recurso premium",
-      description: `O acesso a ${noun} faz parte do plano Premium.`,
-      nextStep: "Faça upgrade para liberar a visão completa quando quiser."
+      title: "Resultado mais profundo no Premium",
+      description: `O Premium libera ${noun} para transformar os dados do currículo em prioridades mais claras.`,
+      nextStep: "Faça upgrade quando quiser comparar decisões, enxergar lacunas e agir com mais confiança."
     };
   }
 
@@ -268,7 +329,16 @@ export function getBillingStatusPresentation(status) {
 }
 
 export function getBillingFeatureLabel(feature) {
-  return BILLING_FEATURE_LABELS[feature] ?? titleize(feature);
+  return getBillingFeaturePresentation(feature).label;
+}
+
+export function getBillingFeaturePresentation(feature) {
+  return (
+    BILLING_FEATURE_PRESENTATIONS[feature] ?? {
+      label: titleize(feature),
+      description: "Recurso incluído neste plano."
+    }
+  );
 }
 
 export function getBillingPlanLabel(plan) {
@@ -286,6 +356,29 @@ export function getBillingPlanLabel(plan) {
   }
 
   return titleize(plan.name || plan.code);
+}
+
+export function getBillingPlanPresentation(plan) {
+  const planCode = plan?.code ?? "";
+  const planName = String(plan?.name ?? "").trim().toLowerCase();
+  const planKey = planCode === "pro" ? `pro-${plan?.billing_cycle}` : planCode || planName;
+  const fallbackLabel = getBillingPlanLabel(plan);
+
+  return (
+    BILLING_PLAN_PRESENTATIONS[planKey] ??
+    BILLING_PLAN_PRESENTATIONS[planName] ?? {
+      eyebrow: "Plano",
+      label: fallbackLabel,
+      description: "Plano disponível para continuar sua jornada no Hunter IA.",
+      outcome: "Ajuda você a manter o fluxo de carreira organizado.",
+      bestFor: "Escolha quando fizer sentido para o seu momento atual.",
+      cta: "Escolher este plano"
+    }
+  );
+}
+
+export function getBillingCycleLabel(cycle) {
+  return BILLING_CYCLE_PRESENTATIONS[cycle] ?? titleize(cycle);
 }
 
 export function getMatchNoticeTone(score) {
@@ -398,22 +491,22 @@ export function getJobsOverviewCardsPresentation(input = {}) {
 export function getCheckoutResultPresentation(kind) {
   if (kind === "success") {
     return {
-      title: "Checkout concluído",
-      subtitle: "Estamos confirmando seu pagamento com segurança.",
+      title: "Upgrade em confirmação",
+      subtitle: "Estamos validando o pagamento com segurança antes de liberar o acesso.",
       heading: "Pagamento recebido",
       message:
-        "Recebemos a finalização do checkout. Seu plano pode levar alguns instantes para aparecer enquanto a confirmação termina.",
-      nextStep: "Atualize a página de planos em breve para conferir o acesso liberado.",
+        "Recebemos a finalização do checkout. Em alguns instantes o plano aparece atualizado com os recursos do Premium.",
+      nextStep: "Volte para Planos para confirmar o acesso e seguir para os diagnósticos mais profundos.",
       tone: "success"
     };
   }
 
   return {
-    title: "Checkout cancelado",
-    subtitle: "Nenhuma alteração foi aplicada ao seu plano.",
-    heading: "Checkout interrompido",
-    message: "Seu plano atual continua igual. Quando quiser, você pode revisar as opções e tentar novamente.",
-    nextStep: "Volte para a página de planos para escolher outro momento ou outra opção.",
+    title: "Upgrade não concluído",
+    subtitle: "Seu plano continua igual e nenhuma cobrança nova foi confirmada.",
+    heading: "Upgrade interrompido",
+    message: "Tudo bem pausar aqui. Seu plano atual segue ativo para continuar organizando currículo, vagas e decisões.",
+    nextStep: "Quando o diagnóstico premium fizer sentido para seu momento, volte aos planos e escolha o ciclo ideal.",
     tone: "info"
   };
 }

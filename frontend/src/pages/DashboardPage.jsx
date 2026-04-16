@@ -457,8 +457,8 @@ export function DashboardPage() {
                       : "Envie um currículo primeiro e depois gere análise e senioridade para desbloquear esta camada."
                   }
                   action={
-                    <Link className="button button--ghost" to={dashboard.active_resume ? "/resumes" : "/billing"}>
-                      {dashboard.active_resume ? "Abrir currículos" : "Ver planos"}
+                    <Link className="button button--ghost" to="/resumes">
+                      {dashboard.active_resume ? "Abrir currículos" : "Enviar currículo"}
                     </Link>
                   }
                 />

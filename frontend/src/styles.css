@@ -614,6 +614,11 @@ select:focus {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.plan-grid {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  align-items: stretch;
+}
+
 .tone-good {
   background: var(--secondary-soft);
   color: var(--secondary-strong);
@@ -1099,7 +1104,25 @@ select:focus {
 .plan-card {
   display: grid;
   gap: 14px;
+  align-content: start;
   min-width: 0;
+}
+
+.plan-card__intro {
+  display: grid;
+  gap: 8px;
+}
+
+.plan-card__eyebrow,
+.billing-value-note span,
+.billing-feature-list span {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.plan-card__eyebrow,
+.billing-value-note span {
+  font-weight: 700;
 }
 
 .plan-card h3,
@@ -1114,6 +1137,34 @@ select:focus {
 .plan-card.is-highlighted {
   border-color: color-mix(in srgb, var(--accent) 30%, transparent);
   background: linear-gradient(180deg, color-mix(in srgb, var(--accent-soft) 26%, var(--surface-elevated)), var(--surface-elevated));
+}
+
+.billing-value-note {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--secondary) 18%, transparent);
+  background: color-mix(in srgb, var(--secondary-soft) 34%, var(--surface-strong));
+}
+
+.billing-value-note p {
+  margin: 0;
+}
+
+.billing-feature-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.billing-feature-list li {
+  display: grid;
+  gap: 3px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
 }
 
 .page-header,
