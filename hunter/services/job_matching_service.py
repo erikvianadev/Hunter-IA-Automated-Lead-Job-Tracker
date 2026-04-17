@@ -34,7 +34,8 @@ class JobMatchingService:
         seniority_context = seniority.reasoning if seniority else {}
 
         resume_text = self._normalize_text(resume.extracted_text or "")
-        job_text = self._normalize_text(f"{job.title} {job.description} {job.requirements}")
+        job_requirements = getattr(job, "requirements", "")
+        job_text = self._normalize_text(f"{job.title} {job.description} {job_requirements}")
 
         overlap = self._compute_overlap(resume_text=resume_text, job_text=job_text)
         

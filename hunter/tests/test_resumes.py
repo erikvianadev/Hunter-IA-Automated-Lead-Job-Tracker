@@ -874,6 +874,30 @@ class ResumeApiTests(TestCase):
             response.data["extraction_diagnostics"]["user_message"],
         )
 
+    def test_arbitrary_named_docx_without_professional_signals_stays_blocked(self) -> None:
+        upload = SimpleUploadedFile(
+            "anotacoes.docx",
+            build_docx_bytes(
+                "Joao Silva",
+                "Lista de compras da familia com arroz, feijao, sabao e mercado do mes.",
+                "Anotacoes pessoais sobre viagem e tarefas domesticas da semana.",
+            ),
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+
+        response = self.client.post(
+            "/hunter/api/resumes/",
+            {"file": upload},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["parse_status"], ResumeParseStatus.BLOCKED_FOR_LOW_RESUME_CONFIDENCE)
+        self.assertFalse(response.data["is_active"])
+        self.assertFalse(
+            response.data["extraction_diagnostics"]["resume_likeness_signals"]["has_professional_signal"]
+        )
+
     def test_valid_resume_like_docx_still_becomes_active(self) -> None:
         upload = SimpleUploadedFile(
             "backend-cv.docx",
@@ -932,6 +956,34 @@ class ResumeApiTests(TestCase):
             ResumeParseStatus.INSUFFICIENT_RESUME_SIGNALS,
             ResumeParseStatus.BLOCKED_FOR_LOW_RESUME_CONFIDENCE
         ])
+
+    def test_degraded_legitimate_resume_upload_can_generate_analysis_and_seniority(self) -> None:
+        upload = SimpleUploadedFile(
+            "weak-legit.docx",
+            build_docx_bytes(
+                "Joao Silva",
+                "Atuei com atendimento ao cliente.",
+                "Organizei rotinas administrativas por 2 anos.",
+            ),
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+
+        upload_response = self.client.post(
+            "/hunter/api/resumes/",
+            {"file": upload},
+            format="multipart",
+        )
+        resume_id = upload_response.data["id"]
+        analysis_response = self.client.post(f"/hunter/api/resumes/{resume_id}/analyze/")
+        seniority_response = self.client.post(f"/hunter/api/resumes/{resume_id}/assess-seniority/")
+
+        self.assertEqual(upload_response.status_code, 201)
+        self.assertEqual(upload_response.data["parse_status"], ResumeParseStatus.INSUFFICIENT_RESUME_SIGNALS)
+        self.assertTrue(upload_response.data["is_active"])
+        self.assertEqual(analysis_response.status_code, 200)
+        self.assertIn("overall_score", analysis_response.data)
+        self.assertEqual(seniority_response.status_code, 200)
+        self.assertIn("recommended_track", seniority_response.data)
 
     def test_downstream_analysis_and_match_are_blocked_for_non_resume_like_file(self) -> None:
         upload = SimpleUploadedFile(

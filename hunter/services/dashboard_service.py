@@ -9,6 +9,7 @@ from hunter.models.models import Job, JobApplication, JobMatch, Resume, SavedJob
 from .billing_service import BillingService
 from .resume_comparison_service import ResumeComparisonService
 from .resume_report_service import ResumeReportService
+from .resume_security_service import ResumeSecurityService
 
 TRACK_LABELS = {
     "internship": "estagio",
@@ -84,10 +85,12 @@ class DashboardService:
         report_service: ResumeReportService | None = None,
         comparison_service: ResumeComparisonService | None = None,
         billing_service: BillingService | None = None,
+        security_service: ResumeSecurityService | None = None,
     ) -> None:
         self.report_service = report_service or ResumeReportService()
         self.comparison_service = comparison_service or ResumeComparisonService()
         self.billing_service = billing_service or BillingService()
+        self.security_service = security_service or ResumeSecurityService()
 
     def build(self, *, owner) -> dict[str, object]:
         total_jobs = Job.objects.filter(owner=owner).count()
@@ -100,14 +103,15 @@ class DashboardService:
         )
         all_resumes = list(resume_queryset.order_by('-is_active', '-created_at'))
         active_resume = resume_queryset.filter(is_active=True).order_by('-created_at').first()
+        active_resume_trusted = self._is_trusted_for_downstream(active_resume=active_resume)
         analysis = (
             active_resume.analysis
-            if active_resume and hasattr(active_resume, 'analysis')
+            if active_resume_trusted and hasattr(active_resume, 'analysis')
             else None
         )
         seniority_assessment = (
             active_resume.seniority_assessment
-            if active_resume and hasattr(active_resume, 'seniority_assessment')
+            if active_resume_trusted and hasattr(active_resume, 'seniority_assessment')
             else None
         )
         match_queryset = (
@@ -149,6 +153,7 @@ class DashboardService:
         weekly_control = self._build_weekly_control(
             owner=owner,
             active_resume=active_resume,
+            active_resume_trusted=active_resume_trusted,
             analysis=analysis,
             seniority_assessment=seniority_assessment,
             match_queryset=match_queryset,
@@ -170,6 +175,7 @@ class DashboardService:
                 ),
                 "active_resume_status": self._derive_active_resume_status(
                     active_resume=active_resume,
+                    active_resume_trusted=active_resume_trusted,
                     analysis=analysis,
                     seniority_assessment=seniority_assessment,
                 ),
@@ -177,10 +183,8 @@ class DashboardService:
                     match_summary["average_match_score"]
                 ),
                 "top_match_score": match_summary["top_match_score"],
-                "analysis_ready": bool(active_resume and hasattr(active_resume, 'analysis')),
-                "seniority_ready": bool(
-                    active_resume and hasattr(active_resume, 'seniority_assessment')
-                ),
+                "analysis_ready": analysis is not None,
+                "seniority_ready": seniority_assessment is not None,
             },
             "active_resume": active_resume,
             "analysis": analysis,
@@ -190,6 +194,7 @@ class DashboardService:
             "weekly_control": weekly_control,
             "priority_actions": self._build_priority_actions(
                 active_resume=active_resume,
+                active_resume_trusted=active_resume_trusted,
                 analysis=analysis,
                 seniority_assessment=seniority_assessment,
                 match_queryset=match_queryset,
@@ -200,6 +205,7 @@ class DashboardService:
             ),
             "activation": self._build_activation(
                 active_resume=active_resume,
+                active_resume_trusted=active_resume_trusted,
                 analysis=analysis,
                 seniority_assessment=seniority_assessment,
                 total_jobs=total_jobs,
@@ -313,6 +319,7 @@ class DashboardService:
         *,
         owner,
         active_resume,
+        active_resume_trusted: bool,
         analysis,
         seniority_assessment,
         match_queryset,
@@ -340,6 +347,7 @@ class DashboardService:
         )
         priority_candidates = self._build_weekly_priority_candidates(
             active_resume=active_resume,
+            active_resume_trusted=active_resume_trusted,
             analysis=analysis,
             seniority_assessment=seniority_assessment,
             applications=applications,
@@ -607,6 +615,7 @@ class DashboardService:
         self,
         *,
         active_resume,
+        active_resume_trusted: bool,
         analysis,
         seniority_assessment,
         applications,
@@ -666,7 +675,7 @@ class DashboardService:
                     cta_href="/resumes",
                 )
             )
-        elif active_resume.parse_status != "completed":
+        elif not active_resume_trusted:
             candidates.append(
                 self._priority_candidate(
                     source="resume",
@@ -691,7 +700,7 @@ class DashboardService:
                 )
             )
 
-        if seniority_assessment is None and active_resume.parse_status == "completed":
+        if seniority_assessment is None and active_resume_trusted:
             candidates.append(
                 self._priority_candidate(
                     source="resume",
@@ -916,6 +925,7 @@ class DashboardService:
         self,
         *,
         active_resume,
+        active_resume_trusted: bool,
         analysis,
         seniority_assessment,
         match_queryset,
@@ -926,6 +936,16 @@ class DashboardService:
                     "action_type": "resume_upload",
                     "title": "Envie seu curriculo principal",
                     "detail": "Um curriculo atualizado libera analise, aderencia com vagas e orientacoes mais uteis no painel.",
+                    "priority": 1,
+                }
+            ]
+
+        if not active_resume_trusted:
+            return [
+                {
+                    "action_type": "resume_replace",
+                    "title": "Envie uma nova versao do curriculo",
+                    "detail": "Uma versao mais limpa em PDF ou DOCX ajuda a liberar analise, senioridade e match.",
                     "priority": 1,
                 }
             ]
@@ -1018,6 +1038,7 @@ class DashboardService:
         self,
         *,
         active_resume,
+        active_resume_trusted: bool,
         analysis,
         seniority_assessment,
         total_jobs: int,
@@ -1090,6 +1111,7 @@ class DashboardService:
             "checklist": checklist,
             "next_best_action": self._build_next_best_action(
                 active_resume=active_resume,
+                active_resume_trusted=active_resume_trusted,
                 analysis=analysis,
                 seniority_assessment=seniority_assessment,
                 total_jobs=total_jobs,
@@ -1130,6 +1152,7 @@ class DashboardService:
         self,
         *,
         active_resume,
+        active_resume_trusted: bool,
         analysis,
         seniority_assessment,
         total_jobs: int,
@@ -1153,7 +1176,7 @@ class DashboardService:
                 "cta_href": "/resumes",
             }
 
-        if active_resume.parse_status != "completed":
+        if not active_resume_trusted:
             return {
                 "action_type": "resume_replace",
                 "title": "Envie uma nova versao do curriculo",
@@ -1237,13 +1260,25 @@ class DashboardService:
         }
         return min(score_map, key=score_map.get)
 
-    def _derive_active_resume_status(self, *, active_resume, analysis, seniority_assessment):
+    def _derive_active_resume_status(
+        self,
+        *,
+        active_resume,
+        active_resume_trusted: bool,
+        analysis,
+        seniority_assessment,
+    ):
         if active_resume is None:
             return "not_set"
-        if active_resume.parse_status != "completed":
+        if not active_resume_trusted:
             return "processing"
         if analysis is None:
             return "uploaded"
         if seniority_assessment is None:
             return "analyzed"
         return "ready"
+
+    def _is_trusted_for_downstream(self, *, active_resume) -> bool:
+        if active_resume is None:
+            return False
+        return self.security_service.evaluate(resume=active_resume).trusted

@@ -9,10 +9,23 @@ import { useAuth } from "../context/AuthContext";
 import { getPriorityTone, getResumeInsightPresentation, getResumeParsePresentation } from "../lib/presentation";
 import { formatShortDate, getErrorMessage, titleize } from "../lib/utils";
 
-const READY_PARSE_STATUSES = new Set(["completed"]);
+const READY_PARSE_STATUSES = new Set([
+  "completed",
+  "insufficient_resume_signals"
+]);
 const ALLOWED_RESUME_EXTENSIONS = new Set(["pdf", "docx"]);
 
 function hasResumeUsableText(resume) {
+  const diagnostics = resume?.extraction_diagnostics || {};
+  const characterCount = Number(
+    diagnostics.normalized_character_count ?? diagnostics.character_count ?? 0
+  );
+  const wordCount = Number(diagnostics.word_count ?? 0);
+
+  if (characterCount > 0 || wordCount > 0) {
+    return characterCount >= 40 && wordCount >= 8;
+  }
+
   const extractedText = (resume?.extracted_text || "").trim();
   return extractedText.length >= 40 && extractedText.split(/\s+/).length >= 8;
 }

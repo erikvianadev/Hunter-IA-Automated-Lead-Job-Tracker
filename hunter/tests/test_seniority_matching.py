@@ -5,7 +5,7 @@ from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
 from hunter.choices import ResumeParseStatus
-from hunter.models.models import Job, JobMatch, Resume, SeniorityAssessment
+from hunter.models.models import Job, JobMatch, Resume, ResumeAnalysis, SeniorityAssessment
 
 
 def throttle_settings(**rates):
@@ -60,6 +60,18 @@ class SeniorityAndMatchingApiTests(TestCase):
             location="Remote",
             description="Looking for Python, Django, SQL, Docker and API experience.",
             url="https://example.com/jobs/1",
+        )
+        ResumeAnalysis.objects.create(
+            resume=self.resume,
+            overall_score=90,
+            structure_score=88,
+            clarity_score=86,
+            market_fit_score=91,
+            project_score=84,
+            strengths=["Strong Python and Django background."],
+            weaknesses=[],
+            recommendations=[],
+            raw_summary={"projects": ["Job aggregation platform"]},
         )
         self.other_resume = Resume.objects.create(
             owner=self.other_user,
@@ -144,7 +156,7 @@ class SeniorityAndMatchingApiTests(TestCase):
         self.assertIn("decision_class", response.data)
         self.assertIn("decision_label", response.data)
         self.assertIn("evidence_signals", response.data)
-        self.assertEqual(response.data["decision_class"], "aplicar_agora")
+        self.assertEqual(response.data["decision_class"], "strong")
         self.assertTrue(response.data["evidence_signals"])
         self.assertTrue(JobMatch.objects.filter(owner=self.user, resume=self.resume, job=self.job).exists())
 

@@ -419,7 +419,7 @@ class ResumeViewSet(
                 "content_type": resume.content_type,
             },
         )
-        if resume.parse_status == ResumeParseStatus.COMPLETED:
+        if resume.is_active:
             observability.record_milestone(
                 owner=request.user,
                 event_name=ProductEventName.RESUME_READY,

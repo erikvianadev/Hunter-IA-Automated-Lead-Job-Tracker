@@ -295,8 +295,21 @@ class ResumeLikenessService:
         
         is_resume_like = confidence >= self.min_confidence and not (strong_unrelated_document and not has_strong_resume_signals)
         
-        # Novo threshold para currículos fracos: 0.15 (reduzido de 0.25 para ser mais permissivo com currículos legítimos mas curtos)
-        is_weak_resume = not is_resume_like and confidence >= 0.15 and not (strong_unrelated_document and not has_strong_resume_signals)
+        has_professional_signal = bool(
+            section_hits
+            or role_hits
+            or skill_hits
+            or experience_hits
+            or contact_signals
+        )
+        # Curriculos fracos precisam ter ao menos um sinal profissional real;
+        # nome e quantidade de linhas sozinhos tambem aparecem em documentos arbitrarios.
+        is_weak_resume = (
+            not is_resume_like
+            and confidence >= 0.15
+            and has_professional_signal
+            and not (strong_unrelated_document and not has_strong_resume_signals)
+        )
 
         status = self._choose_status(
             is_resume_like=is_resume_like,
@@ -317,6 +330,7 @@ class ResumeLikenessService:
                 "experience_terms": experience_hits[:8],
                 "contact": sorted(contact_signals),
                 "name_like_opening": has_name_like_opening,
+                "has_professional_signal": has_professional_signal,
                 "meaningful_line_count": len(meaningful_lines),
                 "word_count": len(words),
             },
