@@ -331,8 +331,8 @@ RESUME_PARSE_STATUS_DETAILS = {
     'failed': 'Nao foi possivel processar esse curriculo agora.',
     'unsupported_structure': 'A estrutura do arquivo nao e suportada.',
     'document_not_resume_like': 'O arquivo nao parece um curriculo utilizavel. Envie um CV real.',
-    'insufficient_resume_signals': 'Curriculo identificado, mas com poucos sinais profissionais para analise completa.',
-    'blocked_for_low_resume_confidence': 'Nao foi possivel confirmar sinais suficientes de curriculo neste arquivo.',
+    'insufficient_resume_signals': 'Curriculo identificado com sinais limitados; analise liberada com leitura cautelosa.',
+    'blocked_for_low_resume_confidence': 'Baixa confianca de curriculo; envie um CV com sinais profissionais mais claros.',
 }
 
 
@@ -367,6 +367,15 @@ class ResumeSerializer(serializers.ModelSerializer):
             obj.parse_status,
             'Acompanhe o status do curriculo antes de continuar.',
         )
+
+
+class DashboardResumeSerializer(ResumeSerializer):
+    class Meta(ResumeSerializer.Meta):
+        fields = [
+            field
+            for field in ResumeSerializer.Meta.fields
+            if field != 'extraction_diagnostics'
+        ]
 
 
 class ResumeAnalysisSerializer(serializers.ModelSerializer):
@@ -652,7 +661,7 @@ class DashboardWeeklyControlSerializer(serializers.Serializer):
 
 class DashboardSerializer(serializers.Serializer):
     summary = DashboardSummarySerializer(read_only=True)
-    active_resume = ResumeSerializer(read_only=True, allow_null=True)
+    active_resume = DashboardResumeSerializer(read_only=True, allow_null=True)
     analysis = ResumeAnalysisSerializer(read_only=True, allow_null=True)
     seniority_assessment = SeniorityAssessmentSerializer(read_only=True, allow_null=True)
     top_matches = DashboardJobMatchSerializer(many=True, read_only=True)

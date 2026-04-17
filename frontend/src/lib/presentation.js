@@ -99,19 +99,19 @@ const RESUME_PARSE_PRESENTATIONS = {
     noticeTone: "blocked"
   },
   insufficient_resume_signals: {
-    label: "Faltam sinais de CV",
-    tone: "blocked",
-    title: "Faltam sinais profissionais no arquivo",
-    description: "O arquivo foi recebido, mas nao mostra estrutura ou conteudo profissional suficiente para seguir com analise.",
-    nextStep: "Envie um curriculo em PDF ou DOCX com secoes claras de experiencia, formacao, habilidades ou projetos.",
-    noticeTone: "blocked"
+    label: "CV simples aceito",
+    tone: "warning",
+    title: "Curriculo aceito com leitura limitada",
+    description: "O arquivo tem sinais de curriculo e pode seguir para analise, mas talvez gere recomendacoes mais cautelosas.",
+    nextStep: "Gere a analise ou envie uma versao mais completa para melhorar a qualidade dos insights.",
+    noticeTone: "warning"
   },
   blocked_for_low_resume_confidence: {
     label: "Baixa confianca",
     tone: "blocked",
     title: "Nao liberamos este arquivo para analise",
-    description: "Recebemos o arquivo, mas a confianca de que ele e um curriculo utilizavel ficou baixa demais.",
-    nextStep: "Substitua por um CV real em PDF ou DOCX com conteudo profissional claro.",
+    description: "Recebemos poucos sinais profissionais para confirmar que este arquivo e um curriculo utilizavel.",
+    nextStep: "Envie um CV real em PDF ou DOCX com experiencia, formacao, habilidades ou projetos profissionais claros.",
     noticeTone: "blocked"
   },
   scanned_or_image_pdf: {
@@ -257,6 +257,17 @@ export function getResumeParsePresentation(parseStatus, options = {}) {
 
   if (parseStatus === "completed" && !hasUsableText) {
     return RESUME_PARSE_PRESENTATIONS.empty_text;
+  }
+
+  if (parseStatus === "blocked_for_low_resume_confidence" && !hasUsableText) {
+    return {
+      ...RESUME_PARSE_PRESENTATIONS.blocked_for_low_resume_confidence,
+      tone: "blocked",
+      title: "Ainda falta texto para liberar os insights",
+      description: "Recebemos poucos sinais de curriculo e o texto util ainda nao basta para analise ou senioridade.",
+      nextStep: "Envie uma versao com mais conteudo profissional selecionavel.",
+      noticeTone: "blocked"
+    };
   }
 
   return (

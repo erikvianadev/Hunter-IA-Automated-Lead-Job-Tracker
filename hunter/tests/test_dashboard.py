@@ -338,6 +338,45 @@ class DashboardApiTests(TestCase):
         self.assertIn("resume_analysis", action_types)
         self.assertIn("seniority_assessment", action_types)
 
+    def test_dashboard_treats_degraded_trusted_resume_as_ready_for_next_steps(self) -> None:
+        resume = Resume.objects.create(
+            owner=self.user,
+            file="resumes/user_1/weak.docx",
+            label="Weak legit",
+            target_role="Administrative Assistant",
+            original_filename="weak.docx",
+            extracted_text=(
+                "Joao Silva\n"
+                "Atuei com atendimento ao cliente.\n"
+                "Organizei rotinas administrativas por 2 anos."
+            ),
+            parse_status=ResumeParseStatus.INSUFFICIENT_RESUME_SIGNALS,
+            extraction_diagnostics={
+                "normalized_character_count": 82,
+                "word_count": 13,
+                "resume_likeness_validated": True,
+            },
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            is_active=True,
+        )
+        self.assertIsNotNone(resume)
+
+        response = self.client.get("/hunter/api/resumes/dashboard/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["summary"]["active_resume_status"], "uploaded")
+        self.assertEqual(
+            response.data["activation"]["next_best_action"]["action_type"],
+            "resume_analysis",
+        )
+        action_types = [item["action_type"] for item in response.data["priority_actions"]]
+        self.assertIn("resume_analysis", action_types)
+        self.assertIn("seniority_assessment", action_types)
+        self.assertNotEqual(
+            response.data["weekly_control"]["main_priority"]["title"],
+            "Corrigir o curriculo ativo",
+        )
+
     def test_dashboard_locks_comparison_when_free_user_has_multiple_resumes(self) -> None:
         Resume.objects.create(
             owner=self.user,

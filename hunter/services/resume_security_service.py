@@ -45,10 +45,10 @@ STATUS_MESSAGES = {
         "Recebemos o arquivo, mas ele nao parece um curriculo utilizavel. Envie um CV real em PDF ou DOCX com conteudo profissional claro."
     ),
     ResumeParseStatus.INSUFFICIENT_RESUME_SIGNALS: (
-        "Recebemos o arquivo, mas faltam sinais suficientes de curriculo para liberar analise, senioridade ou match."
+        "Curriculo identificado com sinais limitados; prossiga com uma leitura cautelosa ou envie uma versao mais completa."
     ),
     ResumeParseStatus.BLOCKED_FOR_LOW_RESUME_CONFIDENCE: (
-        "Recebemos o arquivo, mas a confianca de que ele e um curriculo utilizavel ficou baixa demais para seguir."
+        "Recebemos poucos sinais de curriculo para liberar as proximas etapas com seguranca."
     ),
     ResumeParseStatus.SCANNED_OR_IMAGE_PDF: (
         "The uploaded PDF appears to be scanned or image-based and cannot be analyzed safely."
@@ -106,15 +106,11 @@ class ResumeSecurityService:
         diagnostics.setdefault("normalized_parse_status", normalized_status)
         diagnostics.setdefault("is_trusted_ingestion", False)
 
-        # Estados que consideramos legítimos o suficiente para processamento (Trusted)
-        # 1. COMPLETED: Fluxo normal
-        # 2. INSUFFICIENT_RESUME_SIGNALS: Currículo legítimo mas fraco/curto
-        # 3. BLOCKED_FOR_LOW_RESUME_CONFIDENCE: Baixa confiança, mas não bloqueio duro
-        # 4. INSUFFICIENT_TEXT: Permitimos passar se tiver o mínimo de sinais de currículo (opcional, mas vamos manter o foco nos 3 acima)
+        # Status de baixa confianca permanece bloqueado; curriculos fracos com
+        # sinal profissional real devem chegar como INSUFFICIENT_RESUME_SIGNALS.
         trusted_statuses = {
             ResumeParseStatus.COMPLETED,
             ResumeParseStatus.INSUFFICIENT_RESUME_SIGNALS,
-            ResumeParseStatus.BLOCKED_FOR_LOW_RESUME_CONFIDENCE,
         }
 
         if normalized_status in trusted_statuses:
@@ -142,8 +138,6 @@ class ResumeSecurityService:
                         diagnostics=diagnostics,
                     )
 
-            # Para INSUFFICIENT_RESUME_SIGNALS e BLOCKED_FOR_LOW_RESUME_CONFIDENCE, 
-            # permitimos passar como trusted para degradar graciosamente em vez de bloquear.
             diagnostics["is_trusted_ingestion"] = True
             return ResumeTrustDecision(
                 trusted=True,
