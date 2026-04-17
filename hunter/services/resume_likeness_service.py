@@ -102,14 +102,17 @@ class ResumeLikenessService:
     ROLE_KEYWORDS = (
         "analyst",
         "analista",
+        "analista de dados",
         "developer",
         "desenvolvedor",
         "desenvolvedora",
         "engineer",
         "engenheiro",
         "engenheira",
+        "engenheiro de dados",
         "manager",
         "gerente",
+        "gerente de produto",
         "coordinator",
         "coordenador",
         "coordenadora",
@@ -128,14 +131,16 @@ class ResumeLikenessService:
         "backend",
         "frontend",
         "fullstack",
-        "data",
-        "dados",
+        "data analyst",
+        "data engineer",
+        "data scientist",
+        "cientista de dados",
         "product",
-        "produto",
         "marketing",
         "financeiro",
-        "operations",
-        "operacoes",
+        "operations analyst",
+        "analista de operacoes",
+        "analista operacional",
     )
     SKILL_KEYWORDS = (
         "python",
@@ -157,14 +162,19 @@ class ResumeLikenessService:
         "kubernetes",
         "api",
         "apis",
-        "data",
-        "dados",
+        "data analytics",
+        "data engineering",
+        "data science",
+        "analise de dados",
+        "engenharia de dados",
         "scrum",
         "agile",
         "kanban",
         "figma",
         "analytics",
         "machine learning",
+        "pandas",
+        "numpy",
         "estudante",
         "aluno",
         "student",
@@ -224,6 +234,11 @@ class ResumeLikenessService:
             "relatorio financeiro",
             "manual de instrucoes",
             "edital",
+            "programacao para ia",
+            "algoritmo",
+            "portugol",
+            "variaveis",
+            "aula",
         ),
         "legal": (
             "lei no",
@@ -232,6 +247,33 @@ class ResumeLikenessService:
             "advogado constituido",
             "testemunhas",
         ),
+        "identity_or_declaration": (
+            "autodeclaracao",
+            "autodeclaracao de raca",
+            "cpf",
+            "rg",
+            "assinatura aprovada",
+            "signatario",
+            "signatarios",
+            "certificado emitente",
+            "servico de validacao",
+            "validar iti",
+            "relatorio de conformidade",
+        ),
+        "template_placeholder": (
+            "really great site",
+            "123 anywhere",
+            "any city",
+            "phone 123 456 7890",
+        ),
+    }
+    CAREER_SECTION_KEYS = {
+        "profile",
+        "experience",
+        "education",
+        "skills",
+        "projects",
+        "certifications",
     }
 
     def __init__(self) -> None:
@@ -241,21 +283,41 @@ class ResumeLikenessService:
 
     def evaluate(self, *, text: str) -> ResumeLikenessResult:
         normalized_text = self._normalize(text)
+        search_texts = self._build_search_texts(normalized_text)
         words = re.findall(r"\b[\w+#.]+\b", normalized_text)
         meaningful_lines = [
             line.strip()
             for line in normalized_text.splitlines()
             if len(line.strip()) >= 3
         ]
-        section_hits = self._collect_section_hits(normalized_text)
-        role_hits = self._collect_keyword_hits(normalized_text, self.ROLE_KEYWORDS)
-        skill_hits = self._collect_keyword_hits(normalized_text, self.SKILL_KEYWORDS)
-        experience_hits = self._collect_keyword_hits(normalized_text, self.EXPERIENCE_VERBS)
-        unrelated_hits = self._collect_unrelated_hits(normalized_text)
-        contact_signals = self._detect_contact_signals(normalized_text)
+        section_hits = self._collect_section_hits(search_texts)
+        role_hits = self._collect_keyword_hits(search_texts, self.ROLE_KEYWORDS)
+        skill_hits = self._collect_keyword_hits(search_texts, self.SKILL_KEYWORDS)
+        experience_hits = self._collect_keyword_hits(search_texts, self.EXPERIENCE_VERBS)
+        unrelated_hits = self._collect_unrelated_hits(search_texts)
+        contact_signals = self._detect_contact_signals(search_texts)
         has_name_like_opening = self._has_name_like_opening(text)
 
         section_count = len(section_hits)
+        career_section_hits = section_hits & self.CAREER_SECTION_KEYS
+        has_professional_signal = bool(
+            career_section_hits
+            or role_hits
+            or skill_hits
+            or experience_hits
+        )
+        resume_signal_group_count = sum(
+            1
+            for has_signal in (
+                bool(career_section_hits),
+                bool(role_hits),
+                bool(skill_hits),
+                bool(experience_hits),
+                "email" in contact_signals,
+                has_name_like_opening,
+            )
+            if has_signal
+        )
         confidence = 0.0
         if section_count >= 1:
             confidence += 0.18
@@ -282,26 +344,25 @@ class ResumeLikenessService:
         confidence = max(0.0, min(1.0, confidence - unrelated_penalty))
         
         strong_unrelated_document = self._is_strong_unrelated_document(
-            section_count=section_count,
+            career_section_count=len(career_section_hits),
             unrelated_hits=unrelated_hits,
-            contact_signals=contact_signals,
             experience_hits=experience_hits,
+            role_hits=role_hits,
+            skill_hits=skill_hits,
+            has_email="email" in contact_signals,
         )
         
         # Recalibração da lógica de status
         # Se houver seções claras ou experiência/contato, reduzimos o peso do strong_unrelated
         # para evitar que currículos reais de advogados ou contadores sejam bloqueados.
-        has_strong_resume_signals = section_count >= 2 or contact_signals or experience_hits
+        has_strong_resume_signals = resume_signal_group_count >= 2
         
-        is_resume_like = confidence >= self.min_confidence and not (strong_unrelated_document and not has_strong_resume_signals)
-        
-        has_professional_signal = bool(
-            section_hits
-            or role_hits
-            or skill_hits
-            or experience_hits
-            or contact_signals
+        is_resume_like = (
+            confidence >= self.min_confidence
+            and has_professional_signal
+            and not (strong_unrelated_document and not has_strong_resume_signals)
         )
+        
         # Curriculos fracos precisam ter ao menos um sinal profissional real;
         # nome e quantidade de linhas sozinhos tambem aparecem em documentos arbitrarios.
         is_weak_resume = (
@@ -316,6 +377,7 @@ class ResumeLikenessService:
             is_weak_resume=is_weak_resume,
             confidence=confidence,
             strong_unrelated_document=strong_unrelated_document and not has_strong_resume_signals,
+            has_professional_signal=has_professional_signal,
         )
         
         diagnostics = {
@@ -325,12 +387,15 @@ class ResumeLikenessService:
             "resume_likeness_status": status,
             "resume_likeness_signals": {
                 "sections": sorted(section_hits),
+                "career_sections": sorted(career_section_hits),
                 "roles": role_hits[:8],
                 "skills": skill_hits[:12],
                 "experience_terms": experience_hits[:8],
                 "contact": sorted(contact_signals),
                 "name_like_opening": has_name_like_opening,
                 "has_professional_signal": has_professional_signal,
+                "resume_signal_group_count": resume_signal_group_count,
+                "character_spaced_text_detected": len(search_texts) > 1,
                 "meaningful_line_count": len(meaningful_lines),
                 "word_count": len(words),
             },
@@ -357,39 +422,53 @@ class ResumeLikenessService:
             diagnostics=diagnostics,
         )
 
-    def _collect_section_hits(self, text: str) -> set[str]:
+    def _collect_section_hits(self, search_texts: tuple[str, ...]) -> set[str]:
         hits: set[str] = set()
         for section, keywords in self.SECTION_KEYWORDS.items():
-            if any(self._contains_phrase(text, keyword) for keyword in keywords):
+            if any(self._contains_phrase(search_texts, keyword) for keyword in keywords):
                 hits.add(section)
         return hits
 
-    def _collect_keyword_hits(self, text: str, keywords: tuple[str, ...]) -> list[str]:
+    def _collect_keyword_hits(self, search_texts: tuple[str, ...], keywords: tuple[str, ...]) -> list[str]:
         return [
             keyword
             for keyword in keywords
-            if self._contains_phrase(text, keyword)
+            if self._contains_phrase(search_texts, keyword)
         ]
 
-    def _collect_unrelated_hits(self, text: str) -> dict[str, list[str]]:
+    def _collect_unrelated_hits(self, search_texts: tuple[str, ...]) -> dict[str, list[str]]:
         hits: dict[str, list[str]] = {}
         for category, patterns in self.UNRELATED_PATTERNS.items():
             matches = [
                 pattern
                 for pattern in patterns
-                if self._contains_phrase(text, pattern)
+                if self._contains_phrase(search_texts, pattern)
             ]
             if matches:
                 hits[category] = matches
         return hits
 
-    def _detect_contact_signals(self, text: str) -> set[str]:
+    def _detect_contact_signals(self, search_texts: tuple[str, ...]) -> set[str]:
         signals: set[str] = set()
-        if re.search(r"\b[\w.+-]+@[\w.-]+\.[a-z]{2,}\b", text):
+        has_email = any(
+            re.search(r"\b[\w.+-]+@[\w.-]+\.[a-z]{2,}\b", text)
+            for text in search_texts
+        )
+        if has_email:
             signals.add("email")
-        if re.search(r"(?:\+?\d{1,3}[\s.-]?)?(?:\(?\d{2}\)?[\s.-]?)?\d{4,5}[\s.-]?\d{4}", text):
+        if self._has_phone_signal(search_texts=search_texts, has_email=has_email):
             signals.add("phone")
         return signals
+
+    def _has_phone_signal(self, *, search_texts: tuple[str, ...], has_email: bool) -> bool:
+        text = search_texts[0]
+        has_phone_context = bool(
+            re.search(r"\b(?:telefone|celular|whatsapp|phone|mobile|contato)\b", text)
+        )
+        if not (has_phone_context or has_email):
+            return False
+        phone_pattern = r"(?:\+?\d{1,3}[\s.-]?)?(?:\(?\d{2}\)?[\s.-]?)?\d{4,5}[\s.-]?\d{4}"
+        return any(re.search(phone_pattern, value) for value in search_texts)
 
     def _has_name_like_opening(self, original_text: str) -> bool:
         lines = [line.strip() for line in original_text.splitlines() if line.strip()]
@@ -424,15 +503,30 @@ class ResumeLikenessService:
     def _is_strong_unrelated_document(
         self,
         *,
-        section_count: int,
+        career_section_count: int,
         unrelated_hits: dict[str, list[str]],
-        contact_signals: set[str],
         experience_hits: list[str],
+        role_hits: list[str],
+        skill_hits: list[str],
+        has_email: bool,
     ) -> bool:
+        if "template_placeholder" in unrelated_hits:
+            return True
         unrelated_count = sum(len(values) for values in unrelated_hits.values())
         if unrelated_count < 2:
             return False
-        if section_count >= 2 or contact_signals or experience_hits:
+        resume_core_signal_count = sum(
+            1
+            for has_signal in (
+                career_section_count >= 2,
+                bool(role_hits),
+                bool(skill_hits),
+                bool(experience_hits),
+                has_email,
+            )
+            if has_signal
+        )
+        if resume_core_signal_count >= 2:
             return False
         return True
 
@@ -443,12 +537,15 @@ class ResumeLikenessService:
         is_weak_resume: bool,
         confidence: float,
         strong_unrelated_document: bool,
+        has_professional_signal: bool,
     ) -> str:
         if is_resume_like:
             return ResumeParseStatus.COMPLETED
         if is_weak_resume:
             return ResumeParseStatus.INSUFFICIENT_RESUME_SIGNALS
         if strong_unrelated_document:
+            return ResumeParseStatus.DOCUMENT_NOT_RESUME_LIKE
+        if not has_professional_signal:
             return ResumeParseStatus.DOCUMENT_NOT_RESUME_LIKE
         
         # Se chegou aqui, não é nem resume_like nem weak_resume.
@@ -458,11 +555,48 @@ class ResumeLikenessService:
             
         return ResumeParseStatus.DOCUMENT_NOT_RESUME_LIKE
 
-    def _contains_phrase(self, text: str, phrase: str) -> bool:
+    def _contains_phrase(self, search_texts: tuple[str, ...], phrase: str) -> bool:
         normalized_phrase = self._normalize(phrase)
-        if " " in normalized_phrase:
-            return normalized_phrase in text
-        return bool(re.search(rf"\b{re.escape(normalized_phrase)}\b", text))
+        for index, text in enumerate(search_texts):
+            if index == 0:
+                if " " in normalized_phrase:
+                    if normalized_phrase in text:
+                        return True
+                elif re.search(rf"\b{re.escape(normalized_phrase)}\b", text):
+                    return True
+                continue
+
+            compacted_phrase = self._compact_for_search(normalized_phrase)
+            if len(compacted_phrase) >= 4 and compacted_phrase in text:
+                return True
+        return False
+
+    def _build_search_texts(self, normalized_text: str) -> tuple[str, ...]:
+        compacted = self._compact_character_spaced_lines(normalized_text)
+        if compacted == normalized_text:
+            return (normalized_text,)
+        return (normalized_text, self._compact_for_search(compacted))
+
+    def _compact_character_spaced_lines(self, text: str) -> str:
+        lines: list[str] = []
+        changed = False
+        for line in text.splitlines():
+            if self._is_character_spaced_line(line):
+                lines.append(re.sub(r"(?<=\S)\s+(?=\S)", "", line))
+                changed = True
+            else:
+                lines.append(line)
+        return "\n".join(lines) if changed else text
+
+    def _is_character_spaced_line(self, line: str) -> bool:
+        tokens = line.split()
+        if len(tokens) < 4:
+            return False
+        single_character_tokens = sum(1 for token in tokens if len(token) == 1)
+        return single_character_tokens / len(tokens) >= 0.65
+
+    def _compact_for_search(self, value: str) -> str:
+        return re.sub(r"[^a-z0-9+#@./-]+", "", value)
 
     def _normalize(self, value: str) -> str:
         decomposed = unicodedata.normalize("NFKD", value or "")
