@@ -352,15 +352,14 @@ class ResumeLikenessService:
             has_email="email" in contact_signals,
         )
         
-        # Recalibração da lógica de status
-        # Se houver seções claras ou experiência/contato, reduzimos o peso do strong_unrelated
-        # para evitar que currículos reais de advogados ou contadores sejam bloqueados.
-        has_strong_resume_signals = resume_signal_group_count >= 2
+        # A propria deteccao de documento alheio ja considera sinais fortes de
+        # curriculo, entao nao suavizamos o bloqueio por sinais acidentais.
+        blocked_by_unrelated_document = strong_unrelated_document
         
         is_resume_like = (
             confidence >= self.min_confidence
             and has_professional_signal
-            and not (strong_unrelated_document and not has_strong_resume_signals)
+            and not blocked_by_unrelated_document
         )
         
         # Curriculos fracos precisam ter ao menos um sinal profissional real;
@@ -369,14 +368,14 @@ class ResumeLikenessService:
             not is_resume_like
             and confidence >= 0.15
             and has_professional_signal
-            and not (strong_unrelated_document and not has_strong_resume_signals)
+            and not blocked_by_unrelated_document
         )
 
         status = self._choose_status(
             is_resume_like=is_resume_like,
             is_weak_resume=is_weak_resume,
             confidence=confidence,
-            strong_unrelated_document=strong_unrelated_document and not has_strong_resume_signals,
+            strong_unrelated_document=blocked_by_unrelated_document,
             has_professional_signal=has_professional_signal,
         )
         
@@ -398,6 +397,7 @@ class ResumeLikenessService:
                 "character_spaced_text_detected": len(search_texts) > 1,
                 "meaningful_line_count": len(meaningful_lines),
                 "word_count": len(words),
+                "blocked_by_unrelated_document": blocked_by_unrelated_document,
             },
             "resume_likeness_unrelated_signals": unrelated_hits,
         }
@@ -406,7 +406,10 @@ class ResumeLikenessService:
             diagnostics.update(
                 {
                     "failure_reason": status,
-                    "blocked_for_low_resume_confidence": True,
+                    "blocked_by_resume_likeness_gate": True,
+                    "blocked_for_low_resume_confidence": (
+                        status == ResumeParseStatus.BLOCKED_FOR_LOW_RESUME_CONFIDENCE
+                    ),
                     "user_message": RESUME_LIKENESS_USER_MESSAGE,
                     "suggestion": (
                         "Envie um CV real em PDF ou DOCX, com secoes claras de "
