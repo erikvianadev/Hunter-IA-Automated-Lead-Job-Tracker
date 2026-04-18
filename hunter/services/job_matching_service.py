@@ -28,7 +28,9 @@ class JobMatchingService:
 
         analysis = getattr(resume, "analysis", None)
         if not analysis:
-            raise JobMatchingError("Resume analysis is required for matching.")
+            raise JobMatchingError(
+                "Gere a analise do curriculo antes de atualizar a aderencia desta vaga."
+            )
 
         seniority = getattr(resume, "seniority_assessment", None)
         seniority_context = seniority.reasoning if seniority else {}

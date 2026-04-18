@@ -619,7 +619,8 @@ select:focus {
   align-items: stretch;
 }
 
-.tone-good {
+.tone-good,
+.tone-success {
   background: var(--secondary-soft);
   color: var(--secondary-strong);
 }
@@ -1231,6 +1232,54 @@ select:focus {
   gap: 3px;
   padding-top: 10px;
   border-top: 1px solid var(--border);
+}
+
+.billing-comparison {
+  margin-top: 20px;
+  padding: 16px 20px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-strong) 72%, transparent);
+  overflow-x: auto;
+}
+
+.billing-comparison__title {
+  color: var(--muted);
+  font-size: 0.9rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.billing-comparison__grid {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) repeat(3, minmax(86px, auto));
+  gap: 8px 24px;
+  margin-top: 12px;
+  align-items: center;
+  min-width: 500px;
+}
+
+.billing-comparison__grid > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.billing-comparison__plan,
+.billing-comparison__value {
+  text-align: center;
+}
+
+.billing-comparison__plan {
+  font-size: 0.9rem;
+}
+
+.billing-comparison__label,
+.billing-comparison__value {
+  font-size: 0.88rem;
+}
+
+.billing-comparison .status-badge {
+  font-size: 0.78rem;
 }
 
 .page-header,

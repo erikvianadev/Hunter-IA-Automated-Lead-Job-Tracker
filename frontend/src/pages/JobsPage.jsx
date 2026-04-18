@@ -7,7 +7,7 @@ import { SectionCard } from "../components/SectionCard";
 import { StatCard } from "../components/StatCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { useAuth } from "../context/AuthContext";
-import { getJobsOverviewCardsPresentation, getMatchDecisionPresentation, getMatchNoticeTone } from "../lib/presentation";
+import { formatEvidenceSignal, getJobsOverviewCardsPresentation, getMatchDecisionPresentation, getMatchNoticeTone } from "../lib/presentation";
 import { formatRelativeDate, formatShortDate, getErrorMessage, titleize } from "../lib/utils";
 
 const JOBS_PAGE_SIZE = 12;
@@ -582,7 +582,10 @@ export function JobsPage() {
                     {selectedJob.current_match.strengths?.length ? <article className="signal-card signal-card--positive"><strong>Forças detectadas</strong><ul className="plain-list">{selectedJob.current_match.strengths.slice(0, 3).map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}</ul></article> : null}
                     {selectedJob.current_match.gaps?.length ? <article className="signal-card signal-card--warning"><strong>Principais gaps</strong><ul className="plain-list">{selectedJob.current_match.gaps.slice(0, 3).map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}</ul></article> : null}
                   </div>
-                  {selectedJob.current_match.evidence_signals?.length ? <div><strong>Sinais usados na decisão</strong><ul className="plain-list">{selectedJob.current_match.evidence_signals.slice(0, 4).map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}</ul></div> : null}
+                  {selectedJob.current_match.evidence_signals?.length ? <div><strong>Sinais usados na decisão</strong><ul className="plain-list">{selectedJob.current_match.evidence_signals.slice(0, 4).map((item, index) => {
+                    const signalLabel = formatEvidenceSignal(item);
+                    return <li key={`${signalLabel}-${index}`}>{signalLabel}</li>;
+                  })}</ul></div> : null}
                 </div> : <p className="muted-copy">Ainda não existe match para esta vaga. Rode a análise de aderência para ver score, lacunas e recomendação.</p>}
               </SectionCard>
               <div className="detail-stack"><strong>Descrição da vaga</strong><p>{selectedJob.description || "Nenhuma descrição detalhada foi capturada para esta vaga ainda."}</p></div>

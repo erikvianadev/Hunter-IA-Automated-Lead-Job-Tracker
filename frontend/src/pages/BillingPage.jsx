@@ -460,7 +460,7 @@ export function BillingPage() {
           />
         )}
         {!loading && availablePlans.length > 0 && (
-          <div className="plan-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
+          <div className="plan-grid">
             {availablePlans.map((plan) => (
               <TrialPlanCard
                 key={plan.billing_cycle}
@@ -475,53 +475,41 @@ export function BillingPage() {
 
         {/* Tabela de comparação rápida entre trials */}
         {!loading && availablePlans.length > 0 && (
-        <div style={{
-          marginTop: "20px",
-          padding: "16px 20px",
-          borderRadius: "var(--radius-md)",
-          border: "1px solid var(--border)",
-          background: "color-mix(in srgb, var(--surface-strong) 72%, transparent)"
-        }}>
-          <strong style={{ fontSize: "0.9rem", color: "var(--muted)", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+        <div className="billing-comparison">
+          <strong className="billing-comparison__title">
             Comparação rápida
           </strong>
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "1fr repeat(3, auto)",
-            gap: "8px 24px",
-            marginTop: "12px",
-            alignItems: "center"
-          }}>
+          <div className="billing-comparison__grid">
             {/* Header */}
             <span />
             {availablePlans.map((p) => (
-              <strong key={p.billing_cycle} style={{ fontSize: "0.9rem", textAlign: "center" }}>
+              <strong className="billing-comparison__plan" key={p.billing_cycle}>
                 {getAccessCycleLabel(p.billing_cycle)}
               </strong>
             ))}
             {/* Custo por dia */}
-            <span className="muted-copy" style={{ fontSize: "0.88rem" }}>Custo / dia</span>
+            <span className="billing-comparison__label muted-copy">Custo / dia</span>
             {availablePlans.map((p) => {
               const days = getTrialDays(p.billing_cycle);
               const costPerDay = days ? (parseFloat(p.price_amount) / days).toFixed(2) : null;
               return (
-                <span key={p.billing_cycle} style={{ textAlign: "center", fontSize: "0.88rem" }}>
+                <span className="billing-comparison__value" key={p.billing_cycle}>
                   {costPerDay ? `R$ ${costPerDay}` : "-"}
                 </span>
               );
             })}
             {/* Recorrência */}
-            <span className="muted-copy" style={{ fontSize: "0.88rem" }}>Recorrência</span>
+            <span className="billing-comparison__label muted-copy">Recorrência</span>
             {availablePlans.map((p) => (
-              <span key={p.billing_cycle} style={{ textAlign: "center" }}>
-                <span className="status-badge tone-muted" style={{ fontSize: "0.78rem" }}>Não</span>
+              <span className="billing-comparison__value" key={p.billing_cycle}>
+                <span className="status-badge tone-muted">Não</span>
               </span>
             ))}
             {/* Todos os recursos Pro */}
-            <span className="muted-copy" style={{ fontSize: "0.88rem" }}>Todos os recursos Pro</span>
+            <span className="billing-comparison__label muted-copy">Todos os recursos Pro</span>
             {availablePlans.map((p) => (
-              <span key={p.billing_cycle} style={{ textAlign: "center" }}>
-                <span className="status-badge tone-good" style={{ fontSize: "0.78rem" }}>Sim</span>
+              <span className="billing-comparison__value" key={p.billing_cycle}>
+                <span className="status-badge tone-good">Sim</span>
               </span>
             ))}
           </div>

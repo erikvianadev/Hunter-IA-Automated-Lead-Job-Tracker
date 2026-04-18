@@ -25,7 +25,7 @@ export function LoginPage() {
     clearSessionNotice();
 
     try {
-      await login(form);
+      await login({ ...form, username: form.username.trim() });
     } catch (requestError) {
       setError(getErrorMessage(requestError, "Não foi possível entrar agora. Revise seus dados e tente novamente."));
     } finally {
@@ -45,7 +45,7 @@ export function LoginPage() {
         <div className="hero-metrics">
           <article>
             <strong>Entrada simples e segura</strong>
-            <span>Entre na sua conta e retome seu workspace sem depender de setup manual</span>
+            <span>Entre na sua conta e retome seu workspace sem depender de configuração manual</span>
           </article>
           <article>
             <strong>Progresso em um só lugar</strong>

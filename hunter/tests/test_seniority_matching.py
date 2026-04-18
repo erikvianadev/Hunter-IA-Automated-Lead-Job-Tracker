@@ -160,6 +160,27 @@ class SeniorityAndMatchingApiTests(TestCase):
         self.assertTrue(response.data["evidence_signals"])
         self.assertTrue(JobMatch.objects.filter(owner=self.user, resume=self.resume, job=self.job).exists())
 
+    def test_match_without_resume_analysis_returns_product_message(self) -> None:
+        resume_without_analysis = Resume.objects.create(
+            owner=self.user,
+            file="resumes/user_1/no-analysis.docx",
+            original_filename="no-analysis.docx",
+            extracted_text="Backend Engineer with Python Django SQL APIs and production systems.",
+            parse_status=ResumeParseStatus.COMPLETED,
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            is_active=False,
+        )
+
+        response = self.client.post(
+            f"/hunter/api/jobs/{self.job.id}/match/",
+            {"resume_id": resume_without_analysis.id},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Gere a analise do curriculo", response.data["detail"])
+        self.assertNotIn("Resume analysis", response.data["detail"])
+
     @override_settings(REST_FRAMEWORK=throttle_settings(job_match="1/min"))
     def test_job_match_action_is_rate_limited(self) -> None:
         payload = {"resume_id": 999999}

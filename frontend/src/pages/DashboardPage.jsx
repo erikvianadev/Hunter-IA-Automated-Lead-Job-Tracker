@@ -12,8 +12,22 @@ import { getResumeParsePresentation } from "../lib/presentation";
 import { formatShortDate, getErrorMessage, titleize } from "../lib/utils";
 
 function hasResumeUsableText(resume) {
+  const diagnostics = resume?.extraction_diagnostics || {};
+  const characterCount = Number(
+    diagnostics.normalized_character_count ?? diagnostics.character_count ?? 0
+  );
+  const wordCount = Number(diagnostics.word_count ?? 0);
+
+  if (characterCount > 0 || wordCount > 0) {
+    return characterCount >= 40 && wordCount >= 8;
+  }
+
   const extractedText = (resume?.extracted_text || "").trim();
-  return extractedText.length >= 40 && extractedText.split(/\s+/).length >= 8;
+  if (extractedText) {
+    return extractedText.length >= 40 && extractedText.split(/\s+/).length >= 8;
+  }
+
+  return ["completed", "insufficient_resume_signals"].includes(resume?.parse_status);
 }
 
 function getPrioritySourceLabel(source) {
@@ -23,7 +37,7 @@ function getPrioritySourceLabel(source) {
     jobs: "Vagas",
     resume: "Currículo",
     resume_gap: "Currículo",
-    setup: "Setup"
+    setup: "Primeiros passos"
   };
 
   return labels[source] ?? "Prioridade";

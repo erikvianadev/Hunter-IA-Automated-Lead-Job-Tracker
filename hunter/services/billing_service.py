@@ -200,7 +200,9 @@ class BillingService:
                 customer_id=existing_customer_id,
             )
         except StripeGatewayError as exc:
-            raise BillingError(str(exc)) from exc
+            raise BillingError(
+                'Nao foi possivel falar com o checkout agora. Tente novamente em instantes.'
+            ) from exc
 
         return {
             'plan_code': plan.code,
@@ -225,7 +227,9 @@ class BillingService:
                     subscription_id=subscription.stripe_subscription_id,
                 )
             except StripeGatewayError as exc:
-                raise BillingError(str(exc)) from exc
+                raise BillingError(
+                    'Nao foi possivel atualizar seu acesso no checkout agora. Tente novamente em instantes.'
+                ) from exc
             subscription = self._sync_subscription_from_stripe_data(
                 owner=owner,
                 stripe_subscription=stripe_subscription,

@@ -14,7 +14,7 @@ from rest_framework.test import APIClient
 
 from hunter.models.models import BillingInvoice, BillingSubscription
 from hunter.services.billing_service import BillingService
-from hunter.services.stripe_gateway_service import StripeBillingGatewayService
+from hunter.services.stripe_gateway_service import StripeBillingGatewayService, StripeGatewayError
 
 
 STRIPE_TEST_SETTINGS = {
@@ -162,6 +162,24 @@ class BillingApiTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.data["code"], "billing_action_unavailable")
         self.assertIn("nao precisa de checkout", response.data["detail"].lower())
+
+    @patch("hunter.services.billing_service.StripeBillingGatewayService.create_checkout_session")
+    def test_subscribe_hides_raw_gateway_errors(self, mock_create_checkout_session) -> None:
+        mock_create_checkout_session.side_effect = StripeGatewayError("Failed to communicate with Stripe.")
+
+        response = self.client.post(
+            "/hunter/api/billing/subscribe/",
+            {
+                "plan_code": BillingService.PLAN_PRO,
+                "billing_cycle": "trial_30",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["code"], "billing_action_unavailable")
+        self.assertIn("Nao foi possivel falar com o checkout", response.data["detail"])
+        self.assertNotIn("Stripe", response.data["detail"])
 
     def test_subscribe_blocks_duplicate_checkout_for_current_plan(self) -> None:
         BillingSubscription.objects.create(

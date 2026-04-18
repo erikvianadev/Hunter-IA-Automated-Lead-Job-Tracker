@@ -7,7 +7,7 @@ import { SectionCard } from "../components/SectionCard";
 import { StatCard } from "../components/StatCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { useAuth } from "../context/AuthContext";
-import { getMatchDecisionPresentation, getMatchNoticeTone } from "../lib/presentation";
+import { formatEvidenceSignal, getMatchDecisionPresentation, getMatchNoticeTone } from "../lib/presentation";
 import { formatDate, formatRelativeDate, formatShortDate, getErrorMessage, titleize } from "../lib/utils";
 
 const APPLICATION_STATUSES = ["saved", "applied", "interview", "rejected", "offer", "archived"];
@@ -964,9 +964,10 @@ export function ApplicationsPage() {
                       <div>
                         <strong>Sinais usados na decisão</strong>
                         <ul className="plain-list">
-                          {selectedApplication.current_match.evidence_signals.slice(0, 4).map((item, index) => (
-                            <li key={`${item}-${index}`}>{item}</li>
-                          ))}
+                          {selectedApplication.current_match.evidence_signals.slice(0, 4).map((item, index) => {
+                            const signalLabel = formatEvidenceSignal(item);
+                            return <li key={`${signalLabel}-${index}`}>{signalLabel}</li>;
+                          })}
                         </ul>
                       </div>
                     ) : null}

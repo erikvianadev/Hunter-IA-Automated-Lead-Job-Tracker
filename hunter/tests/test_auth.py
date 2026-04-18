@@ -124,6 +124,7 @@ class AuthApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.data["access"])
         self.assertTrue(response.data["refresh"])
+        self.assertEqual(response.data["user"]["username"], self.user.username)
 
     def test_refresh_invalid_token_returns_safe_session_message(self) -> None:
         response = self.client.post(
