@@ -144,3 +144,6 @@ frontend_build/
 
 # test files
 test_assets/
+
+# docs
+docs
