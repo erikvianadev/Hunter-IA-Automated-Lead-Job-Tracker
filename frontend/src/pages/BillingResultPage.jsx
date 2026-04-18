@@ -6,7 +6,7 @@ import { getCheckoutResultPresentation } from "../lib/presentation";
 
 export function BillingResultPage({ kind }) {
   const location = useLocation();
-  const sessionId = new URLSearchParams(location.search).get("session_id");
+  const hasCheckoutReference = new URLSearchParams(location.search).has("session_id");
   const presentation = getCheckoutResultPresentation(kind);
 
   return (
@@ -18,7 +18,11 @@ export function BillingResultPage({ kind }) {
             <p>{presentation.message}</p>
             <p>{presentation.nextStep}</p>
           </div>
-          {sessionId ? <p className="muted-copy">Referência segura da confirmação: {sessionId}</p> : null}
+          {hasCheckoutReference ? (
+            <p className="muted-copy">
+              A confirmação do checkout foi recebida com uma referência segura para suporte.
+            </p>
+          ) : null}
           <div className="action-row action-row--wrap">
             <Link className="button button--primary" to="/billing">
               Conferir acesso

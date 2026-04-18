@@ -91,27 +91,27 @@ const RESUME_PARSE_PRESENTATIONS = {
     noticeTone: "warning"
   },
   document_not_resume_like: {
-    label: "Nao parece CV",
+    label: "Não parece currículo",
     tone: "blocked",
-    title: "O arquivo foi recebido, mas nao parece um curriculo",
-    description: "Recebemos o envio, porem o conteudo nao tem sinais suficientes de um CV utilizavel.",
-    nextStep: "Envie um CV real em PDF ou DOCX, com experiencia, formacao, habilidades ou projetos profissionais claros.",
+    title: "Esse arquivo não parece um currículo",
+    description: "Recebemos o envio, mas o conteúdo não tem sinais profissionais suficientes para seguir com confiança.",
+    nextStep: "Envie um currículo real em PDF ou DOCX, com experiência, formação, habilidades ou projetos profissionais claros.",
     noticeTone: "blocked"
   },
   insufficient_resume_signals: {
-    label: "CV simples aceito",
+    label: "Currículo simples aceito",
     tone: "warning",
-    title: "Curriculo aceito com leitura limitada",
-    description: "O arquivo tem sinais de curriculo e pode seguir para analise, mas talvez gere recomendacoes mais cautelosas.",
-    nextStep: "Gere a analise ou envie uma versao mais completa para melhorar a qualidade dos insights.",
+    title: "Currículo aceito com leitura limitada",
+    description: "O arquivo tem sinais de currículo e pode seguir para análise, mas talvez gere recomendações mais cautelosas.",
+    nextStep: "Gere a análise ou envie uma versão mais completa para melhorar a qualidade dos insights.",
     noticeTone: "warning"
   },
   blocked_for_low_resume_confidence: {
-    label: "Baixa confianca",
+    label: "Baixa confiança",
     tone: "blocked",
-    title: "Nao liberamos este arquivo para analise",
-    description: "Recebemos poucos sinais profissionais para confirmar que este arquivo e um curriculo utilizavel.",
-    nextStep: "Envie um CV real em PDF ou DOCX com experiencia, formacao, habilidades ou projetos profissionais claros.",
+    title: "Não liberamos este arquivo para análise",
+    description: "Recebemos poucos sinais profissionais para confirmar que este arquivo é um currículo utilizável.",
+    nextStep: "Envie um currículo real em PDF ou DOCX com experiência, formação, habilidades ou projetos profissionais claros.",
     noticeTone: "blocked"
   },
   scanned_or_image_pdf: {
@@ -277,8 +277,8 @@ export function getResumeParsePresentation(parseStatus, options = {}) {
       ...RESUME_PARSE_PRESENTATIONS.blocked_for_low_resume_confidence,
       tone: "blocked",
       title: "Ainda falta texto para liberar os insights",
-      description: "Recebemos poucos sinais de curriculo e o texto util ainda nao basta para analise ou senioridade.",
-      nextStep: "Envie uma versao com mais conteudo profissional selecionavel.",
+      description: "Recebemos poucos sinais de currículo e o texto útil ainda não basta para análise ou senioridade.",
+      nextStep: "Envie uma versão com mais conteúdo profissional selecionável.",
       noticeTone: "blocked"
     };
   }
@@ -345,6 +345,27 @@ export function getResumeInsightPresentation(kind, state) {
     description: `Assim que ${noun} estiver disponível, ele aparecerá aqui.`,
     nextStep: "Siga com o fluxo normal para liberar esse resultado."
   };
+}
+
+export function formatEvidenceSignal(signal) {
+  if (typeof signal === "string") {
+    return signal;
+  }
+
+  if (!signal || typeof signal !== "object") {
+    return "Sinal de aderência identificado.";
+  }
+
+  const label = signal.label || (signal.key ? titleize(signal.key) : "") || signal.title;
+  if (signal.type === "skill_overlap" && label) {
+    return `${label}: habilidade encontrada no currículo e na vaga.`;
+  }
+
+  if (label && signal.description) {
+    return `${label}: ${signal.description}`;
+  }
+
+  return label || signal.statement || "Sinal de aderência identificado.";
 }
 
 export function getProviderStatusPresentation(state) {

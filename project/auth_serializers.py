@@ -67,6 +67,10 @@ class ProductTokenObtainPairSerializer(TokenObtainPairSerializer):
             )
             raise
 
+        data["user"] = {
+            "id": self.user.id,
+            "username": self.user.get_username(),
+        }
         ProductObservabilityService().record_milestone(
             owner=self.user,
             event_name=ProductEventName.FIRST_LOGIN,

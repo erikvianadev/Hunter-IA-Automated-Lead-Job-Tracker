@@ -21,11 +21,16 @@ export function SignupPage() {
 
   async function handleSubmit(event) {
     event.preventDefault();
-    setSubmitting(true);
     setError("");
 
+    if (form.password !== form.password_confirm) {
+      setError("As senhas não coincidem. Confira a confirmação antes de criar sua conta.");
+      return;
+    }
+
+    setSubmitting(true);
     try {
-      await signup(form);
+      await signup({ ...form, username: form.username.trim() });
     } catch (requestError) {
       setError(
         getErrorMessage(
@@ -50,7 +55,7 @@ export function SignupPage() {
         <div className="hero-metrics">
           <article>
             <strong>Cadastro direto</strong>
-            <span>Crie sua conta e entre no produto sem depender de setup manual</span>
+            <span>Crie sua conta e entre no produto sem depender de configuração manual</span>
           </article>
           <article>
             <strong>Primeiros passos claros</strong>
