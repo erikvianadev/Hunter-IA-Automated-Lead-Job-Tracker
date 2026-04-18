@@ -136,6 +136,19 @@ function getInsightStateMessage(kind, error) {
   return getErrorMessage(error, "Não foi possível carregar este insight agora.");
 }
 
+const SEMANTIC_PDF_ERRORS = {
+  pdf_no_text:
+    "O PDF parece ser uma imagem digitalizada (scan). Use um PDF com texto selecionável — aquele em que você consegue clicar e marcar as palavras.",
+  pdf_too_short:
+    "O PDF contém muito pouco texto para análise. Use um arquivo PDF gerado de um editor de texto (Word, Google Docs) com texto selecionável.",
+  pdf_corrupt:
+    "Não foi possível abrir o PDF. Tente exportar novamente do seu editor (Word, Google Docs) como PDF.",
+  pdf_empty:
+    "O arquivo enviado está vazio. Verifique se o arquivo foi gerado corretamente e tente novamente.",
+  pdf_wrong_type:
+    "Aceitamos apenas arquivos no formato PDF (.pdf). Converta seu currículo e tente novamente.",
+};
+
 function getResumeUploadErrorMessage(error) {
   if (!error) {
     return "Não foi possível enviar esse currículo agora.";
@@ -165,8 +178,13 @@ function getResumeUploadErrorMessage(error) {
     return "O servidor está temporariamente indisponível para receber currículos. Tente novamente em instantes.";
   }
 
-  if (error.status === 400) {
-    return getErrorMessage(error, "Arquivo invalido. Revise o PDF ou DOCX e tente novamente.");
+  // Semantic PDF validation errors (422 or 400 with a known code)
+  if (error.code && SEMANTIC_PDF_ERRORS[error.code]) {
+    return SEMANTIC_PDF_ERRORS[error.code];
+  }
+
+  if (error.status === 422 || error.status === 400) {
+    return getErrorMessage(error, "Arquivo inválido. Revise o PDF ou DOCX e tente novamente.");
   }
 
   return getErrorMessage(error, "Não foi possível enviar esse currículo agora.");

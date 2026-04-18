@@ -75,7 +75,52 @@ RESUME_UPLOAD_ERROR_DETAILS = {
     "unsupported_file_type": "Envie um curriculo em PDF ou DOCX.",
     "invalid_file": "Nao conseguimos validar esse arquivo como um curriculo PDF ou DOCX confiavel.",
     "upload_too_large": "O arquivo enviado passou do limite permitido para curriculos.",
+    "pdf_no_text": (
+        "O PDF parece ser uma imagem digitalizada (scan). "
+        "Use um PDF com texto selecionavel — aquele em que voce consegue clicar e marcar as palavras."
+    ),
+    "pdf_too_short": (
+        "O PDF contem muito pouco texto. "
+        "Use um arquivo PDF gerado de um editor de texto (Word, Google Docs) com texto selecionavel."
+    ),
+    "pdf_corrupt": (
+        "Nao foi possivel abrir o PDF. "
+        "Tente exportar novamente do seu editor (Word, Google Docs) como PDF."
+    ),
 }
+
+
+def _validate_pdf_content(uploaded_file) -> tuple[bool, str | None]:
+    """
+    Checks if a PDF has extractable text before sending to AI processing.
+    Returns (True, None) if valid, or (False, error_code) if not.
+    Only called for .pdf files after signature validation passes.
+    """
+    import io
+    import pypdf
+
+    try:
+        uploaded_file.seek(0)
+        data = uploaded_file.read()
+        uploaded_file.seek(0)
+        reader = pypdf.PdfReader(io.BytesIO(data))
+
+        if reader.is_encrypted:
+            return False, "pdf_corrupt"
+
+        all_text = "".join(page.extract_text() or "" for page in reader.pages)
+        word_count = len(all_text.split())
+
+        if word_count == 0:
+            return False, "pdf_no_text"
+
+        if word_count < 50:
+            return False, "pdf_too_short"
+
+        return True, None
+    except Exception:
+        uploaded_file.seek(0)
+        return False, "pdf_corrupt"
 
 
 class ScopedActionThrottleMixin:
@@ -370,6 +415,29 @@ class ResumeViewSet(
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+
+        uploaded_file = serializer.validated_data['file']
+        if uploaded_file.name.lower().endswith('.pdf'):
+            is_valid, pdf_error_code = _validate_pdf_content(uploaded_file)
+            if not is_valid:
+                ProductObservabilityService().record_journey_failure(
+                    owner=request.user,
+                    event_name=ProductEventName.RESUME_UPLOAD_FAILED,
+                    source="resumes.upload",
+                    metadata={"reason": pdf_error_code},
+                )
+                detail = RESUME_UPLOAD_ERROR_DETAILS.get(
+                    pdf_error_code,
+                    "Nao foi possivel validar o arquivo enviado como curriculo.",
+                )
+                return Response(
+                    {
+                        "code": pdf_error_code,
+                        "detail": detail,
+                        "field_errors": {"file": [detail]},
+                    },
+                    status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                )
 
         try:
             resume = ResumeIngestionService().ingest_with_profile(
