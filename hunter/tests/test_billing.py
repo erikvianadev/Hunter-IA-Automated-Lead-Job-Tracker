@@ -3,6 +3,7 @@ import hmac
 import json
 from datetime import timedelta
 from unittest.mock import patch
+from urllib.parse import parse_qs
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -13,6 +14,7 @@ from rest_framework.test import APIClient
 
 from hunter.models.models import BillingInvoice, BillingSubscription
 from hunter.services.billing_service import BillingService
+from hunter.services.stripe_gateway_service import StripeBillingGatewayService
 
 
 STRIPE_TEST_SETTINGS = {
@@ -25,8 +27,9 @@ STRIPE_TEST_SETTINGS = {
     "PORTAL_RETURN_URL": "https://frontend.example.com/settings/billing",
     "PRICE_IDS": {
         "pro": {
-            "monthly": "price_monthly_123",
-            "yearly": "price_yearly_123",
+            "trial_15": "price_trial_15_123",
+            "trial_30": "price_trial_30_123",
+            "trial_90": "price_trial_90_123",
         },
     },
 }
@@ -58,14 +61,17 @@ class BillingApiTests(TestCase):
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
 
-    def test_list_plans_marks_current_free_plan_for_new_user(self) -> None:
+    def test_list_plans_returns_only_timed_access_options_for_new_user(self) -> None:
         response = self.client.get("/hunter/api/billing/plans/")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 3)
-        current_plans = [plan for plan in response.data if plan["is_current"]]
-        self.assertEqual(len(current_plans), 1)
-        self.assertEqual(current_plans[0]["code"], BillingService.PLAN_FREE)
+        self.assertEqual(
+            [plan["billing_cycle"] for plan in response.data],
+            ["trial_15", "trial_30", "trial_90"],
+        )
+        self.assertTrue(all(plan["code"] == BillingService.PLAN_PRO for plan in response.data))
+        self.assertFalse(any(plan["is_current"] for plan in response.data))
 
     def test_subscription_overview_returns_free_plan_when_user_has_no_subscription(self) -> None:
         response = self.client.get("/hunter/api/billing/subscription/")
@@ -95,21 +101,53 @@ class BillingApiTests(TestCase):
             "/hunter/api/billing/subscribe/",
             {
                 "plan_code": BillingService.PLAN_PRO,
-                "billing_cycle": "monthly",
+                "billing_cycle": "trial_30",
             },
             format="json",
         )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["plan_code"], BillingService.PLAN_PRO)
-        self.assertEqual(response.data["billing_cycle"], "monthly")
+        self.assertEqual(response.data["billing_cycle"], "trial_30")
         self.assertEqual(response.data["checkout_session_id"], "cs_test_123")
         self.assertEqual(
             response.data["checkout_url"],
             "https://checkout.stripe.com/pay/cs_test_123",
         )
-        self.assertEqual(response.data["price_id"], "price_monthly_123")
+        self.assertEqual(response.data["price_id"], "price_trial_30_123")
         self.assertFalse(BillingSubscription.objects.filter(owner=self.user).exists())
+
+    @patch("hunter.services.stripe_gateway_service.requests.post")
+    def test_stripe_checkout_for_timed_access_uses_one_time_payment_mode(self, mock_post) -> None:
+        mock_post.return_value = type(
+            "StripeResponse",
+            (),
+            {
+                "status_code": 200,
+                "json": lambda self: {
+                    "id": "cs_test_123",
+                    "url": "https://checkout.stripe.com/pay/cs_test_123",
+                    "customer": "cus_test_123",
+                    "subscription": None,
+                },
+            },
+        )()
+
+        gateway = StripeBillingGatewayService()
+        gateway.create_checkout_session(
+            owner=self.user,
+            plan_code=BillingService.PLAN_PRO,
+            billing_cycle="trial_30",
+        )
+
+        request_payload = parse_qs(mock_post.call_args.kwargs["data"])
+        self.assertEqual(request_payload["mode"], ["payment"])
+        self.assertEqual(request_payload["line_items[0][price]"], ["price_trial_30_123"])
+        self.assertEqual(
+            request_payload["payment_intent_data[metadata][billing_cycle]"],
+            ["trial_30"],
+        )
+        self.assertNotIn("subscription_data[metadata][billing_cycle]", request_payload)
 
     def test_subscribe_returns_error_when_free_plan_is_requested(self) -> None:
         response = self.client.post(
@@ -129,9 +167,9 @@ class BillingApiTests(TestCase):
         BillingSubscription.objects.create(
             owner=self.user,
             plan_code=BillingService.PLAN_PRO,
-            billing_cycle="monthly",
+            billing_cycle="trial_30",
             status="active",
-            price_amount="29.90",
+            price_amount="24.90",
             currency="BRL",
             stripe_customer_id="cus_test_123",
             stripe_subscription_id="sub_test_123",
@@ -144,7 +182,7 @@ class BillingApiTests(TestCase):
             "/hunter/api/billing/subscribe/",
             {
                 "plan_code": BillingService.PLAN_PRO,
-                "billing_cycle": "monthly",
+                "billing_cycle": "trial_30",
             },
             format="json",
         )
@@ -161,9 +199,9 @@ class BillingApiTests(TestCase):
         subscription = BillingSubscription.objects.create(
             owner=self.user,
             plan_code=BillingService.PLAN_PRO,
-            billing_cycle="yearly",
+            billing_cycle="trial_90",
             status="active",
-            price_amount="299.00",
+            price_amount="59.90",
             currency="BRL",
             stripe_customer_id="cus_test_123",
             stripe_subscription_id="sub_test_123",
@@ -183,14 +221,14 @@ class BillingApiTests(TestCase):
             "metadata": {
                 "owner_id": str(self.user.id),
                 "plan_code": BillingService.PLAN_PRO,
-                "billing_cycle": "yearly",
+                "billing_cycle": "trial_90",
             },
             "items": {
                 "data": [
                     {
                         "price": {
-                            "id": "price_yearly_123",
-                            "unit_amount": 29900,
+                            "id": "price_trial_90_123",
+                            "unit_amount": 5990,
                         }
                     }
                 ]
@@ -210,7 +248,7 @@ class BillingApiTests(TestCase):
         response = self.client.post("/hunter/api/billing/cancel/", {}, format="json")
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("nao existe uma assinatura paga ativa", response.data["detail"].lower())
+        self.assertIn("nao existe um acesso pago ativo", response.data["detail"].lower())
 
     @override_settings(REST_FRAMEWORK=throttle_settings(billing_action="1/min"))
     def test_billing_actions_are_rate_limited(self) -> None:
@@ -225,9 +263,9 @@ class BillingApiTests(TestCase):
         BillingSubscription.objects.create(
             owner=self.other_user,
             plan_code=BillingService.PLAN_PRO,
-            billing_cycle="monthly",
+            billing_cycle="trial_30",
             status="active",
-            price_amount="29.90",
+            price_amount="24.90",
             currency="BRL",
             stripe_customer_id="cus_other_123",
             stripe_subscription_id="sub_other_123",
@@ -245,9 +283,9 @@ class BillingApiTests(TestCase):
         BillingSubscription.objects.create(
             owner=self.user,
             plan_code=BillingService.PLAN_PRO,
-            billing_cycle="monthly",
+            billing_cycle="trial_30",
             status="active",
-            price_amount="29.90",
+            price_amount="24.90",
             currency="BRL",
             stripe_customer_id="cus_test_expired",
             stripe_subscription_id="sub_test_expired",
@@ -272,9 +310,9 @@ class BillingApiTests(TestCase):
         subscription = BillingSubscription.objects.create(
             owner=self.user,
             plan_code=BillingService.PLAN_PRO,
-            billing_cycle="monthly",
+            billing_cycle="trial_30",
             status="active",
-            price_amount="29.90",
+            price_amount="24.90",
             currency="BRL",
             stripe_customer_id="cus_test_456",
             stripe_subscription_id="sub_test_456",
@@ -286,9 +324,9 @@ class BillingApiTests(TestCase):
             owner=self.other_user,
             subscription=subscription,
             plan_code=BillingService.PLAN_PRO,
-            billing_cycle="monthly",
+            billing_cycle="trial_30",
             status="paid",
-            amount="29.90",
+            amount="24.90",
             currency="BRL",
             stripe_invoice_id="in_foreign_123",
             issued_at="2026-04-10T10:00:00Z",
@@ -303,47 +341,27 @@ class BillingApiTests(TestCase):
         self.assertIsNone(response.data["subscription"]["last_invoice"])
 
     @patch("hunter.services.billing_service.StripeBillingGatewayService.retrieve_subscription")
-    def test_webhook_checkout_completion_creates_local_subscription(
+    def test_webhook_checkout_completion_creates_timed_access_subscription(
         self,
         mock_retrieve_subscription,
     ) -> None:
-        mock_retrieve_subscription.return_value = {
-            "id": "sub_test_checkout",
-            "customer": "cus_test_checkout",
-            "status": "active",
-            "cancel_at_period_end": False,
-            "current_period_end": 1778400000,
-            "canceled_at": None,
-            "start_date": 1775808000,
-            "currency": "brl",
-            "metadata": {
-                "owner_id": str(self.user.id),
-                "plan_code": BillingService.PLAN_PRO,
-                "billing_cycle": "monthly",
-            },
-            "items": {
-                "data": [
-                    {
-                        "price": {
-                            "id": "price_monthly_123",
-                            "unit_amount": 2990,
-                        }
-                    }
-                ]
-            },
-        }
         payload = {
             "type": "checkout.session.completed",
             "data": {
                 "object": {
                     "id": "cs_test_123",
+                    "mode": "payment",
+                    "payment_status": "paid",
                     "client_reference_id": str(self.user.id),
                     "customer": "cus_test_checkout",
-                    "subscription": "sub_test_checkout",
+                    "payment_intent": "pi_test_checkout",
+                    "amount_total": 2490,
+                    "currency": "brl",
+                    "created": 1775808000,
                     "metadata": {
                         "owner_id": str(self.user.id),
                         "plan_code": BillingService.PLAN_PRO,
-                        "billing_cycle": "monthly",
+                        "billing_cycle": "trial_30",
                     },
                 }
             },
@@ -359,17 +377,21 @@ class BillingApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         subscription = BillingSubscription.objects.get(owner=self.user)
         self.assertEqual(subscription.plan_code, BillingService.PLAN_PRO)
-        self.assertEqual(subscription.billing_cycle, "monthly")
-        self.assertEqual(subscription.stripe_subscription_id, "sub_test_checkout")
+        self.assertEqual(subscription.billing_cycle, "trial_30")
+        self.assertEqual(subscription.stripe_subscription_id, "")
         self.assertEqual(subscription.stripe_checkout_session_id, "cs_test_123")
+        self.assertFalse(subscription.auto_renew)
+        self.assertIsNotNone(subscription.current_period_end)
+        self.assertTrue(BillingInvoice.objects.filter(external_reference="pi_test_checkout").exists())
+        mock_retrieve_subscription.assert_not_called()
 
     def test_webhook_invoice_paid_creates_local_invoice(self) -> None:
         subscription = BillingSubscription.objects.create(
             owner=self.user,
             plan_code=BillingService.PLAN_PRO,
-            billing_cycle="monthly",
+            billing_cycle="trial_30",
             status="active",
-            price_amount="29.90",
+            price_amount="24.90",
             currency="BRL",
             stripe_customer_id="cus_test_123",
             stripe_subscription_id="sub_test_123",
@@ -383,7 +405,7 @@ class BillingApiTests(TestCase):
                 "object": {
                     "id": "in_test_123",
                     "subscription": "sub_test_123",
-                    "amount_paid": 2990,
+                    "amount_paid": 2490,
                     "currency": "brl",
                     "created": 1775900000,
                     "status_transitions": {
@@ -404,7 +426,7 @@ class BillingApiTests(TestCase):
         invoice = BillingInvoice.objects.get(subscription=subscription)
         self.assertEqual(invoice.external_reference, "in_test_123")
         self.assertEqual(invoice.stripe_invoice_id, "in_test_123")
-        self.assertEqual(str(invoice.amount), "29.90")
+        self.assertEqual(str(invoice.amount), "24.90")
         self.assertEqual(invoice.status, "paid")
 
     @patch("hunter.services.billing_service.StripeBillingGatewayService.retrieve_subscription")
@@ -415,9 +437,9 @@ class BillingApiTests(TestCase):
         BillingSubscription.objects.create(
             owner=self.user,
             plan_code=BillingService.PLAN_PRO,
-            billing_cycle="monthly",
+            billing_cycle="trial_30",
             status="active",
-            price_amount="29.90",
+            price_amount="24.90",
             currency="BRL",
             stripe_customer_id="",
             stripe_subscription_id="",
@@ -430,7 +452,7 @@ class BillingApiTests(TestCase):
             "data": {
                 "object": {
                     "id": "in_without_subscription",
-                    "amount_paid": 2990,
+                    "amount_paid": 2490,
                     "currency": "brl",
                     "created": 1775900000,
                 }
@@ -452,9 +474,9 @@ class BillingApiTests(TestCase):
         BillingSubscription.objects.create(
             owner=self.user,
             plan_code=BillingService.PLAN_PRO,
-            billing_cycle="monthly",
+            billing_cycle="trial_30",
             status="active",
-            price_amount="29.90",
+            price_amount="24.90",
             currency="BRL",
             stripe_customer_id="",
             stripe_subscription_id="sub_existing_blank_customer",
@@ -474,14 +496,14 @@ class BillingApiTests(TestCase):
                     "currency": "brl",
                     "metadata": {
                         "plan_code": BillingService.PLAN_PRO,
-                        "billing_cycle": "monthly",
+                        "billing_cycle": "trial_30",
                     },
                     "items": {
                         "data": [
                             {
                                 "price": {
-                                    "id": "price_monthly_123",
-                                    "unit_amount": 2990,
+                                    "id": "price_trial_30_123",
+                                    "unit_amount": 2490,
                                 }
                             }
                         ]
@@ -506,9 +528,9 @@ class BillingApiTests(TestCase):
         BillingSubscription.objects.create(
             owner=self.user,
             plan_code=BillingService.PLAN_PRO,
-            billing_cycle="monthly",
+            billing_cycle="trial_30",
             status="active",
-            price_amount="29.90",
+            price_amount="24.90",
             currency="BRL",
             stripe_customer_id="cus_existing_blank_subscription",
             stripe_subscription_id="",
@@ -529,7 +551,7 @@ class BillingApiTests(TestCase):
                     "metadata": {
                         "owner_id": str(self.user.id),
                         "plan_code": BillingService.PLAN_PRO,
-                        "billing_cycle": "monthly",
+                        "billing_cycle": "trial_30",
                     },
                 }
             },

@@ -97,8 +97,9 @@ Use `.env.example` como base no backend e `frontend/.env.example` no frontend.
 - `STRIPE_SECRET_KEY`
 - `STRIPE_PUBLISHABLE_KEY`
 - `STRIPE_WEBHOOK_SECRET`
-- `STRIPE_PRICE_PRO_MONTHLY`
-- `STRIPE_PRICE_PRO_YEARLY`
+- `STRIPE_PRICE_PRO_TRIAL_15`
+- `STRIPE_PRICE_PRO_TRIAL_30`
+- `STRIPE_PRICE_PRO_TRIAL_90`
 
 Se `STRIPE_SUCCESS_URL`, `STRIPE_CANCEL_URL` e `STRIPE_PORTAL_RETURN_URL` não forem definidos, o backend monta defaults a partir de `FRONTEND_PUBLIC_URL`.
 

@@ -58,8 +58,9 @@ class ProductEventCategory(models.TextChoices):
 
 class BillingCycle(models.TextChoices):
     FREE = 'free', _('Free')
-    MONTHLY = 'monthly', _('Monthly')
-    YEARLY = 'yearly', _('Yearly')
+    TRIAL_15 = 'trial_15', _('15 days')
+    TRIAL_30 = 'trial_30', _('30 days')
+    TRIAL_90 = 'trial_90', _('90 days')
 
 
 class BillingSubscriptionStatus(models.TextChoices):

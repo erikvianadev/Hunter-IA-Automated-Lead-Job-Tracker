@@ -521,7 +521,7 @@ export function ResumesPage() {
           }
         >
           <p className="muted-copy">
-            Use quando estiver em dúvida entre versões, cargos-alvo ou formas de contar sua experiência. Se o seu plano
+            Use quando estiver em dúvida entre versões, cargos-alvo ou formas de contar sua experiência. Se o seu acesso
             ainda não incluir essa comparação, mostramos o próximo passo sem perder sua seleção.
           </p>
           <div className="selection-pills">
@@ -533,14 +533,14 @@ export function ResumesPage() {
           </div>
           {comparisonUpgradePrompt ? (
             <div className="notice notice--premium">
-              <strong>Upgrade útil para esta decisão</strong>
+              <strong>Acesso útil para esta decisão</strong>
               <p>
                 A comparação premium ajuda a escolher a versão mais forte antes de aplicar, em vez de testar currículos
                 no escuro.
               </p>
               <div className="action-row action-row--wrap">
                 <Link className="button button--primary" to="/billing">
-                  Ver upgrade para comparar versões
+                  Ativar acesso para comparar versões
                 </Link>
               </div>
             </div>
@@ -890,7 +890,7 @@ export function ResumesPage() {
                   {reportState.status === "locked" ? (
                     <div className="action-row action-row--wrap">
                       <Link className="button button--primary" to="/billing">
-                        Ver upgrade para este diagnóstico
+                        Ativar acesso para este diagnóstico
                       </Link>
                     </div>
                   ) : null}
@@ -1019,7 +1019,7 @@ export function ResumesPage() {
               description="Os insights aparecem quando você escolhe uma versão da biblioteca para analisar ou acompanhar."
               nextStep="Selecione um currículo da lista ao lado ou envie uma nova versão para continuar sua ativação."
               action={<button className="button button--secondary" type="button" onClick={openFilePicker}>Enviar currículo</button>}
-              secondaryAction={<Link className="button button--ghost" to="/billing">Ver planos</Link>}
+              secondaryAction={<Link className="button button--ghost" to="/billing">Ver acesso</Link>}
             />
           )}
         </SectionCard>

@@ -27,6 +27,7 @@ class StripeCheckoutSession:
 
 class StripeBillingGatewayService:
     WEBHOOK_TOLERANCE_SECONDS = 300
+    ONE_TIME_BILLING_CYCLES = {'trial_15', 'trial_30', 'trial_90'}
 
     def __init__(self) -> None:
         stripe_settings = getattr(settings, 'STRIPE', {})
@@ -57,8 +58,9 @@ class StripeBillingGatewayService:
         if not price_id:
             raise StripeGatewayError('Stripe price is not configured for the selected plan.')
 
+        is_one_time_access = billing_cycle in self.ONE_TIME_BILLING_CYCLES
         payload = {
-            'mode': 'subscription',
+            'mode': 'payment' if is_one_time_access else 'subscription',
             'success_url': self.success_url,
             'cancel_url': self.cancel_url,
             'client_reference_id': str(owner.id),
@@ -67,10 +69,19 @@ class StripeBillingGatewayService:
             'metadata[owner_id]': str(owner.id),
             'metadata[plan_code]': plan_code,
             'metadata[billing_cycle]': billing_cycle,
-            'subscription_data[metadata][owner_id]': str(owner.id),
-            'subscription_data[metadata][plan_code]': plan_code,
-            'subscription_data[metadata][billing_cycle]': billing_cycle,
         }
+        if is_one_time_access:
+            payload.update({
+                'payment_intent_data[metadata][owner_id]': str(owner.id),
+                'payment_intent_data[metadata][plan_code]': plan_code,
+                'payment_intent_data[metadata][billing_cycle]': billing_cycle,
+            })
+        else:
+            payload.update({
+                'subscription_data[metadata][owner_id]': str(owner.id),
+                'subscription_data[metadata][plan_code]': plan_code,
+                'subscription_data[metadata][billing_cycle]': billing_cycle,
+            })
         if owner.email:
             payload['customer_email'] = owner.email
         if customer_id:

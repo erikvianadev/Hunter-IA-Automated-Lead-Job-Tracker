@@ -39,7 +39,9 @@ const DIRECT_LABELS = {
   medium: "Média",
   mid: "Pleno",
   missing: "Não gerado",
-  monthly: "Mensal",
+  trial_15: "15 dias",
+  trial_30: "30 dias",
+  trial_90: "90 dias",
   multiple_resume_versions: "Múltiplas versões de currículo",
   not_set: "Não definido",
   offer: "Oferta",
@@ -80,7 +82,7 @@ const DIRECT_LABELS = {
   unsupported_structure: "Estrutura não suportada",
   upload_too_large: "Arquivo grande demais",
   uploaded: "Enviado",
-  yearly: "Anual"
+  yearly: "Acesso premium"
 };
 
 const CHUNK_LABELS = {
@@ -104,7 +106,7 @@ const CHUNK_LABELS = {
   low: "Baixa",
   medium: "Média",
   mid: "Pleno",
-  monthly: "Mensal",
+  monthly: "Acesso",
   paid: "Pago",
   pending: "Pendente",
   priority: "Prioridade",
@@ -119,7 +121,7 @@ const CHUNK_LABELS = {
   system: "Sistema",
   title: "Título",
   unsupported: "Não suportado",
-  yearly: "Anual"
+  yearly: "Premium"
 };
 
 const SAFE_ERROR_CODE_MESSAGES = {

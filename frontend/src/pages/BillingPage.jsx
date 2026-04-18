@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 
 import { AppShell } from "../components/AppShell";
 import { EmptyState } from "../components/EmptyState";
@@ -16,64 +15,11 @@ import {
 } from "../lib/presentation";
 import { formatCurrency, formatDate, getErrorMessage, titleize } from "../lib/utils";
 
-// ─── Constantes de trial ─────────────────────────────────────────────────────
-
-const TRIAL_PLANS = [
-  {
-    code: "pro",
-    billing_cycle: "trial_15",
-    days: 15,
-    label: "Acesso 15 dias",
-    eyebrow: "Teste rápido",
-    price_amount: "14.90",
-    currency: "BRL",
-    description: "Ideal para validar o fluxo completo antes de uma rodada intensa de candidaturas.",
-    bestFor: "Faz sentido quando você quer testar o diagnóstico premium antes de assinar o ciclo completo.",
-    cta: "Começar 15 dias",
-    highlighted: false,
-    features: [
-      "resume_upload", "resume_analysis", "seniority_assessment",
-      "job_matching", "dashboard", "premium_reports",
-      "resume_comparison", "priority_support", "multiple_resume_versions"
-    ]
-  },
-  {
-    code: "pro",
-    billing_cycle: "trial_30",
-    days: 30,
-    label: "Acesso 30 dias",
-    eyebrow: "Mais popular no beta",
-    price_amount: "24.90",
-    currency: "BRL",
-    description: "Tempo suficiente para uma rodada completa: currículo, matches, decisões e candidaturas.",
-    bestFor: "Faz sentido quando você está ativamente buscando e quer o Premium por um ciclo completo.",
-    cta: "Começar 30 dias",
-    highlighted: true,
-    features: [
-      "resume_upload", "resume_analysis", "seniority_assessment",
-      "job_matching", "dashboard", "premium_reports",
-      "resume_comparison", "priority_support", "multiple_resume_versions"
-    ]
-  },
-  {
-    code: "pro",
-    billing_cycle: "trial_90",
-    days: 90,
-    label: "Acesso 90 dias",
-    eyebrow: "Melhor custo-benefício",
-    price_amount: "59.90",
-    currency: "BRL",
-    description: "Para manter o premium ativo durante toda uma busca estratégica sem interrupções.",
-    bestFor: "Faz sentido quando você está em transição de carreira e precisa de consistência por meses.",
-    cta: "Começar 90 dias",
-    highlighted: false,
-    features: [
-      "resume_upload", "resume_analysis", "seniority_assessment",
-      "job_matching", "dashboard", "premium_reports",
-      "resume_comparison", "priority_support", "multiple_resume_versions"
-    ]
-  }
-];
+const TRIAL_DAYS_BY_CYCLE = {
+  trial_15: 15,
+  trial_30: 30,
+  trial_90: 90
+};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -90,6 +36,19 @@ function isInGracePeriod(subscription) {
 function getTrialDurationLabel(days) {
   if (days === 1) return "1 dia";
   return `${days} dias`;
+}
+
+function getTrialDays(cycle) {
+  return TRIAL_DAYS_BY_CYCLE[cycle] ?? null;
+}
+
+function isTrialCycle(cycle) {
+  return getTrialDays(cycle) != null;
+}
+
+function getAccessCycleLabel(cycle) {
+  const days = getTrialDays(cycle);
+  return days ? `${getTrialDurationLabel(days)} de acesso` : getBillingCycleLabel(cycle);
 }
 
 // ─── Sub-componentes ──────────────────────────────────────────────────────────
@@ -133,12 +92,12 @@ function GracePeriodBanner({ subscription, onRenew, isBusy }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
             <strong style={{ color: "var(--accent-strong)", fontSize: "1rem" }}>
-              Assinatura em carência
+              Acesso em encerramento
             </strong>
-            <span className="status-badge tone-warning">Cancelada — acesso temporário</span>
+            <span className="status-badge tone-warning">Acesso temporário</span>
           </div>
           <p style={{ margin: "4px 0 0", color: "var(--muted)", fontSize: "0.9rem" }}>
-            {daysLabel} Seu plano foi cancelado, mas você ainda tem acesso completo até o fim do ciclo pago.
+            {daysLabel} O acesso premium continua disponível até o fim do período já confirmado.
           </p>
         </div>
         {subscription.access_until && (
@@ -155,10 +114,10 @@ function GracePeriodBanner({ subscription, onRenew, isBusy }) {
           onClick={onRenew}
           style={{ flex: "0 1 auto" }}
         >
-          {isBusy ? "Aguarde..." : "Reativar assinatura Pro"}
+          {isBusy ? "Aguarde..." : "Ativar 30 dias"}
         </button>
         <p style={{ margin: 0, color: "var(--muted)", fontSize: "0.82rem", alignSelf: "center" }}>
-          Reativar mantém seu histórico, matches e currículos intactos.
+          A nova ativação mantém seu histórico, matches e currículos intactos.
         </p>
       </div>
     </div>
@@ -168,6 +127,9 @@ function GracePeriodBanner({ subscription, onRenew, isBusy }) {
 function TrialPlanCard({ plan, isCurrent, busyAction, onSubscribe }) {
   const actionKey = `${plan.code}-${plan.billing_cycle}`;
   const isBusy = busyAction === actionKey;
+  const planPresentation = getBillingPlanPresentation(plan);
+  const days = getTrialDays(plan.billing_cycle);
+  const durationLabel = days ? getTrialDurationLabel(days) : getBillingCycleLabel(plan.billing_cycle);
   const visibleFeatures = plan.features.map((f) => getBillingFeaturePresentation(f));
 
   return (
@@ -197,31 +159,30 @@ function TrialPlanCard({ plan, isCurrent, busyAction, onSubscribe }) {
           borderRadius: "999px",
           whiteSpace: "nowrap"
         }}>
-          Mais popular no beta
+          {planPresentation.eyebrow}
         </div>
       )}
 
       <div className="plan-card__intro">
-        <span className="plan-card__eyebrow">{plan.eyebrow}</span>
+        <span className="plan-card__eyebrow">{planPresentation.eyebrow}</span>
         <div className="inline-meta">
-          <strong>{plan.label}</strong>
-          {/* Badge de duração */}
+          <strong>{planPresentation.label || getBillingPlanLabel(plan)}</strong>
           <span className="status-badge tone-medium">
-            {getTrialDurationLabel(plan.days)}
+            {durationLabel}
           </span>
-          {isCurrent && <StatusBadge value="active" label="Plano atual" />}
+          {isCurrent && <StatusBadge value="active" label="Acesso atual" />}
         </div>
-        <p>{plan.description}</p>
+        <p>{planPresentation.description}</p>
       </div>
 
       <div>
         <h3>{formatCurrency(plan.price_amount, plan.currency)}</h3>
-        <p className="muted-copy">pagamento único · {getTrialDurationLabel(plan.days)} de acesso Pro</p>
+        <p className="muted-copy">pagamento único · {durationLabel} Premium</p>
       </div>
 
       <div className="billing-value-note">
         <span>Melhor para</span>
-        <p>{plan.bestFor}</p>
+        <p>{planPresentation.bestFor}</p>
       </div>
 
       <ul className="billing-feature-list">
@@ -246,7 +207,7 @@ function TrialPlanCard({ plan, isCurrent, busyAction, onSubscribe }) {
         disabled={isCurrent || isBusy}
         onClick={() => onSubscribe(plan.code, plan.billing_cycle)}
       >
-        {isBusy ? "Abrindo checkout..." : isCurrent ? "Ativo agora" : plan.cta}
+        {isBusy ? "Abrindo checkout..." : isCurrent ? "Ativo agora" : planPresentation.cta}
       </button>
     </article>
   );
@@ -269,7 +230,7 @@ export function BillingPage() {
       const payload = await request("/hunter/api/billing/subscription/");
       setOverview(payload);
     } catch (requestError) {
-      setError(getErrorMessage(requestError, "Não foi possível carregar os detalhes do seu plano agora."));
+      setError(getErrorMessage(requestError, "Não foi possível carregar os detalhes do seu acesso agora."));
     } finally {
       setLoading(false);
     }
@@ -286,7 +247,7 @@ export function BillingPage() {
         method: "POST",
         body: JSON.stringify({ plan_code: planCode, billing_cycle: billingCycle })
       });
-      setFeedback("Abrindo o checkout seguro para confirmar seu upgrade...");
+      setFeedback("Abrindo o checkout seguro para confirmar seu acesso...");
       window.location.href = payload.checkout_url;
     } catch (requestError) {
       setError(getErrorMessage(requestError, "Não foi possível abrir o checkout agora."));
@@ -301,18 +262,17 @@ export function BillingPage() {
     setFeedback("");
     try {
       await request("/hunter/api/billing/cancel/", { method: "POST", body: JSON.stringify({}) });
-      setFeedback("Renovação automática desativada. Seu acesso atual continua válido até o fim do ciclo.");
+      setFeedback("Acesso atualizado. O período atual continua válido até a data já confirmada.");
       await loadOverview();
     } catch (requestError) {
-      setError(getErrorMessage(requestError, "Não foi possível atualizar sua assinatura agora."));
+      setError(getErrorMessage(requestError, "Não foi possível atualizar seu acesso agora."));
     } finally {
       setBusyAction("");
     }
   }
 
-  // Reativar assinatura: abre checkout do plano mensal
   async function reactivateSubscription() {
-    await subscribe("pro", "monthly");
+    await subscribe("pro", "trial_30");
   }
 
   const subscription = overview?.subscription;
@@ -331,17 +291,17 @@ export function BillingPage() {
     subscription?.auto_renew;
   const inGrace = isInGracePeriod(subscription);
 
-  // Determina o plano de trial atual (se houver)
+  const availablePlans = overview?.plans ?? [];
   const currentTrialCycle = subscription?.billing_cycle;
-  const isTrialPlan = currentTrialCycle?.startsWith("trial_");
+  const isTrialPlan = isTrialCycle(currentTrialCycle);
 
   return (
     <AppShell
-      title="Planos"
-      subtitle="Escolha pelo resultado que você quer melhorar: decisões de currículo, priorização de vagas e clareza para aplicar."
+      title="Acesso Premium"
+      subtitle="Escolha um período único de acesso para aprofundar diagnósticos, comparações e decisões antes de aplicar."
       actions={
         <button className="button button--ghost" type="button" onClick={loadOverview}>
-          Atualizar planos
+          Atualizar acesso
         </button>
       }
     >
@@ -353,15 +313,15 @@ export function BillingPage() {
         <GracePeriodBanner
           subscription={subscription}
           onRenew={reactivateSubscription}
-          isBusy={busyAction === "pro-monthly"}
+          isBusy={busyAction === "pro-trial_30"}
         />
       )}
 
-      {/* ── Plano atual + Confirmação ─────────────────────────────────── */}
+      {/* ── Acesso atual + Confirmação ────────────────────────────────── */}
       <section className="two-column-grid">
         <SectionCard
-          title="Seu plano atual"
-          subtitle="Veja o que está ativo hoje e como isso apoia sua busca neste momento."
+          title="Acesso atual"
+          subtitle="Veja o período ativo hoje e até quando os recursos premium ficam liberados."
           actions={
             canCancelSubscription ? (
               <button
@@ -370,12 +330,12 @@ export function BillingPage() {
                 disabled={busyAction === "cancel"}
                 onClick={cancelSubscription}
               >
-                {busyAction === "cancel" ? "Atualizando..." : "Desativar renovação"}
+                {busyAction === "cancel" ? "Atualizando..." : "Encerrar no fim do período"}
               </button>
             ) : null
           }
         >
-          {loading && <div className="loading-panel">Carregando detalhes do seu plano...</div>}
+          {loading && <div className="loading-panel">Carregando detalhes do seu acesso...</div>}
           {!loading && subscription && (
             <div className="detail-stack">
               <div className="inline-meta">
@@ -387,11 +347,7 @@ export function BillingPage() {
                 />
                 <StatusBadge
                   value={subscription.billing_cycle}
-                  label={
-                    isTrialPlan
-                      ? `Acesso ${subscription.billing_cycle.replace("trial_", "")} dias`
-                      : getBillingCycleLabel(subscription.billing_cycle)
-                  }
+                  label={getAccessCycleLabel(subscription.billing_cycle)}
                 />
                 {inGrace && (
                   <span className="status-badge tone-warning">Em carência</span>
@@ -409,11 +365,8 @@ export function BillingPage() {
                 {formatCurrency(subscription.price_amount, subscription.currency)}{" "}
                 |{" "}
                 {isTrialPlan
-                  ? `Acesso por ${subscription.billing_cycle.replace("trial_", "")} dias · pagamento único`
+                  ? `${getAccessCycleLabel(subscription.billing_cycle)} · pagamento único`
                   : getBillingCycleLabel(subscription.billing_cycle)}
-                {subscription.plan_code !== "free" && !isTrialPlan
-                  ? ` | Renovação ${subscription.auto_renew ? "ativa" : "desativada"}`
-                  : ""}
               </p>
 
               <p className="muted-copy">
@@ -437,19 +390,15 @@ export function BillingPage() {
                   {inGrace
                     ? "Seu acesso premium ainda está ativo"
                     : subscription.plan_code === "free"
-                    ? "Você já tem a base para organizar a busca"
-                    : subscription.auto_renew
-                    ? "Seu acesso premium segue ativo"
-                    : "Sua renovação automática está desligada"}
+                    ? "Você ainda não ativou um período premium"
+                    : "Seu acesso premium segue ativo"}
                 </strong>
                 <p>
                   {inGrace
-                    ? "A assinatura foi cancelada, mas o acesso premium permanece até o fim do ciclo pago. Reative para não perder continuidade nos diagnósticos e comparações."
+                    ? "O acesso premium permanece até o fim do período pago. Ative um novo período para manter continuidade nos diagnósticos e comparações."
                     : subscription.plan_code === "free"
-                    ? "Use o gratuito para validar currículo, senioridade e matches. O upgrade passa a fazer sentido quando você precisa comparar versões e priorizar ações com mais profundidade."
-                    : subscription.auto_renew
-                    ? "Enquanto a renovação estiver ativa, você mantém diagnósticos profundos, comparação de versões e suporte para decidir melhor antes de aplicar."
-                    : "Seu plano continua disponível até o fim do ciclo atual. Depois disso, o acesso volta para o nível correspondente."}
+                    ? "Escolha 15, 30 ou 90 dias quando quiser liberar diagnóstico premium, comparação de versões e suporte para decidir melhor antes de aplicar."
+                    : "Durante o período ativo, você mantém diagnósticos profundos, comparação de versões e suporte para decidir melhor antes de aplicar."}
                 </p>
               </div>
 
@@ -474,20 +423,20 @@ export function BillingPage() {
           )}
           {!loading && !subscription && (
             <EmptyState
-              title="Nenhum plano encontrado"
-              description="Assim que sua assinatura estiver disponível, os detalhes vão aparecer aqui."
+              title="Nenhum acesso encontrado"
+              description="Assim que um período premium estiver disponível, os detalhes vão aparecer aqui."
             />
           )}
         </SectionCard>
 
         <SectionCard
           title="Confirmação do pagamento"
-          subtitle="O upgrade é confirmado com segurança antes de liberar os recursos premium."
+          subtitle="A ativação é confirmada com segurança antes de liberar os recursos premium."
         >
           <div className="detail-stack">
             <div className="notice notice--info">
               <strong>Confirmação em alguns instantes</strong>
-              <p>Depois do checkout, o plano pode levar alguns instantes para aparecer atualizado.</p>
+              <p>Depois do checkout, o acesso pode levar alguns instantes para aparecer atualizado.</p>
               <p>Se ainda não mudou, atualize esta página daqui a pouco.</p>
             </div>
             <p className="muted-copy">
@@ -498,103 +447,34 @@ export function BillingPage() {
         </SectionCard>
       </section>
 
-      {/* ── Planos recorrentes ────────────────────────────────────────── */}
+      {/* ── Períodos de acesso ───────────────────────────────────────── */}
       <SectionCard
-        title="Opções de upgrade"
-        subtitle="Compare os planos pelo que eles ajudam você a decidir, não só pelos recursos liberados."
+        title="Escolha seu período"
+        subtitle="Acesso premium por pagamento único, sem renovação automática: 15, 30 ou 90 dias."
       >
-        {loading && <div className="loading-panel">Carregando planos disponíveis...</div>}
-        {!loading && !overview?.plans?.length && (
+        {loading && <div className="loading-panel">Carregando períodos disponíveis...</div>}
+        {!loading && !availablePlans.length && (
           <EmptyState
-            title="Nenhum plano disponível agora"
+            title="Nenhum período disponível agora"
             description="Atualize a página em instantes para tentar novamente."
           />
         )}
-        {!loading && overview?.plans?.length > 0 && (
-          <div className="plan-grid">
-            {overview.plans.map((plan) => {
-              const planPresentation = getBillingPlanPresentation(plan);
-              const visibleFeatures = plan.features.map((f) => getBillingFeaturePresentation(f));
-              const actionKey = `${plan.code}-${plan.billing_cycle}`;
-              const actionLabel = plan.is_current
-                ? "Plano atual"
-                : plan.code === "free"
-                ? "Incluído no gratuito"
-                : busyAction === actionKey
-                ? "Abrindo checkout..."
-                : planPresentation.cta;
-
-              return (
-                <article
-                  className={plan.highlighted ? "plan-card is-highlighted" : "plan-card"}
-                  key={`${plan.code}-${plan.billing_cycle}`}
-                >
-                  <div className="plan-card__intro">
-                    <span className="plan-card__eyebrow">{planPresentation.eyebrow}</span>
-                    <div className="inline-meta">
-                      <strong>{planPresentation.label || getBillingPlanLabel(plan)}</strong>
-                      {plan.is_current && <StatusBadge value="active" label="Plano atual" />}
-                    </div>
-                    <p>{planPresentation.description}</p>
-                  </div>
-                  <div>
-                    <h3>{formatCurrency(plan.price_amount, plan.currency)}</h3>
-                    <p className="muted-copy">{getBillingCycleLabel(plan.billing_cycle)}</p>
-                  </div>
-                  <div className="billing-value-note">
-                    <span>Melhor para</span>
-                    <p>{planPresentation.bestFor}</p>
-                  </div>
-                  <ul className="billing-feature-list">
-                    {visibleFeatures.map((feature) => (
-                      <li key={feature.label}>
-                        <strong>{feature.label}</strong>
-                        <span>{feature.description}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <button
-                    className={plan.highlighted ? "button button--primary" : "button button--secondary"}
-                    type="button"
-                    disabled={plan.is_current || plan.code === "free" || busyAction === actionKey}
-                    onClick={() => subscribe(plan.code, plan.billing_cycle)}
-                  >
-                    {actionLabel}
-                  </button>
-                </article>
-              );
-            })}
+        {!loading && availablePlans.length > 0 && (
+          <div className="plan-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
+            {availablePlans.map((plan) => (
+              <TrialPlanCard
+                key={plan.billing_cycle}
+                plan={plan}
+                isCurrent={!!(plan.is_current || (subscription && isTrialPlan && currentTrialCycle === plan.billing_cycle))}
+                busyAction={busyAction}
+                onSubscribe={subscribe}
+              />
+            ))}
           </div>
         )}
-      </SectionCard>
-
-      {/* ── Planos de acesso antecipado (trial) ──────────────────────── */}
-      <SectionCard
-        title="Acesso antecipado — Escolha seu tempo"
-        subtitle="Planos sem recorrência para quem quer testar o Premium por um período definido, sem compromisso de renovação automática."
-      >
-        {/* Aviso de contexto pre-beta */}
-        <div className="notice notice--info" style={{ marginBottom: "16px" }}>
-          <strong>Disponível durante o período de beta</strong>
-          <p>
-            Esses planos são pagamentos únicos com acesso total ao Premium por um tempo limitado.
-            Sem renovação automática. Ideal para validar o produto antes de migrar para um plano recorrente.
-          </p>
-        </div>
-
-        <div className="plan-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
-          {TRIAL_PLANS.map((plan) => (
-            <TrialPlanCard
-              key={plan.billing_cycle}
-              plan={plan}
-              isCurrent={!!(subscription && isTrialPlan && currentTrialCycle === plan.billing_cycle)}
-              busyAction={busyAction}
-              onSubscribe={subscribe}
-            />
-          ))}
-        </div>
 
         {/* Tabela de comparação rápida entre trials */}
+        {!loading && availablePlans.length > 0 && (
         <div style={{
           marginTop: "20px",
           padding: "16px 20px",
@@ -614,37 +494,39 @@ export function BillingPage() {
           }}>
             {/* Header */}
             <span />
-            {TRIAL_PLANS.map((p) => (
+            {availablePlans.map((p) => (
               <strong key={p.billing_cycle} style={{ fontSize: "0.9rem", textAlign: "center" }}>
-                {getTrialDurationLabel(p.days)}
+                {getAccessCycleLabel(p.billing_cycle)}
               </strong>
             ))}
             {/* Custo por dia */}
             <span className="muted-copy" style={{ fontSize: "0.88rem" }}>Custo / dia</span>
-            {TRIAL_PLANS.map((p) => {
-              const costPerDay = (parseFloat(p.price_amount) / p.days).toFixed(2);
+            {availablePlans.map((p) => {
+              const days = getTrialDays(p.billing_cycle);
+              const costPerDay = days ? (parseFloat(p.price_amount) / days).toFixed(2) : null;
               return (
                 <span key={p.billing_cycle} style={{ textAlign: "center", fontSize: "0.88rem" }}>
-                  R$ {costPerDay}
+                  {costPerDay ? `R$ ${costPerDay}` : "-"}
                 </span>
               );
             })}
-            {/* Renovação automática */}
-            <span className="muted-copy" style={{ fontSize: "0.88rem" }}>Renovação automática</span>
-            {TRIAL_PLANS.map((p) => (
+            {/* Recorrência */}
+            <span className="muted-copy" style={{ fontSize: "0.88rem" }}>Recorrência</span>
+            {availablePlans.map((p) => (
               <span key={p.billing_cycle} style={{ textAlign: "center" }}>
                 <span className="status-badge tone-muted" style={{ fontSize: "0.78rem" }}>Não</span>
               </span>
             ))}
             {/* Todos os recursos Pro */}
             <span className="muted-copy" style={{ fontSize: "0.88rem" }}>Todos os recursos Pro</span>
-            {TRIAL_PLANS.map((p) => (
+            {availablePlans.map((p) => (
               <span key={p.billing_cycle} style={{ textAlign: "center" }}>
                 <span className="status-badge tone-good" style={{ fontSize: "0.78rem" }}>Sim</span>
               </span>
             ))}
           </div>
         </div>
+        )}
       </SectionCard>
 
     </AppShell>
