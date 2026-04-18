@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
+import unicodedata
 import zipfile
 from dataclasses import dataclass, field
 from io import BytesIO
@@ -490,6 +491,32 @@ class ResumeTextExtractionService:
             "minimum_trusted_characters": self.min_trusted_text_characters,
             "minimum_trusted_words": self.min_trusted_words,
         }
+        if self._looks_like_pdf_syntax_leak(text=normalized_text, diagnostics=diagnostics):
+            diagnostics.update(
+                {
+                    "unreliable_regex_fallback_text": True,
+                    "raw_extracted_character_count": character_count,
+                    "normalized_character_count": 0,
+                    "word_count": 0,
+                    "suggestion": (
+                        "Export the resume again as a standard text PDF or upload a DOCX version."
+                    ),
+                }
+            )
+            return ResumeExtractionResult(
+                text="",
+                status=EXTRACTION_REASON_UNSUPPORTED_STRUCTURE,
+                diagnostics=diagnostics,
+            )
+        if self._is_non_informative_text(normalized_text):
+            diagnostics["suggestion"] = (
+                "Upload a resume with selectable professional text before analysis or matching."
+            )
+            return ResumeExtractionResult(
+                text=normalized_text,
+                status=ResumeParseStatus.INSUFFICIENT_TEXT,
+                diagnostics=diagnostics,
+            )
         if (
             character_count < self.min_trusted_text_characters
             or word_count < self.min_trusted_words
@@ -549,6 +576,42 @@ class ResumeTextExtractionService:
             reason=EXTRACTION_REASON_BLOCKED_BY_POLICY,
             diagnostics=base,
         )
+
+    def _looks_like_pdf_syntax_leak(self, *, text: str, diagnostics: dict[str, object]) -> bool:
+        if diagnostics.get("parser_used") != "regex_fallback":
+            return False
+        normalized = text.lower()
+        object_markers = len(re.findall(r"\b\d+\s+0\s+obj\b", normalized))
+        stream_markers = normalized.count("endstream") + normalized.count("endobj")
+        syntax_markers = sum(
+            normalized.count(marker)
+            for marker in (
+                "/type",
+                "/page",
+                "/pages",
+                "/viewerpreferences",
+                "/outlines",
+                "/metadata",
+                "trailer",
+                " xref",
+            )
+        )
+        return object_markers >= 2 or stream_markers >= 2 or syntax_markers >= 5
+
+    def _is_non_informative_text(self, text: str) -> bool:
+        normalized = unicodedata.normalize("NFKD", text or "")
+        ascii_text = "".join(
+            char for char in normalized if not unicodedata.combining(char)
+        ).lower()
+        compact = re.sub(r"\s+", " ", ascii_text).strip(" .:-")
+        blank_markers = (
+            "documento em branco",
+            "pagina em branco",
+            "arquivo em branco",
+            "blank document",
+            "blank page",
+        )
+        return any(marker in compact for marker in blank_markers) and self._count_words(compact) <= 8
 
     def _decode_pdf_literal_text(self, value: str) -> str:
         replacements = {

@@ -184,7 +184,14 @@ class ResumeApiTests(TestCase):
     def test_authenticated_user_can_upload_resume(self) -> None:
         upload = SimpleUploadedFile(
             "resume.docx",
-            build_docx_bytes("Jane Doe", "Senior Data Analyst"),
+            build_docx_bytes(
+                "Jane Doe",
+                "Senior Data Analyst",
+                "Experience",
+                "Built dashboards and improved KPI visibility with Python and SQL.",
+                "Skills",
+                "Python, SQL, Tableau",
+            ),
             content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         )
 
@@ -868,7 +875,13 @@ class ResumeApiTests(TestCase):
             response.data["extraction_diagnostics"]["failure_reason"],
             ResumeParseStatus.DOCUMENT_NOT_RESUME_LIKE,
         )
-        self.assertTrue(response.data["extraction_diagnostics"]["blocked_for_low_resume_confidence"])
+        self.assertTrue(response.data["extraction_diagnostics"]["blocked_by_resume_likeness_gate"])
+        self.assertFalse(response.data["extraction_diagnostics"]["blocked_for_low_resume_confidence"])
+        self.assertTrue(
+            response.data["extraction_diagnostics"]["resume_likeness_signals"][
+                "blocked_by_unrelated_document"
+            ]
+        )
         self.assertIn(
             "nao parece um curriculo",
             response.data["extraction_diagnostics"]["user_message"],
@@ -892,10 +905,46 @@ class ResumeApiTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(response.data["parse_status"], ResumeParseStatus.BLOCKED_FOR_LOW_RESUME_CONFIDENCE)
+        self.assertEqual(response.data["parse_status"], ResumeParseStatus.DOCUMENT_NOT_RESUME_LIKE)
         self.assertFalse(response.data["is_active"])
         self.assertFalse(
             response.data["extraction_diagnostics"]["resume_likeness_signals"]["has_professional_signal"]
+        )
+
+    def test_generic_resume_template_placeholders_are_blocked(self) -> None:
+        upload = SimpleUploadedFile(
+            "template.docx",
+            build_docx_bytes(
+                "Samira Alcaraz",
+                "Mechanical Engineer",
+                "Phone: +123-456-7890",
+                "123 Anywhere Any City",
+                "really great site",
+                "Experience",
+                "Implemented product processes as intern.",
+                "Education",
+                "Scrum project.",
+            ),
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+
+        response = self.client.post(
+            "/hunter/api/resumes/",
+            {"file": upload},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["parse_status"], ResumeParseStatus.DOCUMENT_NOT_RESUME_LIKE)
+        self.assertFalse(response.data["is_active"])
+        self.assertIn(
+            "template_placeholder",
+            response.data["extraction_diagnostics"]["resume_likeness_unrelated_signals"],
+        )
+        self.assertTrue(
+            response.data["extraction_diagnostics"]["resume_likeness_signals"][
+                "blocked_by_unrelated_document"
+            ]
         )
 
     def test_valid_resume_like_docx_still_becomes_active(self) -> None:
@@ -954,7 +1003,6 @@ class ResumeApiTests(TestCase):
         self.assertIn(response.data["parse_status"], [
             ResumeParseStatus.COMPLETED,
             ResumeParseStatus.INSUFFICIENT_RESUME_SIGNALS,
-            ResumeParseStatus.BLOCKED_FOR_LOW_RESUME_CONFIDENCE
         ])
 
     def test_degraded_legitimate_resume_upload_can_generate_analysis_and_seniority(self) -> None:
@@ -1063,6 +1111,36 @@ class ResumeTextExtractionServiceTests(TestCase):
         self.assertEqual(result.text, "Jane Doe Resume")
         self.assertEqual(result.status, "completed")
         self.assertEqual(result.diagnostics["content_kind"], "pdf")
+
+    def test_blank_marker_pdf_fails_as_insufficient_text(self) -> None:
+        result = ResumeTextExtractionService().extract(
+            file_bytes=build_pdf_bytes("DOCUMENTO EM BRANCO"),
+            content_type="application/pdf",
+            filename="blank.pdf",
+        )
+
+        self.assertEqual(result.status, ResumeParseStatus.INSUFFICIENT_TEXT)
+        self.assertEqual(result.diagnostics["word_count"], 3)
+
+    @override_settings(
+        RESUME_INGESTION={
+            **settings.RESUME_INGESTION,
+            "ENABLE_PYPDF": False,
+        }
+    )
+    def test_regex_fallback_pdf_syntax_leak_is_not_trusted_text(self) -> None:
+        result = ResumeTextExtractionService().extract(
+            file_bytes=build_pdf_bytes(
+                "1 0 obj endobj stream endstream /Type /Page "
+                "/ViewerPreferences /Outlines /Metadata trailer"
+            ),
+            content_type="application/pdf",
+            filename="leaky.pdf",
+        )
+
+        self.assertEqual(result.status, ResumeParseStatus.UNSUPPORTED_OR_UNSAFE_STRUCTURE)
+        self.assertEqual(result.text, "")
+        self.assertTrue(result.diagnostics["unreliable_regex_fallback_text"])
 
     def test_extracts_and_normalizes_text_from_multiple_pdf_pages(self) -> None:
         result = ResumeTextExtractionService().extract(
