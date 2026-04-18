@@ -378,8 +378,9 @@ STRIPE = {
     ),
     'PRICE_IDS': {
         'pro': {
-            'monthly': env('STRIPE_PRICE_PRO_MONTHLY', default=''),
-            'yearly': env('STRIPE_PRICE_PRO_YEARLY', default=''),
+            'trial_15': env('STRIPE_PRICE_PRO_TRIAL_15', default=''),
+            'trial_30': env('STRIPE_PRICE_PRO_TRIAL_30', default=''),
+            'trial_90': env('STRIPE_PRICE_PRO_TRIAL_90', default=''),
         },
     },
 }

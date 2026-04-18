@@ -39,13 +39,33 @@ class BillingService:
     PLAN_PRO = 'pro'
     FEATURE_PREMIUM_REPORTS = 'premium_reports'
     FEATURE_RESUME_COMPARISON = 'resume_comparison'
+    TRIAL_DURATIONS = {
+        BillingCycle.TRIAL_15: 15,
+        BillingCycle.TRIAL_30: 30,
+        BillingCycle.TRIAL_90: 90,
+    }
+
+    PLAN_FREE_DEFINITION = PlanDefinition(
+        code=PLAN_FREE,
+        name='Sem acesso premium ativo',
+        billing_cycle=BillingCycle.FREE,
+        price_amount=Decimal('0.00'),
+        currency='BRL',
+        features=(
+            'resume_upload',
+            'resume_analysis',
+            'seniority_assessment',
+            'job_matching',
+            'dashboard',
+        ),
+    )
 
     PLAN_CATALOG: tuple[PlanDefinition, ...] = (
         PlanDefinition(
-            code=PLAN_FREE,
-            name='Free',
-            billing_cycle=BillingCycle.FREE,
-            price_amount=Decimal('0.00'),
+            code=PLAN_PRO,
+            name='Acesso 15 dias',
+            billing_cycle=BillingCycle.TRIAL_15,
+            price_amount=Decimal('14.90'),
             currency='BRL',
             features=(
                 'resume_upload',
@@ -53,13 +73,17 @@ class BillingService:
                 'seniority_assessment',
                 'job_matching',
                 'dashboard',
+                FEATURE_PREMIUM_REPORTS,
+                FEATURE_RESUME_COMPARISON,
+                'priority_support',
+                'multiple_resume_versions',
             ),
         ),
         PlanDefinition(
             code=PLAN_PRO,
-            name='Pro',
-            billing_cycle=BillingCycle.MONTHLY,
-            price_amount=Decimal('29.90'),
+            name='Acesso 30 dias',
+            billing_cycle=BillingCycle.TRIAL_30,
+            price_amount=Decimal('24.90'),
             currency='BRL',
             highlighted=True,
             features=(
@@ -76,9 +100,9 @@ class BillingService:
         ),
         PlanDefinition(
             code=PLAN_PRO,
-            name='Pro Annual',
-            billing_cycle=BillingCycle.YEARLY,
-            price_amount=Decimal('299.00'),
+            name='Acesso 90 dias',
+            billing_cycle=BillingCycle.TRIAL_90,
+            price_amount=Decimal('59.90'),
             currency='BRL',
             features=(
                 'resume_upload',
@@ -91,6 +115,24 @@ class BillingService:
                 'priority_support',
                 'multiple_resume_versions',
             ),
+        ),
+    )
+    LEGACY_PLAN_CATALOG: tuple[PlanDefinition, ...] = (
+        PlanDefinition(
+            code=PLAN_PRO,
+            name='Acesso Premium',
+            billing_cycle='monthly',
+            price_amount=Decimal('29.90'),
+            currency='BRL',
+            features=PLAN_CATALOG[1].features,
+        ),
+        PlanDefinition(
+            code=PLAN_PRO,
+            name='Acesso Premium',
+            billing_cycle='yearly',
+            price_amount=Decimal('299.00'),
+            currency='BRL',
+            features=PLAN_CATALOG[1].features,
         ),
     )
 
@@ -121,14 +163,13 @@ class BillingService:
     def get_subscription(self, *, owner) -> dict[str, object]:
         record = self._get_effective_subscription_record(owner=owner)
         if record is None:
-            plan = self._get_plan(plan_code=self.PLAN_FREE, billing_cycle=BillingCycle.FREE)
-            return self._build_free_subscription_payload(plan=plan)
+            return self._build_free_subscription_payload(plan=self.PLAN_FREE_DEFINITION)
         return self._serialize_subscription(record=record)
 
     def subscribe(self, *, owner, plan_code: str, billing_cycle: str) -> dict[str, object]:
         plan = self._get_plan(plan_code=plan_code, billing_cycle=billing_cycle)
         if plan.code == self.PLAN_FREE:
-            raise BillingError('O plano gratuito nao precisa de checkout.')
+            raise BillingError('O acesso base nao precisa de checkout.')
 
         current = self.get_subscription(owner=owner)
         if (
@@ -137,7 +178,7 @@ class BillingService:
             and current.get("billing_cycle") == plan.billing_cycle
         ):
             raise BillingError(
-                'Esse plano ja esta ativo na sua conta. Atualize a pagina de Planos para conferir o acesso atual.'
+                'Esse acesso ja esta ativo na sua conta. Atualize a pagina de Acesso Premium para conferir o periodo atual.'
             )
 
         if not self.stripe_gateway.is_configured():
@@ -148,7 +189,7 @@ class BillingService:
             billing_cycle=plan.billing_cycle,
         )
         if not price_id:
-            raise BillingError('O preco do plano escolhido nao esta configurado neste ambiente.')
+            raise BillingError('O preco do acesso escolhido nao esta configurado neste ambiente.')
 
         existing_customer_id = self._get_latest_customer_id(owner=owner)
         try:
@@ -174,7 +215,7 @@ class BillingService:
     def cancel(self, *, owner) -> dict[str, object]:
         subscription = self._get_effective_subscription_record(owner=owner)
         if subscription is None or subscription.plan_code == self.PLAN_FREE:
-            raise BillingError('Nao existe uma assinatura paga ativa para cancelar.')
+            raise BillingError('Nao existe um acesso pago ativo para encerrar.')
         if subscription.status == BillingSubscriptionStatus.CANCELED:
             return self._serialize_subscription(record=subscription)
 
@@ -214,7 +255,7 @@ class BillingService:
         if feature_code in subscription['features']:
             return
         raise BillingAccessError(
-            'Seu plano atual nao inclui este recurso premium. Faca upgrade para o Pro quando quiser liberar esse acesso.'
+            'Seu acesso atual nao inclui este recurso premium. Ative 15, 30 ou 90 dias quando quiser liberar esse acesso.'
         )
 
     @transaction.atomic
@@ -353,22 +394,35 @@ class BillingService:
         )
 
     def _get_plan(self, *, plan_code: str, billing_cycle: str) -> PlanDefinition:
-        for plan in self.PLAN_CATALOG:
+        for plan in self._all_plan_definitions():
             if plan.code == plan_code and plan.billing_cycle == billing_cycle:
                 return plan
-        raise BillingError('A opcao de plano escolhida nao e valida.')
+        raise BillingError('A opcao de acesso escolhida nao e valida.')
+
+    def _all_plan_definitions(self) -> tuple[PlanDefinition, ...]:
+        return (
+            self.PLAN_FREE_DEFINITION,
+            *self.PLAN_CATALOG,
+            *self.LEGACY_PLAN_CATALOG,
+        )
 
     def _calculate_period_end(self, *, started_at, billing_cycle: str):
-        if billing_cycle == BillingCycle.MONTHLY:
+        if billing_cycle in self.TRIAL_DURATIONS:
+            return started_at + timedelta(days=self.TRIAL_DURATIONS[billing_cycle])
+        if billing_cycle == 'monthly':
             return started_at + timedelta(days=30)
-        if billing_cycle == BillingCycle.YEARLY:
+        if billing_cycle == 'yearly':
             return started_at + timedelta(days=365)
         return None
 
     def _handle_checkout_completed(self, *, session: dict[str, Any]) -> None:
         owner = self._resolve_owner_from_session(session=session)
         subscription_id = session.get('subscription')
-        if owner is None or not subscription_id:
+        if owner is None:
+            return
+
+        if not subscription_id:
+            self._handle_one_time_checkout_completed(owner=owner, session=session)
             return
 
         stripe_subscription = self.stripe_gateway.retrieve_subscription(
@@ -379,6 +433,71 @@ class BillingService:
             stripe_subscription=stripe_subscription,
             checkout_session_id=session.get('id', ''),
             stripe_customer_id=session.get('customer') or stripe_subscription.get('customer', ''),
+        )
+
+    def _handle_one_time_checkout_completed(self, *, owner, session: dict[str, Any]) -> None:
+        if session.get('payment_status') not in {'paid', 'no_payment_required'}:
+            return
+
+        metadata = session.get('metadata', {})
+        plan = self._get_plan(
+            plan_code=metadata.get('plan_code', ''),
+            billing_cycle=metadata.get('billing_cycle', ''),
+        )
+        if plan.billing_cycle not in self.TRIAL_DURATIONS:
+            raise BillingError('O checkout recebido nao corresponde a uma opcao de acesso valida.')
+
+        session_id = session.get('id', '')
+        if not session_id:
+            raise BillingError('Nao foi possivel validar a referencia do checkout recebido.')
+
+        started_at = self._from_unix_timestamp(session.get('created')) or timezone.now()
+        amount_total = session.get('amount_total')
+        price_amount = (
+            Decimal(str(amount_total)) / Decimal('100')
+            if amount_total is not None
+            else plan.price_amount
+        )
+        currency = str(session.get('currency', plan.currency)).upper()
+        current_period_end = self._calculate_period_end(
+            started_at=started_at,
+            billing_cycle=plan.billing_cycle,
+        )
+
+        subscription, _ = BillingSubscription.objects.update_or_create(
+            owner=owner,
+            stripe_checkout_session_id=session_id,
+            defaults={
+                'plan_code': plan.code,
+                'billing_cycle': plan.billing_cycle,
+                'status': BillingSubscriptionStatus.ACTIVE,
+                'price_amount': price_amount,
+                'currency': currency,
+                'stripe_customer_id': session.get('customer', ''),
+                'stripe_subscription_id': '',
+                'auto_renew': False,
+                'started_at': started_at,
+                'current_period_end': current_period_end,
+                'canceled_at': None,
+                'expires_at': None,
+            },
+        )
+        self._expire_other_subscriptions(owner=owner, keep_subscription_id=subscription.id)
+
+        BillingInvoice.objects.update_or_create(
+            owner=owner,
+            subscription=subscription,
+            external_reference=session.get('payment_intent') or session_id,
+            defaults={
+                'plan_code': plan.code,
+                'billing_cycle': plan.billing_cycle,
+                'status': BillingInvoiceStatus.PAID,
+                'amount': price_amount,
+                'currency': currency,
+                'stripe_invoice_id': '',
+                'issued_at': started_at,
+                'paid_at': started_at,
+            },
         )
 
     def _handle_subscription_updated(self, *, subscription_data: dict[str, Any]) -> None:
@@ -605,7 +724,7 @@ class BillingService:
 
         items = stripe_subscription.get('items', {}).get('data', [])
         price_id = items[0].get('price', {}).get('id', '') if items else ''
-        for plan in self.PLAN_CATALOG:
+        for plan in self._all_plan_definitions():
             configured_price_id = self.stripe_gateway.get_price_id(
                 plan_code=plan.code,
                 billing_cycle=plan.billing_cycle,
@@ -613,7 +732,7 @@ class BillingService:
             if configured_price_id and configured_price_id == price_id:
                 return plan.code, plan.billing_cycle
 
-        raise BillingError('Nao foi possivel associar a assinatura recebida a um plano local.')
+        raise BillingError('Nao foi possivel associar a assinatura recebida a uma opcao de acesso local.')
 
     def _resolve_price_amount(
         self,

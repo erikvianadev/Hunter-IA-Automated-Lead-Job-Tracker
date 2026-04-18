@@ -8,7 +8,7 @@ const navigation = [
   { to: "/resumes", label: "Currículos" },
   { to: "/jobs", label: "Vagas" },
   { to: "/applications", label: "Candidaturas" },
-  { to: "/billing", label: "Planos" }
+  { to: "/billing", label: "Acesso" }
 ];
 
 export function AppShell({ title, subtitle, actions, children }) {

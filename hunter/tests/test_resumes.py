@@ -723,7 +723,7 @@ class ResumeApiTests(TestCase):
         response = self.client.get("/hunter/api/resumes/compare/")
 
         self.assertEqual(response.status_code, 403)
-        self.assertIn("faca upgrade para o pro", response.data["detail"].lower())
+        self.assertIn("ative 15, 30 ou 90 dias", response.data["detail"].lower())
 
     def test_report_requires_pro_plan(self) -> None:
         resume = Resume.objects.create(
@@ -741,7 +741,7 @@ class ResumeApiTests(TestCase):
         response = self.client.get(f"/hunter/api/resumes/{resume.id}/report/")
 
         self.assertEqual(response.status_code, 403)
-        self.assertIn("faca upgrade para o pro", response.data["detail"].lower())
+        self.assertIn("ative 15, 30 ou 90 dias", response.data["detail"].lower())
 
     def test_invalid_file_type_is_rejected(self) -> None:
         upload = SimpleUploadedFile(

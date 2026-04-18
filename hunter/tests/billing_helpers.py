@@ -13,19 +13,17 @@ from hunter.services.billing_service import BillingService
 def create_active_pro_subscription(
     *,
     owner,
-    billing_cycle: str = BillingCycle.MONTHLY,
+    billing_cycle: str = BillingCycle.TRIAL_30,
     with_invoice: bool = True,
 ) -> BillingSubscription:
     now = timezone.now()
-    price_amount = (
-        Decimal('299.00')
-        if billing_cycle == BillingCycle.YEARLY
-        else Decimal('29.90')
+    plan = BillingService()._get_plan(
+        plan_code=BillingService.PLAN_PRO,
+        billing_cycle=billing_cycle,
     )
-    current_period_end = now + (
-        timedelta(days=365)
-        if billing_cycle == BillingCycle.YEARLY
-        else timedelta(days=30)
+    price_amount = plan.price_amount
+    current_period_end = now + timedelta(
+        days=BillingService.TRIAL_DURATIONS.get(billing_cycle, 30)
     )
 
     subscription = BillingSubscription.objects.create(
@@ -35,7 +33,7 @@ def create_active_pro_subscription(
         status=BillingSubscriptionStatus.ACTIVE,
         price_amount=price_amount,
         currency='BRL',
-        auto_renew=True,
+        auto_renew=False,
         started_at=now,
         current_period_end=current_period_end,
         expires_at=None,

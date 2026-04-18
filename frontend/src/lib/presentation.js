@@ -210,42 +210,55 @@ const BILLING_FEATURE_PRESENTATIONS = {
 };
 
 const BILLING_PLAN_LABELS = {
-  free: "Plano gratuito",
-  pro: "Pro",
-  "pro annual": "Pro anual"
+  free: "Sem acesso premium ativo",
+  pro: "Acesso Premium",
+  "acesso 15 dias": "Acesso 15 dias",
+  "acesso 30 dias": "Acesso 30 dias",
+  "acesso 90 dias": "Acesso 90 dias"
 };
 
 const BILLING_PLAN_PRESENTATIONS = {
   free: {
-    eyebrow: "Base organizada",
-    label: "Plano gratuito",
-    description: "Para preparar a base da sua busca: enviar currículo, entender senioridade e começar a comparar vagas com mais clareza.",
-    outcome: "Ajuda você a sair do achismo inicial e enxergar o que já está pronto para usar.",
-    bestFor: "Comece aqui quando ainda está estruturando currículo, cargo-alvo e primeiras oportunidades.",
-    cta: "Plano atual"
+    eyebrow: "Base ativa",
+    label: "Sem acesso premium ativo",
+    description: "Você pode organizar currículo, senioridade e vagas. O acesso premium entra quando quiser liberar diagnósticos e comparações por um período definido.",
+    outcome: "Sua base segue disponível; escolha 15, 30 ou 90 dias quando quiser aprofundar a busca.",
+    bestFor: "Use como ponto de partida antes de ativar um período premium.",
+    cta: "Acesso atual"
   },
-  "pro-monthly": {
-    eyebrow: "Mais decisão por candidatura",
-    label: "Pro mensal",
-    description: "Para transformar análise em decisões melhores: escolher a versão certa, priorizar ajustes e aprofundar o diagnóstico antes de aplicar.",
-    outcome: "Ajuda você a decidir com mais confiança onde ajustar, qual versão usar e quais vagas merecem foco.",
-    bestFor: "Faz sentido quando você já está comparando oportunidades ou quer acelerar uma rodada de candidaturas.",
-    cta: "Melhorar meus resultados"
+  "pro-trial_15": {
+    eyebrow: "Teste rápido",
+    label: "Acesso 15 dias",
+    description: "Ideal para validar o fluxo completo antes de uma rodada intensa de candidaturas.",
+    outcome: "Libera o Premium por 15 dias, com pagamento único e sem renovação automática.",
+    bestFor: "Faz sentido quando você quer testar o diagnóstico premium antes de um ciclo maior.",
+    cta: "Começar 15 dias"
   },
-  "pro-yearly": {
-    eyebrow: "Rotina premium contínua",
-    label: "Pro anual",
-    description: "Para manter uma busca consistente ao longo do tempo, com diagnósticos profundos e comparações sempre que sua estratégia mudar.",
-    outcome: "Ajuda você a manter evolução do currículo, priorização de vagas e aprendizado entre ciclos.",
-    bestFor: "Faz sentido quando Hunter IA vira parte da sua rotina de carreira, não só de uma candidatura pontual.",
-    cta: "Assinar o Pro anual"
+  "pro-trial_30": {
+    eyebrow: "Mais escolhido",
+    label: "Acesso 30 dias",
+    description: "Tempo suficiente para uma rodada completa: currículo, matches, decisões e candidaturas.",
+    outcome: "Libera o Premium por 30 dias, com pagamento único e sem renovação automática.",
+    bestFor: "Faz sentido quando você está ativamente buscando e quer um ciclo completo de apoio.",
+    cta: "Começar 30 dias"
+  },
+  "pro-trial_90": {
+    eyebrow: "Melhor custo-benefício",
+    label: "Acesso 90 dias",
+    description: "Para manter o Premium ativo durante uma busca estratégica sem interrupções.",
+    outcome: "Libera o Premium por 90 dias, com pagamento único e sem renovação automática.",
+    bestFor: "Faz sentido quando você está em transição de carreira e precisa de consistência por meses.",
+    cta: "Começar 90 dias"
   }
 };
 
 const BILLING_CYCLE_PRESENTATIONS = {
   free: "Sem cobrança",
-  monthly: "Cobrança mensal",
-  yearly: "Cobrança anual"
+  trial_15: "15 dias de acesso",
+  trial_30: "30 dias de acesso",
+  trial_90: "90 dias de acesso",
+  monthly: "Acesso premium ativo",
+  yearly: "Acesso premium ativo"
 };
 
 export function getResumeParsePresentation(parseStatus, options = {}) {
@@ -311,7 +324,7 @@ export function getResumeInsightPresentation(kind, state) {
       tone: "premium",
       title: "Resultado mais profundo no Premium",
       description: `O Premium libera ${noun} para transformar os dados do currículo em prioridades mais claras.`,
-      nextStep: "Faça upgrade quando quiser comparar decisões, enxergar lacunas e agir com mais confiança."
+      nextStep: "Ative 15, 30 ou 90 dias quando quiser comparar decisões, enxergar lacunas e agir com mais confiança."
     };
   }
 
@@ -388,7 +401,7 @@ export function getBillingPlanLabel(plan) {
   }
 
   if (plan.code === "free") {
-    return "Plano gratuito";
+    return "Sem acesso premium ativo";
   }
 
   return titleize(plan.name || plan.code);
@@ -527,22 +540,22 @@ export function getJobsOverviewCardsPresentation(input = {}) {
 export function getCheckoutResultPresentation(kind) {
   if (kind === "success") {
     return {
-      title: "Upgrade em confirmação",
+      title: "Acesso em confirmação",
       subtitle: "Estamos validando o pagamento com segurança antes de liberar o acesso.",
       heading: "Pagamento recebido",
       message:
-        "Recebemos a finalização do checkout. Em alguns instantes o plano aparece atualizado com os recursos do Premium.",
-      nextStep: "Volte para Planos para confirmar o acesso e seguir para os diagnósticos mais profundos.",
+        "Recebemos a finalização do checkout. Em alguns instantes o acesso aparece atualizado com os recursos do Premium.",
+      nextStep: "Volte para Acesso Premium para confirmar o período ativo e seguir para os diagnósticos mais profundos.",
       tone: "success"
     };
   }
 
   return {
-    title: "Upgrade não concluído",
-    subtitle: "Seu plano continua igual e nenhuma cobrança nova foi confirmada.",
-    heading: "Upgrade interrompido",
-    message: "Tudo bem pausar aqui. Seu plano atual segue ativo para continuar organizando currículo, vagas e decisões.",
-    nextStep: "Quando o diagnóstico premium fizer sentido para seu momento, volte aos planos e escolha o ciclo ideal.",
+    title: "Acesso não concluído",
+    subtitle: "Nenhum novo período premium foi confirmado.",
+    heading: "Checkout interrompido",
+    message: "Tudo bem pausar aqui. Sua base segue ativa para continuar organizando currículo, vagas e decisões.",
+    nextStep: "Quando o diagnóstico premium fizer sentido para seu momento, volte para Acesso Premium e escolha 15, 30 ou 90 dias.",
     tone: "info"
   };
 }
