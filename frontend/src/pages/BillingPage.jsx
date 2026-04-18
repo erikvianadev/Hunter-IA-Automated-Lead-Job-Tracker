@@ -124,9 +124,10 @@ function GracePeriodBanner({ subscription, onRenew, isBusy }) {
   );
 }
 
-function TrialPlanCard({ plan, isCurrent, busyAction, onSubscribe }) {
+function TrialPlanCard({ plan, isCurrent, busyAction, planErrors, onSubscribe }) {
   const actionKey = `${plan.code}-${plan.billing_cycle}`;
   const isBusy = busyAction === actionKey;
+  const planError = planErrors?.[actionKey] || "";
   const planPresentation = getBillingPlanPresentation(plan);
   const days = getTrialDays(plan.billing_cycle);
   const durationLabel = days ? getTrialDurationLabel(days) : getBillingCycleLabel(plan.billing_cycle);
@@ -202,13 +203,25 @@ function TrialPlanCard({ plan, isCurrent, busyAction, onSubscribe }) {
       </ul>
 
       <button
-        className={plan.highlighted ? "button button--secondary" : "button button--ghost"}
+        className={
+          planError
+            ? "button button--ghost"
+            : plan.highlighted
+            ? "button button--secondary"
+            : "button button--ghost"
+        }
         type="button"
         disabled={isCurrent || isBusy}
         onClick={() => onSubscribe(plan.code, plan.billing_cycle)}
+        style={planError ? { borderColor: "var(--color-error, #dc2626)", color: "var(--color-error, #dc2626)" } : undefined}
       >
-        {isBusy ? "Abrindo checkout..." : isCurrent ? "Ativo agora" : planPresentation.cta}
+        {isBusy ? "Abrindo checkout..." : isCurrent ? "Ativo agora" : planError ? "Tentar novamente" : planPresentation.cta}
       </button>
+      {planError && (
+        <p style={{ marginTop: "8px", fontSize: "0.78rem", color: "var(--color-error, #dc2626)", lineHeight: 1.4 }}>
+          {planError}
+        </p>
+      )}
     </article>
   );
 }
@@ -222,6 +235,7 @@ export function BillingPage() {
   const [error, setError] = useState("");
   const [feedback, setFeedback] = useState("");
   const [busyAction, setBusyAction] = useState("");
+  const [planErrors, setPlanErrors] = useState({});
 
   async function loadOverview() {
     setLoading(true);
@@ -239,7 +253,9 @@ export function BillingPage() {
   useEffect(() => { loadOverview(); }, []);
 
   async function subscribe(planCode, billingCycle) {
-    setBusyAction(`${planCode}-${billingCycle}`);
+    const actionKey = `${planCode}-${billingCycle}`;
+    setBusyAction(actionKey);
+    setPlanErrors((prev) => ({ ...prev, [actionKey]: "" }));
     setError("");
     setFeedback("");
     try {
@@ -250,10 +266,23 @@ export function BillingPage() {
       setFeedback("Abrindo o checkout seguro para confirmar seu acesso...");
       window.location.href = payload.checkout_url;
     } catch (requestError) {
-      setError(getErrorMessage(requestError, "Não foi possível abrir o checkout agora."));
-    } finally {
+      let planMessage = "Não foi possível abrir o checkout agora.";
+      if (requestError?.code === "network_error" || !requestError?.status) {
+        planMessage = "Sem conexão com o servidor. Verifique sua internet e tente novamente.";
+      } else if (requestError.status >= 400 && requestError.status < 500) {
+        planMessage = "Sessão expirada. Recarregue a página e tente novamente.";
+      } else if (requestError.status >= 500) {
+        planMessage = "Erro temporário no servidor de pagamentos. Tente novamente em alguns instantes.";
+      }
+      setPlanErrors((prev) => ({ ...prev, [actionKey]: planMessage }));
       setBusyAction("");
+      // Auto-reactivate button after 5s so it never stays permanently disabled
+      setTimeout(() => {
+        setPlanErrors((prev) => ({ ...prev, [actionKey]: "" }));
+      }, 5_000);
+      return;
     }
+    setBusyAction("");
   }
 
   async function cancelSubscription() {
@@ -467,6 +496,7 @@ export function BillingPage() {
                 plan={plan}
                 isCurrent={!!(plan.is_current || (subscription && isTrialPlan && currentTrialCycle === plan.billing_cycle))}
                 busyAction={busyAction}
+                planErrors={planErrors}
                 onSubscribe={subscribe}
               />
             ))}

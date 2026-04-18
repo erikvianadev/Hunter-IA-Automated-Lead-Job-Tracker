@@ -11,6 +11,7 @@ import { formatEvidenceSignal, getJobsOverviewCardsPresentation, getMatchDecisio
 import { formatRelativeDate, formatShortDate, getErrorMessage, titleize } from "../lib/utils";
 
 const JOBS_PAGE_SIZE = 12;
+const SCRAPE_SOURCES = ["Ashby", "Greenhouse", "Lever", "Indeed", "RemoteOK", "Remotive", "WeWorkRemotely"];
 const APPLICATION_STATUSES = ["saved", "applied", "interview", "rejected", "offer", "archived"];
 const STATUS_OPTIONS = [{ value: "all", label: "Todas as vagas" }, { value: "saved", label: "Salvas" }, { value: "applied", label: "Aplicadas" }];
 const SORT_OPTIONS = [
@@ -19,6 +20,32 @@ const SORT_OPTIONS = [
   { value: "company_name", label: "Empresa A-Z" },
   { value: "title", label: "Cargo A-Z" }
 ];
+
+function ScrapeProgressBar({ loading }) {
+  if (!loading) return null;
+  return (
+    <div className="loading-inline">
+      <p>Verificando fontes, removendo duplicadas e salvando vagas aproveitáveis...</p>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "8px" }}>
+        {SCRAPE_SOURCES.map((source) => (
+          <span key={source} className="status-badge tone-muted" style={{ opacity: 0.85 }}>
+            <span style={{
+              display: "inline-block",
+              width: "8px",
+              height: "8px",
+              borderRadius: "50%",
+              background: "var(--accent, #7c3aed)",
+              animation: "pulse 1.4s ease-in-out infinite",
+              marginRight: "5px",
+              verticalAlign: "middle"
+            }} />
+            {source}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function getProviderSummary(payload) {
   if (!payload) return [];
@@ -435,7 +462,7 @@ export function JobsPage() {
             </div>
             <button className="button button--secondary" type="submit" disabled={scrapeLoading}>{scrapeLoading ? "Consultando fontes..." : "Buscar vagas"}</button>
           </form>
-          {scrapeLoading ? <div className="loading-inline">Verificando fontes, removendo duplicadas e salvando vagas aproveitáveis...</div> : null}
+          <ScrapeProgressBar loading={scrapeLoading} />
           {scrapeSummary ? (
             <div className="detail-stack">
               <div className="inline-meta"><strong>Última coleta</strong><StatusBadge value={scrapeSummary.status} label={scrapeSummary.status_label} tone={scrapeSummary.status_tone ?? "medium"} /></div>
