@@ -104,18 +104,42 @@ def _build_user_message(
     persistence: PersistenceResult,
 ) -> str:
     if aggregation.status == "total_failure":
-        return "Nao conseguimos consultar as fontes de vagas agora. Sua lista atual foi preservada; tente novamente em instantes."
+        return (
+            "Nao conseguimos consultar as fontes de vagas agora. "
+            "Sua lista atual foi preservada; tente novamente em instantes."
+        )
 
     if aggregation.raw_scraped == 0:
+        if aggregation.providers_failed and not aggregation.providers_succeeded:
+            return (
+                "A busca terminou com todas as fontes instaveis desta vez. "
+                "Tente novamente em alguns minutos ou use um termo mais amplo, como 'Software Engineer' ou 'Data Analyst'."
+            )
         if aggregation.providers_failed:
-            return "A busca terminou com algumas fontes instaveis e sem vagas aproveitaveis desta vez. Tente termos mais amplos ou outra localizacao."
-        return "A busca terminou sem vagas aproveitaveis desta vez. Tente um cargo mais amplo ou uma localizacao menos restrita."
+            return (
+                "A busca terminou com algumas fontes instaveis e sem vagas aproveitaveis desta vez. "
+                "Sugestoes: tente 'Software Engineer', 'Backend Developer' ou remova a restricao de local."
+            )
+        return (
+            "A busca terminou sem vagas aproveitaveis para este criterio. "
+            "Sugestoes: use um cargo mais generico como 'Backend Engineer' ou 'Data Scientist', "
+            "ou remova o filtro de local para ampliar a cobertura."
+        )
+
+    if aggregation.scraped == 0:
+        return (
+            "Encontramos vagas nas fontes, mas todas foram filtradas por qualidade insuficiente. "
+            "Tente um cargo mais amplo como 'Software Engineer' ou remova restricoes de local."
+        )
 
     saved_phrase = f"{persistence.saved} foram salvas ou atualizadas"
     if persistence.skipped:
         saved_phrase = f"{saved_phrase}; {persistence.skipped} itens inconsistentes foram ignorados"
 
     if aggregation.status == "partial_success":
-        return f"Busca concluida com instabilidade em algumas fontes. Mantivemos {aggregation.scraped} vagas aproveitaveis e {saved_phrase}."
+        return (
+            f"Busca concluida com instabilidade em algumas fontes. "
+            f"Mantivemos {aggregation.scraped} vagas aproveitaveis e {saved_phrase}."
+        )
 
     return f"Busca concluida. Mantivemos {aggregation.scraped} vagas aproveitaveis e {saved_phrase}."

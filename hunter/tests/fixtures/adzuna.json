@@ -1,0 +1,23 @@
+{
+  "results": [
+    {
+      "id": "4583293042",
+      "title": "Senior Data Scientist",
+      "company": {"display_name": "Acme Analytics"},
+      "location": {"display_name": "Remote"},
+      "description": "We are looking for a Senior Data Scientist to join our team. Experience with Python and machine learning required.",
+      "redirect_url": "https://www.adzuna.com/jobs/details/4583293042",
+      "created": "2024-04-01T10:00:00Z"
+    },
+    {
+      "id": "4583293099",
+      "title": "Frontend Engineer",
+      "company": {"display_name": "Tech Co"},
+      "location": {"display_name": "New York, NY"},
+      "description": "Looking for a frontend engineer with React experience.",
+      "redirect_url": "https://www.adzuna.com/jobs/details/4583293099",
+      "created": "2024-04-01T09:00:00Z"
+    }
+  ],
+  "count": 2
+}
