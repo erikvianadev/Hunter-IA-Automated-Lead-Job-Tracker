@@ -305,11 +305,11 @@ SIMPLE_JWT = {
 JOB_AGGREGATION = {
     'PROVIDER_ORDER': ['remotive', 'greenhouse', 'lever', 'ashby', 'remoteok', 'weworkremotely', 'indeed'],
     'DEFAULTS': {
-        'TIMEOUT': 10,
+        'TIMEOUT': 5,
         'MAX_PAGES': 1,
         'MIN_DELAY': 0.0,
         'MAX_DELAY': 0.0,
-        'MAX_RETRIES': 2,
+        'MAX_RETRIES': 1,
         'TRUST_ENV': False,
     },
     'PROVIDERS': {

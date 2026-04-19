@@ -1,15 +1,27 @@
 from __future__ import annotations
 
+import logging
 from math import ceil
 
 from rest_framework.exceptions import AuthenticationFailed, NotAuthenticated, Throttled
+from rest_framework.response import Response
 from rest_framework.views import exception_handler
+
+logger = logging.getLogger(__name__)
 
 
 def product_exception_handler(exc, context):
     response = exception_handler(exc, context)
     if response is None:
-        return response
+        view_name = context.get("view").__class__.__name__ if context.get("view") else "unknown"
+        logger.exception("unhandled_api_exception view=%s", view_name)
+        return Response(
+            {
+                "code": "server_error",
+                "detail": "Ocorreu um erro inesperado. Tente novamente em instantes.",
+            },
+            status=500,
+        )
 
     if isinstance(exc, NotAuthenticated):
         response.data = {

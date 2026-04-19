@@ -129,10 +129,23 @@ class JobAggregationService:
                 collected_jobs.extend(result.jobs)
         finally:
             for provider in self.providers:
-                provider.close()
+                try:
+                    provider.close()
+                except Exception:
+                    logger.debug("provider_close_failed provider=%s", provider.__class__.__name__)
 
-        quality_result = self.quality_service.prepare(collected_jobs)
-        jobs, duplicates_removed = self.deduplication_service.deduplicate(quality_result.jobs)
+        quality_filtered = 0
+        quality_issue_counts: dict[str, int] = {}
+        duplicates_removed = 0
+        jobs: list[JobResult] = collected_jobs
+        try:
+            quality_result = self.quality_service.prepare(collected_jobs)
+            jobs, duplicates_removed = self.deduplication_service.deduplicate(quality_result.jobs)
+            quality_filtered = quality_result.rejected
+            quality_issue_counts = quality_result.issue_counts
+        except Exception:
+            logger.exception("aggregation_post_processing_failed")
+
         duration = time.perf_counter() - started
         logger.info(
             "aggregation_completed providers_run=%d providers_succeeded=%d providers_failed=%d providers_blocked=%d providers_invalid_response=%d providers_unavailable=%d raw_scraped=%d quality_filtered=%d scraped=%d duplicates_removed=%d provider_job_counts=%s quality_issue_counts=%s duration_seconds=%.3f",
@@ -149,11 +162,11 @@ class JobAggregationService:
             ),
             len([result for result in provider_results if result.failure_type == FAILURE_UNAVAILABLE]),
             sum(result.count for result in provider_results),
-            quality_result.rejected,
+            quality_filtered,
             len(jobs),
             duplicates_removed,
             {result.provider: result.count for result in provider_results},
-            quality_result.issue_counts,
+            quality_issue_counts,
             duration,
         )
 
@@ -161,7 +174,7 @@ class JobAggregationService:
             jobs=jobs,
             provider_results=provider_results,
             duplicates_removed=duplicates_removed,
-            quality_filtered=quality_result.rejected,
-            quality_issue_counts=quality_result.issue_counts,
+            quality_filtered=quality_filtered,
+            quality_issue_counts=quality_issue_counts,
             duration_seconds=duration,
         )

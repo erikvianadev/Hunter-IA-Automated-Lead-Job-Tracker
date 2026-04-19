@@ -147,3 +147,9 @@ test_assets/
 
 # docs
 docs
+
+# claude
+
+claude_logs/
+.claude
+CLAUDE.md
