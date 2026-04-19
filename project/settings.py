@@ -303,7 +303,16 @@ SIMPLE_JWT = {
 }
 
 JOB_AGGREGATION = {
-    'PROVIDER_ORDER': ['remotive', 'greenhouse', 'lever', 'ashby', 'remoteok', 'weworkremotely', 'indeed'],
+    'PROVIDER_ORDER': [
+        'remotive',
+        'greenhouse',
+        'lever',
+        'ashby',
+        'adzuna',
+        'remoteok',
+        'weworkremotely',
+        'indeed',
+    ],
     'DEFAULTS': {
         'TIMEOUT': 10,
         'MAX_PAGES': 1,
@@ -323,6 +332,11 @@ JOB_AGGREGATION = {
             'ENABLED': True,
             'BOARD_TOKENS': [
                 {'token': 'canonical', 'company': 'Canonical'},
+                {'token': 'elastic', 'company': 'Elastic'},
+                {'token': 'gitlab', 'company': 'GitLab'},
+                {'token': 'hashicorp', 'company': 'HashiCorp'},
+                {'token': 'netlify', 'company': 'Netlify'},
+                {'token': 'cloudflare', 'company': 'Cloudflare'},
             ],
         },
         'lever': {
@@ -330,25 +344,39 @@ JOB_AGGREGATION = {
             'SITES': [
                 {'site': 'bighealth', 'company': 'Big Health'},
                 {'site': 'dnb', 'company': 'Dun & Bradstreet'},
+                {'site': 'remote', 'company': 'Remote'},
+                {'site': 'miro', 'company': 'Miro'},
             ],
         },
         'ashby': {
             'ENABLED': True,
             'JOB_BOARDS': [
                 {'board': 'openai', 'company': 'OpenAI'},
+                {'board': 'vercel', 'company': 'Vercel'},
+                {'board': 'linear', 'company': 'Linear'},
+                {'board': 'retool', 'company': 'Retool'},
             ],
         },
+        # Adzuna: free API tier (250 req/month). Activate by setting
+        # ADZUNA_APP_ID and ADZUNA_APP_KEY environment variables.
+        # Register at https://developer.adzuna.com
+        'adzuna': {
+            'ENABLED': bool(env('ADZUNA_APP_ID', default='')),
+            'APP_ID': env('ADZUNA_APP_ID', default=''),
+            'APP_KEY': env('ADZUNA_APP_KEY', default=''),
+            'COUNTRIES': env('ADZUNA_COUNTRIES', default='us,gb').split(','),
+        },
         'remoteok': {
-            'ENABLED': False,
+            'ENABLED': True,
             'MAX_PAGES': 1,
-            'MIN_DELAY': 0.0,
-            'MAX_DELAY': 0.0,
+            'MIN_DELAY': 0.5,
+            'MAX_DELAY': 1.5,
         },
         'weworkremotely': {
-            'ENABLED': False,
+            'ENABLED': True,
             'MAX_PAGES': 1,
-            'MIN_DELAY': 0.0,
-            'MAX_DELAY': 0.0,
+            'MIN_DELAY': 1.0,
+            'MAX_DELAY': 2.0,
         },
         'indeed': {
             'ENABLED': False,

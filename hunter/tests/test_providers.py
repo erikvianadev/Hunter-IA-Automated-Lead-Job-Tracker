@@ -15,6 +15,7 @@ from hunter.providers.base import (
     ProviderInvalidResponseError,
     ProviderParseError,
 )
+from hunter.providers.adzuna import AdzunaProvider
 from hunter.providers.ashby import AshbyProvider
 from hunter.providers.greenhouse import GreenhouseProvider
 from hunter.providers.indeed import IndeedProvider
@@ -349,17 +350,95 @@ class ProviderClassificationTests(SimpleTestCase):
         self.assertEqual(result.error_message, "unexpected content type")
 
 
+class AdzunaProviderTests(SimpleTestCase):
+    def test_adzuna_returns_empty_when_credentials_absent(self) -> None:
+        provider = AdzunaProvider(config=ProviderConfig(options={}))
+        jobs = provider.fetch_jobs(query="data scientist", location="remote")
+        self.assertEqual(jobs, [])
+
+    def test_adzuna_filters_and_normalizes_jobs(self) -> None:
+        payload = (FIXTURES_DIR / "adzuna.json").read_text(encoding="utf-8")
+        session = Mock()
+        session.get.return_value = build_json_response(payload)
+
+        provider = AdzunaProvider(
+            session=session,
+            config=ProviderConfig(
+                options={
+                    "app_id": "test_app_id",
+                    "app_key": "test_app_key",
+                    "countries": ["us"],
+                }
+            ),
+        )
+        jobs = provider.fetch_jobs(query="data scientist", location="remote")
+
+        self.assertEqual(len(jobs), 1)
+        self.assertEqual(jobs[0].title, "Senior Data Scientist")
+        self.assertEqual(jobs[0].company, "Acme Analytics")
+        self.assertEqual(jobs[0].source, "adzuna")
+        self.assertIn("adzuna.com", jobs[0].link)
+
+    def test_adzuna_skips_non_matching_jobs(self) -> None:
+        payload = (FIXTURES_DIR / "adzuna.json").read_text(encoding="utf-8")
+        session = Mock()
+        session.get.return_value = build_json_response(payload)
+
+        provider = AdzunaProvider(
+            session=session,
+            config=ProviderConfig(
+                options={
+                    "app_id": "test_app_id",
+                    "app_key": "test_app_key",
+                    "countries": ["us"],
+                }
+            ),
+        )
+        jobs = provider.fetch_jobs(query="frontend engineer", location="")
+
+        self.assertEqual(len(jobs), 1)
+        self.assertEqual(jobs[0].title, "Frontend Engineer")
+
+    def test_adzuna_run_classifies_failure_cleanly(self) -> None:
+        session = Mock()
+        response = Mock()
+        response.status_code = 200
+        response.headers = {"Content-Type": "text/html; charset=utf-8"}
+        response.encoding = "utf-8"
+        response.apparent_encoding = "utf-8"
+        response.text = "<html><body>Service Unavailable</body></html>"
+        response.raise_for_status.return_value = None
+        session.get.return_value = response
+
+        provider = AdzunaProvider(
+            session=session,
+            config=ProviderConfig(
+                options={
+                    "app_id": "test_app_id",
+                    "app_key": "test_app_key",
+                    "countries": ["us"],
+                }
+            ),
+        )
+        result = provider.run(query="data scientist", location="remote")
+
+        self.assertFalse(result.success)
+        self.assertEqual(result.failure_type, FAILURE_INVALID_RESPONSE)
+
+
 class ProviderRegistryTests(SimpleTestCase):
     def test_default_provider_order_prioritizes_reliable_sources(self) -> None:
         self.assertEqual(
             get_configured_provider_names(),
-            ["remotive", "greenhouse", "lever", "ashby", "remoteok", "weworkremotely", "indeed"],
+            ["remotive", "greenhouse", "lever", "ashby", "adzuna", "remoteok", "weworkremotely", "indeed"],
         )
 
     def test_disabled_providers_are_skipped(self) -> None:
+        # adzuna is disabled when ADZUNA_APP_ID env var is not set (default in CI/local).
+        # indeed stays disabled. remoteok and weworkremotely are now enabled.
         providers = build_enabled_providers()
 
         self.assertEqual(
             [provider.name for provider in providers],
-            ["remotive", "greenhouse", "lever", "ashby"],
+            ["remotive", "greenhouse", "lever", "ashby", "remoteok", "weworkremotely"],
         )
