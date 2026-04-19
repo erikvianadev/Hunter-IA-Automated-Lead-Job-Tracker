@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from django.conf import settings
 
+from .adzuna import AdzunaProvider
 from .ashby import AshbyProvider
 from .base import BaseJobProvider, ProviderConfig
 from .greenhouse import GreenhouseProvider
@@ -17,6 +18,7 @@ PROVIDER_CLASSES: dict[str, type[BaseJobProvider]] = {
     "greenhouse": GreenhouseProvider,
     "lever": LeverProvider,
     "ashby": AshbyProvider,
+    "adzuna": AdzunaProvider,
     "remoteok": RemoteOKProvider,
     "weworkremotely": WeWorkRemotelyProvider,
     "indeed": IndeedProvider,

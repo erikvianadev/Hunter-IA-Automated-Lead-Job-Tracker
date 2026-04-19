@@ -11,7 +11,7 @@ import { formatEvidenceSignal, getJobsOverviewCardsPresentation, getMatchDecisio
 import { formatRelativeDate, formatShortDate, getErrorMessage, titleize } from "../lib/utils";
 
 const JOBS_PAGE_SIZE = 12;
-const SCRAPE_SOURCES = ["Ashby", "Greenhouse", "Lever", "Indeed", "RemoteOK", "Remotive", "WeWorkRemotely"];
+const SCRAPE_SOURCES = ["Ashby", "Adzuna", "Greenhouse", "Lever", "RemoteOK", "Remotive", "WeWorkRemotely"];
 const APPLICATION_STATUSES = ["saved", "applied", "interview", "rejected", "offer", "archived"];
 const STATUS_OPTIONS = [{ value: "all", label: "Todas as vagas" }, { value: "saved", label: "Salvas" }, { value: "applied", label: "Aplicadas" }];
 const SORT_OPTIONS = [
@@ -468,7 +468,7 @@ export function JobsPage() {
               <div className="inline-meta"><strong>Última coleta</strong><StatusBadge value={scrapeSummary.status} label={scrapeSummary.status_label} tone={scrapeSummary.status_tone ?? "medium"} /></div>
               <div className="insight-list insight-list--four">{providerSummary.map((item) => <div key={item.label}><span>{item.label}</span><strong>{item.value}</strong></div>)}</div>
               {providerBreakdown.length ? <div className="provider-breakdown">{providerBreakdown.map((item) => <article className="provider-breakdown__card" key={item.provider}><div className="inline-meta"><strong>{item.provider}</strong><StatusBadge value={item.statusLabel} label={item.statusLabel} tone={item.tone} /></div><p className="muted-copy">{item.jobsFound} vagas contribuíram para o resultado</p></article>)}</div> : null}
-              {(scrapeSummary.raw_scraped ?? 0) === 0 ? <div className="notice notice--info">Nenhuma vaga compatível foi encontrada desta vez. Tente termos mais amplos, como "Software Engineer", ou remova restrições de local.</div> : null}
+              {(scrapeSummary.scraped ?? scrapeSummary.raw_scraped ?? 0) === 0 ? <div className="notice notice--info">Nenhuma vaga aproveitável foi encontrada. Sugestões: tente "Software Engineer", "Backend Developer" ou "Data Scientist"; ou remova restrições de local para ampliar a cobertura.</div> : null}
               {(scrapeSummary.duplicates_removed ?? 0) > 0 ? <p className="muted-copy">{scrapeSummary.duplicates_removed} vagas sobrepostas foram removidas antes de salvar.</p> : null}
               {(scrapeSummary.quality_filtered ?? 0) > 0 ? <p className="muted-copy">{scrapeSummary.quality_filtered} itens incompletos foram filtrados para manter a lista final mais confiável.</p> : null}
               {(scrapeSummary.persistence_skipped ?? 0) > 0 ? <p className="muted-copy">{scrapeSummary.persistence_skipped} itens inconsistentes foram ignorados durante o salvamento.</p> : null}
