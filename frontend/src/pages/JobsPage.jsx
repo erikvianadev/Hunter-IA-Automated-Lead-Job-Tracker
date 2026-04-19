@@ -11,7 +11,7 @@ import { formatEvidenceSignal, getJobsOverviewCardsPresentation, getMatchDecisio
 import { formatRelativeDate, formatShortDate, getErrorMessage, titleize } from "../lib/utils";
 
 const JOBS_PAGE_SIZE = 12;
-const SCRAPE_SOURCES = ["Ashby", "Adzuna", "Greenhouse", "Lever", "RemoteOK", "Remotive", "WeWorkRemotely"];
+const SCRAPE_SOURCES = ["Ashby", "Greenhouse", "Lever", "Remotive"];
 const APPLICATION_STATUSES = ["saved", "applied", "interview", "rejected", "offer", "archived"];
 const STATUS_OPTIONS = [{ value: "all", label: "Todas as vagas" }, { value: "saved", label: "Salvas" }, { value: "applied", label: "Aplicadas" }];
 const SORT_OPTIONS = [

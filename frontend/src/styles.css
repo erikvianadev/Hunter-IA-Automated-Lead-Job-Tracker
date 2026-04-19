@@ -1391,4 +1391,10 @@ select:focus {
   .action-row > * {
     width: 100%;
   }
+
+  .billing-comparison__grid {
+    min-width: 0;
+    grid-template-columns: minmax(80px, 1fr) repeat(3, minmax(56px, auto));
+    gap: 6px 12px;
+  }
 }

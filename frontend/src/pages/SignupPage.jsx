@@ -109,7 +109,7 @@ export function SignupPage() {
             <div className="notice notice--info">
               <strong>O que acontece depois</strong>
               <p>Assim que o cadastro for concluído, você entra automaticamente e já pode enviar seu currículo.</p>
-              <p>Use de 3 a 30 caracteres no nome de usuário e prefira uma senha forte.</p>
+              <p>Use de 3 a 30 caracteres no nome de usuário e prefira uma senha forte — guarde suas credenciais com cuidado, pois ainda não há recuperação de senha disponível.</p>
             </div>
 
             {error ? (
