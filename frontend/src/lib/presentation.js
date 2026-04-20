@@ -383,7 +383,7 @@ export function getProviderStatusPresentation(state) {
 export function getBillingStatusPresentation(status) {
   const map = {
     active: { label: "Ativo", tone: "good" },
-    active_until_period_end: { label: "Ativo ate o fim do ciclo", tone: "warning" },
+    active_until_period_end: { label: "Ativo até o fim do ciclo", tone: "warning" },
     canceled: { label: "Encerrado", tone: "muted" },
     expired: { label: "Expirado", tone: "muted" },
     free: { label: "Grátis", tone: "muted" },

@@ -48,16 +48,30 @@ function withDefaultContentType(headers, body) {
   return headers;
 }
 
+const REQUEST_TIMEOUT_MS = 50000;
+
 async function performFetch(url, options) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
   try {
-    return await fetch(url, options);
+    return await fetch(url, { ...options, signal: controller.signal });
   } catch (error) {
+    if (error?.name === "AbortError") {
+      throw {
+        code: "request_timeout",
+        detail: "A requisição demorou mais que o esperado. Tente novamente.",
+        message: "A requisição demorou mais que o esperado. Tente novamente."
+      };
+    }
     throw {
       code: "network_error",
       detail: error?.message ?? "Network error",
       message: error?.message ?? "Network error",
       cause: error
     };
+  } finally {
+    clearTimeout(timer);
   }
 }
 

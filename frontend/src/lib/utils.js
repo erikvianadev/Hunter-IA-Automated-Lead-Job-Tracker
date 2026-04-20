@@ -130,6 +130,7 @@ const SAFE_ERROR_CODE_MESSAGES = {
   invalid_json_response: "A resposta do servidor não veio no formato esperado. Tente novamente em instantes.",
   job_search_failed: "Não foi possível atualizar a busca de vagas agora. Tente novamente em instantes.",
   network_error: "Falha de rede ou conexão. Confira sua internet e tente novamente.",
+  request_timeout: "A busca demorou mais que o esperado. Tente novamente em instantes.",
   unsupported_file_type: "Esse arquivo não pode ser usado como currículo. Envie um PDF ou DOCX.",
   upload_too_large: "O arquivo enviado passou do limite permitido para currículos."
 };

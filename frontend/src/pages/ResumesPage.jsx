@@ -273,13 +273,14 @@ export function ResumesPage() {
   }
 
   async function loadSelectedResumeInsights(resumeId) {
+    setAnalysis(null);
+    setAnalysisState({ status: "idle", message: "" });
+    setSeniority(null);
+    setSeniorityState({ status: "idle", message: "" });
+    setReport(null);
+    setReportState({ status: "idle", message: "" });
+
     if (!resumeId) {
-      setAnalysis(null);
-      setAnalysisState({ status: "idle", message: "" });
-      setSeniority(null);
-      setSeniorityState({ status: "idle", message: "" });
-      setReport(null);
-      setReportState({ status: "idle", message: "" });
       return;
     }
 
@@ -442,21 +443,29 @@ export function ResumesPage() {
                 required
               />
               <div
-                className={isDragActive ? "upload-dropzone is-active" : "upload-dropzone"}
+                className={[
+                  "upload-dropzone",
+                  isDragActive ? "is-active" : "",
+                  busyAction === "upload" ? "is-uploading" : ""
+                ].filter(Boolean).join(" ")}
                 role="button"
-                tabIndex={0}
-                onClick={openFilePicker}
+                tabIndex={busyAction === "upload" ? -1 : 0}
+                aria-disabled={busyAction === "upload"}
+                onClick={() => { if (busyAction !== "upload") openFilePicker(); }}
                 onKeyDown={(event) => {
+                  if (busyAction === "upload") return;
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
                     openFilePicker();
                   }
                 }}
                 onDragOver={(event) => {
+                  if (busyAction === "upload") return;
                   event.preventDefault();
                   setIsDragActive(true);
                 }}
                 onDragEnter={(event) => {
+                  if (busyAction === "upload") return;
                   event.preventDefault();
                   setIsDragActive(true);
                 }}
@@ -467,17 +476,24 @@ export function ResumesPage() {
                 onDrop={(event) => {
                   event.preventDefault();
                   setIsDragActive(false);
+                  if (busyAction === "upload") return;
                   handleFileSelected(event.dataTransfer.files?.[0] ?? null);
                 }}
               >
-                <strong>{form.file ? "Arquivo selecionado" : "Arraste seu currículo aqui"}</strong>
+                <strong>
+                  {busyAction === "upload"
+                    ? "Enviando seu currículo..."
+                    : form.file ? "Arquivo selecionado" : "Arraste seu currículo aqui"}
+                </strong>
                 <p>
-                  {form.file
+                  {busyAction === "upload"
+                    ? "Aguarde enquanto o arquivo é recebido e preparado para análise."
+                    : form.file
                     ? `${form.file.name} (${Math.max(1, Math.round(form.file.size / 1024))} KB)`
                     : "Ou clique para escolher um arquivo PDF ou DOCX."}
                 </p>
-                <span className="status-badge tone-muted">
-                  {form.file ? "Pronto para envio" : "PDF ou DOCX"}
+                <span className={busyAction === "upload" ? "status-badge tone-warning" : "status-badge tone-muted"}>
+                  {busyAction === "upload" ? "Processando..." : form.file ? "Pronto para envio" : "PDF ou DOCX"}
                 </span>
               </div>
             </div>

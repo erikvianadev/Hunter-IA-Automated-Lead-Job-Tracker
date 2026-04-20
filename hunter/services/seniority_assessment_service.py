@@ -72,7 +72,11 @@ class SeniorityAssessmentService:
             "senior": senior_score,
             "freelance": freelance_score,
         }
-        recommended_track = max(score_map, key=score_map.get)
+        _track_priority = {"senior": 4, "mid": 3, "freelance": 2, "junior": 1, "internship": 0}
+        recommended_track = max(
+            score_map,
+            key=lambda track: (score_map[track], _track_priority.get(track, 0)),
+        )
         reasoning = {
             "experience_entries": experience_entries,
             "projects_count": projects_count,
@@ -112,7 +116,7 @@ class SeniorityAssessmentService:
         skills_count: int,
     ) -> str:
         return (
-            f"O nivel mais aderente no momento e {recommended_track}, com base em "
-            f"{experience_entries} experiencias identificadas, {projects_count} sinais de projetos "
+            f"O nível mais aderente no momento é {recommended_track}, com base em "
+            f"{experience_entries} experiências identificadas, {projects_count} sinais de projetos "
             f"e {skills_count} habilidades distintas."
         )

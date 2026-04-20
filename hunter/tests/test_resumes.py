@@ -780,12 +780,9 @@ class ResumeApiTests(TestCase):
             format="multipart",
         )
 
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.data["code"], ResumeParseStatus.INVALID_FILE)
-        self.assertEqual(
-            response.data["detail"],
-            "Nao conseguimos validar esse arquivo como um curriculo PDF ou DOCX confiavel.",
-        )
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.data["code"], "pdf_corrupt")
+        self.assertIn("Nao foi possivel abrir o PDF", response.data["detail"])
         self.assertFalse(Resume.objects.filter(owner=self.user, original_filename="resume.pdf").exists())
 
     def test_invalid_pdf_is_rejected_before_ingestion(self) -> None:
@@ -801,11 +798,11 @@ class ResumeApiTests(TestCase):
             format="multipart",
         )
 
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.data["code"], ResumeParseStatus.INVALID_FILE)
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.data["code"], "pdf_corrupt")
         self.assertFalse(Resume.objects.filter(owner=self.user, original_filename="broken.pdf").exists())
 
-    def test_scanned_like_pdf_sets_actionable_status_and_diagnostics(self) -> None:
+    def test_scanned_like_pdf_is_rejected_before_ingestion(self) -> None:
         upload = SimpleUploadedFile(
             "scanned.pdf",
             build_scanned_like_pdf_bytes(),
@@ -818,10 +815,9 @@ class ResumeApiTests(TestCase):
             format="multipart",
         )
 
-        self.assertEqual(response.status_code, 201)
-        self.assertEqual(response.data["parse_status"], ResumeParseStatus.SCANNED_OR_IMAGE_PDF)
-        self.assertIn("PDF parece ser uma imagem", response.data["parse_status_detail"])
-        self.assertResumePayloadIsRedacted(response.data)
+        self.assertEqual(response.status_code, 422)
+        self.assertIn(response.data["code"], ("pdf_no_text", "pdf_corrupt"))
+        self.assertFalse(Resume.objects.filter(owner=self.user, original_filename="scanned.pdf").exists())
 
     @override_settings(REST_FRAMEWORK=throttle_settings(resume_upload="1/min"))
     def test_resume_upload_is_rate_limited(self) -> None:
