@@ -13,6 +13,13 @@ import { formatRelativeDate, formatShortDate, getErrorMessage, titleize } from "
 const JOBS_PAGE_SIZE = 12;
 const SCRAPE_SOURCES = ["Ashby", "Greenhouse", "Lever", "Remotive"];
 const APPLICATION_STATUSES = ["saved", "applied", "interview", "rejected", "offer", "archived"];
+const SEARCH_PROGRESS_MESSAGES = [
+  "Consultando fontes confiáveis de vagas...",
+  "Lendo oportunidades relevantes para o seu perfil...",
+  "Organizando as melhores vagas para você...",
+  "Refinando e removendo duplicatas...",
+  "Quase pronto — salvando as oportunidades selecionadas...",
+];
 const STATUS_OPTIONS = [{ value: "all", label: "Todas as vagas" }, { value: "saved", label: "Salvas" }, { value: "applied", label: "Aplicadas" }];
 const SORT_OPTIONS = [
   { value: "-created_at", label: "Salvas mais recentes" },
@@ -22,23 +29,22 @@ const SORT_OPTIONS = [
 ];
 
 function ScrapeProgressBar({ loading }) {
+  const [msgIndex, setMsgIndex] = useState(0);
+
+  useEffect(() => {
+    if (!loading) { setMsgIndex(0); return; }
+    const interval = setInterval(() => setMsgIndex((prev) => (prev + 1) % SEARCH_PROGRESS_MESSAGES.length), 2200);
+    return () => clearInterval(interval);
+  }, [loading]);
+
   if (!loading) return null;
   return (
-    <div className="loading-inline">
-      <p>Verificando fontes, removendo duplicadas e salvando vagas aproveitáveis...</p>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "8px" }}>
+    <div className="loading-inline scrape-progress">
+      <p className="scrape-progress__message">{SEARCH_PROGRESS_MESSAGES[msgIndex]}</p>
+      <div className="scrape-progress__sources">
         {SCRAPE_SOURCES.map((source) => (
-          <span key={source} className="status-badge tone-muted" style={{ opacity: 0.85 }}>
-            <span style={{
-              display: "inline-block",
-              width: "8px",
-              height: "8px",
-              borderRadius: "50%",
-              background: "var(--accent, #7c3aed)",
-              animation: "pulse 1.4s ease-in-out infinite",
-              marginRight: "5px",
-              verticalAlign: "middle"
-            }} />
+          <span key={source} className="status-badge tone-muted scrape-source-chip">
+            <span className="scrape-pulse-dot" />
             {source}
           </span>
         ))}
@@ -50,10 +56,10 @@ function ScrapeProgressBar({ loading }) {
 function getProviderSummary(payload) {
   if (!payload) return [];
   return [
-    { label: "Fontes verificadas", value: payload.provider_status_summary?.total ?? payload.providers_run?.length ?? 0 },
-    { label: "Coletadas", value: payload.raw_scraped ?? 0 },
-    { label: "Únicas", value: payload.scraped ?? 0 },
-    { label: "Salvas/atualizadas", value: payload.saved ?? 0 }
+    { label: "Fontes consultadas", value: payload.provider_status_summary?.total ?? payload.providers_run?.length ?? 0 },
+    { label: "Vagas encontradas", value: payload.raw_scraped ?? 0 },
+    { label: "Únicas selecionadas", value: payload.scraped ?? 0 },
+    { label: "No workspace", value: payload.saved ?? 0 }
   ];
 }
 
@@ -87,10 +93,40 @@ function getProviderBreakdown(payload) {
 
 function getScrapeFeedbackMessage(payload) {
   if (!payload) return "";
-  if (payload.message) return payload.message;
+  const saved = payload.saved ?? 0;
   const rawScraped = payload.raw_scraped ?? 0;
-  if (!rawScraped) return "A coleta terminou sem vagas aproveitáveis desta vez. Tente um cargo mais amplo ou alivie o filtro de local.";
-  return `Coleta concluída. Encontramos ${rawScraped} vagas, mantivemos ${payload.scraped ?? 0} únicas e salvamos ${payload.saved ?? 0} no workspace.`;
+  if (!rawScraped && !saved) return "Não encontramos vagas para este perfil agora. Experimente um cargo mais amplo ou remova a restrição de local.";
+  if (saved > 0) return `${saved} ${saved === 1 ? "nova oportunidade adicionada" : "novas oportunidades adicionadas"} ao workspace.`;
+  return "Busca concluída. O workspace já tinha estas oportunidades.";
+}
+
+function getSearchStatusLabel(payload) {
+  if (!payload) return "";
+  const status = payload.status;
+  if (status === "partial_success" || status === "partial") return "Busca otimizada";
+  if (status === "success") return "Concluída";
+  if (status === "budget_exhausted") return "Resultado rápido";
+  if (status === "error" || status === "failed") return "Indisponível";
+  return payload.status_label ?? "Concluída";
+}
+
+function ScrapeResultHero({ payload }) {
+  if (!payload) return null;
+  const saved = payload.saved ?? 0;
+  const rawScraped = payload.raw_scraped ?? 0;
+  if (rawScraped === 0) return null;
+  if (saved === 0) {
+    return <p className="muted-copy">Workspace já estava atualizado com estas oportunidades. Sem novas vagas adicionadas nesta busca.</p>;
+  }
+  return (
+    <div className="scrape-result-hero">
+      <span className="scrape-result-hero__count">{saved}</span>
+      <div>
+        <strong>{saved === 1 ? "nova oportunidade reunida para você" : "novas oportunidades reunidas para você"}</strong>
+        <p>Fontes mais úteis consultadas primeiro. Workspace atualizado.</p>
+      </div>
+    </div>
+  );
 }
 
 function getScoreTone(score) {
@@ -269,6 +305,7 @@ export function JobsPage() {
   const [jobsLoading, setJobsLoading] = useState(true);
   const [metaLoading, setMetaLoading] = useState(true);
   const [scrapeLoading, setScrapeLoading] = useState(false);
+  const [showProviderDetails, setShowProviderDetails] = useState(false);
   const [error, setError] = useState("");
   const [feedback, setFeedback] = useState("");
   const [busyAction, setBusyAction] = useState("");
@@ -402,6 +439,7 @@ export function JobsPage() {
     setError("");
     setFeedback("");
     setScrapeSummary(null);
+    setShowProviderDetails(false);
     try {
       const payload = await request("/hunter/api/scrape/", {
         method: "POST",
@@ -454,24 +492,36 @@ export function JobsPage() {
           </form>
         </SectionCard>
 
-        <SectionCard title="Buscar vagas novas" subtitle="Consulte as fontes ativas, veja o resumo da coleta e acompanhe quais delas contribuíram com vagas aproveitáveis.">
+        <SectionCard title="Buscar vagas" subtitle="Consultamos fontes confiáveis e reunimos as melhores oportunidades disponíveis para o seu perfil.">
           <form className="stack" onSubmit={handleScrape}>
             <div className="jobs-filter-grid">
               <label className="field"><span>Cargo</span><input value={scrapeForm.query} onChange={(event) => setScrapeForm((previous) => ({ ...previous, query: event.target.value }))} /></label>
               <label className="field"><span>Local</span><input value={scrapeForm.location} onChange={(event) => setScrapeForm((previous) => ({ ...previous, location: event.target.value }))} /></label>
             </div>
-            <button className="button button--secondary" type="submit" disabled={scrapeLoading}>{scrapeLoading ? "Consultando fontes..." : "Buscar vagas"}</button>
+            <button className="button button--secondary" type="submit" disabled={scrapeLoading}>{scrapeLoading ? "Buscando oportunidades..." : "Buscar vagas"}</button>
           </form>
           <ScrapeProgressBar loading={scrapeLoading} />
           {scrapeSummary ? (
             <div className="detail-stack">
-              <div className="inline-meta"><strong>Última coleta</strong><StatusBadge value={scrapeSummary.status} label={scrapeSummary.status_label} tone={scrapeSummary.status_tone ?? "medium"} /></div>
+              <ScrapeResultHero payload={scrapeSummary} />
               <div className="insight-list insight-list--four">{providerSummary.map((item) => <div key={item.label}><span>{item.label}</span><strong>{item.value}</strong></div>)}</div>
-              {providerBreakdown.length ? <div className="provider-breakdown">{providerBreakdown.map((item) => <article className="provider-breakdown__card" key={item.provider}><div className="inline-meta"><strong>{item.provider}</strong><StatusBadge value={item.statusLabel} label={item.statusLabel} tone={item.tone} /></div><p className="muted-copy">{item.jobsFound} vagas contribuíram para o resultado</p></article>)}</div> : null}
-              {(scrapeSummary.scraped ?? scrapeSummary.raw_scraped ?? 0) === 0 ? <div className="notice notice--info">Nenhuma vaga aproveitável foi encontrada. Sugestões: tente "Software Engineer", "Backend Developer" ou "Data Scientist"; ou remova restrições de local para ampliar a cobertura.</div> : null}
-              {(scrapeSummary.duplicates_removed ?? 0) > 0 ? <p className="muted-copy">{scrapeSummary.duplicates_removed} vagas sobrepostas foram removidas antes de salvar.</p> : null}
-              {(scrapeSummary.quality_filtered ?? 0) > 0 ? <p className="muted-copy">{scrapeSummary.quality_filtered} itens incompletos foram filtrados para manter a lista final mais confiável.</p> : null}
-              {(scrapeSummary.persistence_skipped ?? 0) > 0 ? <p className="muted-copy">{scrapeSummary.persistence_skipped} itens inconsistentes foram ignorados durante o salvamento.</p> : null}
+              {(scrapeSummary.scraped ?? scrapeSummary.raw_scraped ?? 0) === 0 ? <div className="notice notice--info">Não encontramos vagas para este perfil. Tente "Software Engineer", "Backend Developer" ou "Data Scientist", ou remova a restrição de local.</div> : null}
+              {providerBreakdown.length ? (
+                <div className="provider-details-section">
+                  <button type="button" className="button button--ghost button--inline" onClick={() => setShowProviderDetails((prev) => !prev)}>
+                    {showProviderDetails ? "Ocultar detalhes das fontes" : "Ver detalhes das fontes"}
+                  </button>
+                  {showProviderDetails ? (
+                    <div className="provider-details-content">
+                      <div className="inline-meta"><strong>Status da busca</strong><StatusBadge value={scrapeSummary.status} label={getSearchStatusLabel(scrapeSummary)} tone={scrapeSummary.status_tone ?? "medium"} /></div>
+                      <div className="provider-breakdown">{providerBreakdown.map((item) => <article className="provider-breakdown__card" key={item.provider}><div className="inline-meta"><strong>{item.provider}</strong><StatusBadge value={item.statusLabel} label={item.statusLabel} tone={item.tone} /></div><p className="muted-copy">{item.jobsFound} vagas desta fonte</p></article>)}</div>
+                      {(scrapeSummary.duplicates_removed ?? 0) > 0 ? <p className="muted-copy">{scrapeSummary.duplicates_removed} duplicatas removidas antes de salvar.</p> : null}
+                      {(scrapeSummary.quality_filtered ?? 0) > 0 ? <p className="muted-copy">{scrapeSummary.quality_filtered} itens incompletos filtrados.</p> : null}
+                      {(scrapeSummary.persistence_skipped ?? 0) > 0 ? <p className="muted-copy">{scrapeSummary.persistence_skipped} itens ignorados no salvamento.</p> : null}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           ) : null}
         </SectionCard>
