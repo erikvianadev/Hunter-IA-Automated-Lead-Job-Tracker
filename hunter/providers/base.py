@@ -54,6 +54,7 @@ FAILURE_BLOCKED = "blocked"
 FAILURE_INVALID_RESPONSE = "invalid_response"
 FAILURE_UNAVAILABLE = "unavailable"
 FAILURE_PARSE_ERROR = "parse_error"
+FAILURE_BUDGET_EXHAUSTED = "budget_exhausted"
 
 
 def build_headers(extra: dict[str, str] | None = None) -> dict[str, str]:

@@ -4,11 +4,14 @@ import logging
 import time
 from dataclasses import dataclass, field
 
+from django.conf import settings as django_settings
+
 from hunter.models.dto import JobResult
 from hunter.providers.base import (
     BaseJobProvider,
     ProviderRunResult,
     FAILURE_BLOCKED,
+    FAILURE_BUDGET_EXHAUSTED,
     FAILURE_INVALID_RESPONSE,
     FAILURE_PARSE_ERROR,
     FAILURE_UNAVAILABLE,
@@ -75,6 +78,14 @@ class AggregationResult:
         ]
 
     @property
+    def providers_budget_exhausted(self) -> list[str]:
+        return [
+            result.provider
+            for result in self.provider_results
+            if result.failure_type == FAILURE_BUDGET_EXHAUSTED
+        ]
+
+    @property
     def provider_failure_counts(self) -> dict[str, int]:
         counts: dict[str, int] = {}
         for result in self.provider_results:
@@ -122,8 +133,31 @@ class JobAggregationService:
         collected_jobs: list[JobResult] = []
         provider_results: list[ProviderRunResult] = []
 
+        agg_cfg = getattr(django_settings, "JOB_AGGREGATION", {})
+        global_timeout = float(agg_cfg.get("GLOBAL_TIMEOUT", 22.0))
+        min_provider_budget = float(agg_cfg.get("MIN_PROVIDER_BUDGET", 6.0))
+
         try:
             for provider in self.providers:
+                elapsed = time.perf_counter() - started
+                budget_remaining = global_timeout - elapsed
+                if budget_remaining < min_provider_budget:
+                    logger.warning(
+                        "provider_skipped_budget_exhausted provider=%s elapsed=%.3f budget_remaining=%.3f",
+                        provider.name,
+                        elapsed,
+                        budget_remaining,
+                    )
+                    provider_results.append(
+                        ProviderRunResult(
+                            provider=provider.name,
+                            success=False,
+                            failure_type=FAILURE_BUDGET_EXHAUSTED,
+                            error_message=f"global budget exhausted: {budget_remaining:.1f}s remaining",
+                            duration_seconds=0.0,
+                        )
+                    )
+                    continue
                 result = provider.run(query=query, location=location)
                 provider_results.append(result)
                 collected_jobs.extend(result.jobs)
@@ -148,7 +182,7 @@ class JobAggregationService:
 
         duration = time.perf_counter() - started
         logger.info(
-            "aggregation_completed providers_run=%d providers_succeeded=%d providers_failed=%d providers_blocked=%d providers_invalid_response=%d providers_unavailable=%d raw_scraped=%d quality_filtered=%d scraped=%d duplicates_removed=%d provider_job_counts=%s quality_issue_counts=%s duration_seconds=%.3f",
+            "aggregation_completed providers_run=%d providers_succeeded=%d providers_failed=%d providers_blocked=%d providers_invalid_response=%d providers_unavailable=%d providers_budget_exhausted=%d raw_scraped=%d quality_filtered=%d scraped=%d duplicates_removed=%d provider_job_counts=%s quality_issue_counts=%s duration_seconds=%.3f",
             len(provider_results),
             len([result for result in provider_results if result.success]),
             len([result for result in provider_results if not result.success]),
@@ -161,6 +195,7 @@ class JobAggregationService:
                 ]
             ),
             len([result for result in provider_results if result.failure_type == FAILURE_UNAVAILABLE]),
+            len([result for result in provider_results if result.failure_type == FAILURE_BUDGET_EXHAUSTED]),
             sum(result.count for result in provider_results),
             quality_filtered,
             len(jobs),

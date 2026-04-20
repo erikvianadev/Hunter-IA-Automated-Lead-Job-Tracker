@@ -303,6 +303,8 @@ SIMPLE_JWT = {
 }
 
 JOB_AGGREGATION = {
+    'GLOBAL_TIMEOUT': env.int('JOB_AGGREGATION_GLOBAL_TIMEOUT', default=22),
+    'MIN_PROVIDER_BUDGET': env.float('JOB_AGGREGATION_MIN_PROVIDER_BUDGET', default=6.0),
     'PROVIDER_ORDER': [
         'remotive',
         'greenhouse',
@@ -330,17 +332,17 @@ JOB_AGGREGATION = {
         },
         'greenhouse': {
             'ENABLED': True,
+            'TIMEOUT': 3,
             'BOARD_TOKENS': [
                 {'token': 'canonical', 'company': 'Canonical'},
                 {'token': 'elastic', 'company': 'Elastic'},
                 {'token': 'gitlab', 'company': 'GitLab'},
-                {'token': 'hashicorp', 'company': 'HashiCorp'},
-                {'token': 'netlify', 'company': 'Netlify'},
                 {'token': 'cloudflare', 'company': 'Cloudflare'},
             ],
         },
         'lever': {
             'ENABLED': True,
+            'TIMEOUT': 3,
             'SITES': [
                 {'site': 'bighealth', 'company': 'Big Health'},
                 {'site': 'dnb', 'company': 'Dun & Bradstreet'},
@@ -350,11 +352,10 @@ JOB_AGGREGATION = {
         },
         'ashby': {
             'ENABLED': True,
+            'TIMEOUT': 3,
             'JOB_BOARDS': [
                 {'board': 'openai', 'company': 'OpenAI'},
                 {'board': 'vercel', 'company': 'Vercel'},
-                {'board': 'linear', 'company': 'Linear'},
-                {'board': 'retool', 'company': 'Retool'},
             ],
         },
         # Adzuna: free API tier (250 req/month). Activate by setting
