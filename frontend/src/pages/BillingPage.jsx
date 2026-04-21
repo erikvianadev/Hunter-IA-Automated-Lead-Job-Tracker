@@ -258,16 +258,25 @@ export function BillingPage() {
     setPlanErrors((prev) => ({ ...prev, [actionKey]: "" }));
     setError("");
     setFeedback("");
+    let redirected = false;
     try {
       const payload = await request("/hunter/api/billing/subscribe/", {
         method: "POST",
         body: JSON.stringify({ plan_code: planCode, billing_cycle: billingCycle })
       });
+      if (!payload?.checkout_url) {
+        throw { code: "missing_checkout_url", status: 500, message: "Erro temporário no checkout. Tente novamente em instantes." };
+      }
       setFeedback("Abrindo o checkout seguro para confirmar seu acesso...");
+      redirected = true;
       window.location.href = payload.checkout_url;
     } catch (requestError) {
       let planMessage = "Não foi possível abrir o checkout agora.";
-      if (requestError?.code === "network_error" || !requestError?.status) {
+      if (requestError?.code === "missing_checkout_url") {
+        planMessage = requestError.message;
+      } else if (requestError?.code === "request_timeout") {
+        planMessage = "A conexão demorou mais que o esperado. Verifique sua internet e tente novamente.";
+      } else if (requestError?.code === "network_error" || !requestError?.status) {
         planMessage = "Sem conexão com o servidor. Verifique sua internet e tente novamente.";
       } else if (requestError.status >= 400 && requestError.status < 500) {
         planMessage = "Sessão expirada. Recarregue a página e tente novamente.";
@@ -275,14 +284,14 @@ export function BillingPage() {
         planMessage = "Erro temporário no servidor de pagamentos. Tente novamente em alguns instantes.";
       }
       setPlanErrors((prev) => ({ ...prev, [actionKey]: planMessage }));
-      setBusyAction("");
-      // Auto-reactivate button after 5s so it never stays permanently disabled
       setTimeout(() => {
         setPlanErrors((prev) => ({ ...prev, [actionKey]: "" }));
       }, 5_000);
-      return;
+    } finally {
+      if (!redirected) {
+        setBusyAction("");
+      }
     }
-    setBusyAction("");
   }
 
   async function cancelSubscription() {

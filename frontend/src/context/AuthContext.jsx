@@ -48,7 +48,7 @@ function withDefaultContentType(headers, body) {
   return headers;
 }
 
-const REQUEST_TIMEOUT_MS = 50000;
+const REQUEST_TIMEOUT_MS = 35000;
 
 async function performFetch(url, options) {
   const controller = new AbortController();

@@ -29,6 +29,23 @@ STATUS_PRESENTATIONS = {
 }
 
 
+def _derive_search_state(aggregation: AggregationResult) -> str:
+    """Granular search state for frontend traceability beyond the 3-value status."""
+    if aggregation.status == "total_failure":
+        return "total_failure"
+    if aggregation.providers_budget_exhausted and not aggregation.providers_succeeded:
+        return "budget_exhausted_all"
+    if aggregation.providers_budget_exhausted:
+        return "partial_budget_exhausted"
+    if aggregation.status == "partial_success":
+        return "partial_success"
+    if aggregation.scraped == 0 and aggregation.raw_scraped > 0:
+        return "quality_filtered_all"
+    if aggregation.raw_scraped == 0 and aggregation.status == "success":
+        return "no_results"
+    return "success"
+
+
 def build_scrape_summary(
     *,
     aggregation: AggregationResult,
@@ -36,6 +53,7 @@ def build_scrape_summary(
 ) -> dict[str, object]:
     return {
         "status": aggregation.status,
+        "search_state": _derive_search_state(aggregation),
         "status_label": STATUS_PRESENTATIONS.get(
             aggregation.status,
             {"label": "Coleta atualizada", "tone": "info"},

@@ -302,6 +302,7 @@ export function JobsPage() {
   const [appliedFilters, setAppliedFilters] = useState({ search: "", company_name: "", location: "", status: "all", ordering: "-created_at" });
   const [scrapeForm, setScrapeForm] = useState({ query: "Backend Engineer", location: "Remote" });
   const [scrapeSummary, setScrapeSummary] = useState(null);
+  const [scrapeState, setScrapeState] = useState("idle");
   const [jobsLoading, setJobsLoading] = useState(true);
   const [metaLoading, setMetaLoading] = useState(true);
   const [scrapeLoading, setScrapeLoading] = useState(false);
@@ -436,6 +437,7 @@ export function JobsPage() {
 
   async function submitScrapeSearch() {
     setScrapeLoading(true);
+    setScrapeState("running");
     setError("");
     setFeedback("");
     setScrapeSummary(null);
@@ -445,10 +447,32 @@ export function JobsPage() {
         method: "POST",
         body: JSON.stringify({ query: scrapeForm.query, location: scrapeForm.location })
       });
+      const state = payload.search_state ?? payload.status ?? "success";
+      setScrapeState(state);
       setScrapeSummary(payload);
       setFeedback(getScrapeFeedbackMessage(payload));
       await Promise.all([refreshJobs(false), loadWorkspaceMeta()]);
     } catch (requestError) {
+      const errorState = requestError?.code === "request_timeout" ? "timeout" : "error";
+      setScrapeState(errorState);
+      // If the error payload carries provider traceability (503 total_failure), surface it.
+      const hasProviderInfo = Array.isArray(requestError?.providers_run) || Array.isArray(requestError?.providers_failed);
+      if (hasProviderInfo) {
+        setScrapeSummary({
+          status: requestError.status_field ?? "error",
+          search_state: "total_failure",
+          providers_run: requestError.providers_run ?? [],
+          providers_failed: requestError.providers_failed ?? [],
+          providers_blocked: requestError.providers_blocked ?? [],
+          providers_unavailable: requestError.providers_unavailable ?? [],
+          providers_invalid_response: requestError.providers_invalid_response ?? [],
+          provider_health: requestError.provider_health ?? [],
+          provider_job_counts: requestError.provider_job_counts ?? {},
+          raw_scraped: 0,
+          scraped: 0,
+          saved: 0,
+        });
+      }
       setError(getErrorMessage(requestError, "Não foi possível atualizar vagas da web agora."));
     } finally {
       setScrapeLoading(false);

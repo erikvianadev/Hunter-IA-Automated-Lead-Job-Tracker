@@ -79,6 +79,7 @@ class ScrapeJobsApiTests(TestCase):
             list(response.data.keys()),
             [
                 "status",
+                "search_state",
                 "status_label",
                 "status_tone",
                 "message",
@@ -106,6 +107,7 @@ class ScrapeJobsApiTests(TestCase):
             ],
         )
         self.assertEqual(response.data["status"], "partial_success")
+        self.assertEqual(response.data["search_state"], "partial_success")
         self.assertEqual(response.data["status_label"], "Coleta parcial")
         self.assertEqual(response.data["providers_run"], ["remotive", "indeed", "remoteok"])
         self.assertEqual(response.data["providers_succeeded"], ["remotive"])

@@ -44,9 +44,13 @@ class SeniorityAssessmentService:
         overall_score = analysis.overall_score
         summary_present = bool(parsed_resume.get("summary"))
 
+        # Internship base reduced from 35 to 30 to prevent it from winning by default
+        # when experience_entries=0 (parser failure on PT-BR PDFs with unrecognised sections).
+        # At base 35, a profile with 0 experience but skills>=3 and projects beat all other tracks.
+        # At base 30, junior wins once skills>=2, which is correct for someone with any skill breadth.
         internship_score = min(
             100,
-            35 + (15 if projects_count else 0) + (10 if skills_count >= 3 else 0) + (10 if summary_present else 0),
+            30 + (15 if projects_count else 0) + (10 if skills_count >= 3 else 0) + (10 if summary_present else 0),
         )
         junior_score = min(
             100,
@@ -58,7 +62,7 @@ class SeniorityAssessmentService:
         )
         senior_score = min(
             100,
-            5 + min(experience_entries, 6) * 15 + (15 if projects_count >= 2 else 0) + (15 if skills_count >= 8 else 0) + (10 if structure_score >= 80 else 0),
+            5 + min(experience_entries, 6) * 15 + (15 if projects_count >= 2 else 0) + (15 if skills_count >= 8 else 0) + (10 if structure_score >= 80 else 0) + (10 if overall_score >= 80 else 0),
         )
         freelance_score = min(
             100,
@@ -77,6 +81,7 @@ class SeniorityAssessmentService:
             score_map,
             key=lambda track: (score_map[track], _track_priority.get(track, 0)),
         )
+        low_evidence = experience_entries == 0 and overall_score >= 70
         reasoning = {
             "experience_entries": experience_entries,
             "projects_count": projects_count,
@@ -85,11 +90,13 @@ class SeniorityAssessmentService:
             "summary_present": summary_present,
             "structure_score": structure_score,
             "overall_score": overall_score,
+            "low_evidence_warning": low_evidence,
             "explanation": self._build_explanation(
                 recommended_track=recommended_track,
                 experience_entries=experience_entries,
                 projects_count=projects_count,
                 skills_count=skills_count,
+                low_evidence=low_evidence,
             ),
         }
 
@@ -114,9 +121,17 @@ class SeniorityAssessmentService:
         experience_entries: int,
         projects_count: int,
         skills_count: int,
+        low_evidence: bool = False,
     ) -> str:
-        return (
+        base = (
             f"O nível mais aderente no momento é {recommended_track}, com base em "
             f"{experience_entries} experiências identificadas, {projects_count} sinais de projetos "
             f"e {skills_count} habilidades distintas."
         )
+        if low_evidence:
+            base += (
+                " A leitura de experiências profissionais foi limitada — "
+                "se o currículo tiver seções de experiência, revise a formatação "
+                "para melhorar a precisão da análise."
+            )
+        return base
