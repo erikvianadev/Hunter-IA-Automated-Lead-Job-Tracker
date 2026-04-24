@@ -11,7 +11,7 @@ import { formatEvidenceSignal, getJobsOverviewCardsPresentation, getMatchDecisio
 import { formatRelativeDate, formatShortDate, getErrorMessage, titleize } from "../lib/utils";
 
 const JOBS_PAGE_SIZE = 12;
-const SCRAPE_SOURCES = ["Ashby", "Greenhouse", "Lever", "Remotive"];
+const SCRAPE_SOURCES = ["Remotive", "Greenhouse", "Lever", "RemoteOK"];
 const APPLICATION_STATUSES = ["saved", "applied", "interview", "rejected", "offer", "archived"];
 const SEARCH_PROGRESS_MESSAGES = [
   "Consultando fontes confiáveis de vagas...",

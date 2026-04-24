@@ -303,20 +303,20 @@ SIMPLE_JWT = {
 }
 
 JOB_AGGREGATION = {
-    'GLOBAL_TIMEOUT': env.int('JOB_AGGREGATION_GLOBAL_TIMEOUT', default=22),
-    'MIN_PROVIDER_BUDGET': env.float('JOB_AGGREGATION_MIN_PROVIDER_BUDGET', default=6.0),
+    'GLOBAL_TIMEOUT': env.int('JOB_AGGREGATION_GLOBAL_TIMEOUT', default=25),
+    'MIN_PROVIDER_BUDGET': env.float('JOB_AGGREGATION_MIN_PROVIDER_BUDGET', default=4.0),
     'PROVIDER_ORDER': [
         'remotive',
+        'adzuna',
         'greenhouse',
         'lever',
-        'ashby',
-        'adzuna',
         'remoteok',
-        'weworkremotely',
-        'indeed',
+        'ashby',         # paused in beta
+        'weworkremotely',  # paused in beta
+        'indeed',          # permanently disabled
     ],
     'DEFAULTS': {
-        'TIMEOUT': 5,
+        'TIMEOUT': 6,
         'MAX_PAGES': 1,
         'MIN_DELAY': 0.0,
         'MAX_DELAY': 0.0,
@@ -330,34 +330,6 @@ JOB_AGGREGATION = {
             'MIN_DELAY': 0.0,
             'MAX_DELAY': 0.0,
         },
-        'greenhouse': {
-            'ENABLED': True,
-            'TIMEOUT': 3,
-            'BOARD_TOKENS': [
-                {'token': 'canonical', 'company': 'Canonical'},
-                {'token': 'elastic', 'company': 'Elastic'},
-                {'token': 'gitlab', 'company': 'GitLab'},
-                {'token': 'cloudflare', 'company': 'Cloudflare'},
-            ],
-        },
-        'lever': {
-            'ENABLED': True,
-            'TIMEOUT': 3,
-            'SITES': [
-                {'site': 'bighealth', 'company': 'Big Health'},
-                {'site': 'dnb', 'company': 'Dun & Bradstreet'},
-                {'site': 'remote', 'company': 'Remote'},
-                {'site': 'miro', 'company': 'Miro'},
-            ],
-        },
-        'ashby': {
-            'ENABLED': True,
-            'TIMEOUT': 3,
-            'JOB_BOARDS': [
-                {'board': 'openai', 'company': 'OpenAI'},
-                {'board': 'vercel', 'company': 'Vercel'},
-            ],
-        },
         # Adzuna: free API tier (250 req/month). Activate by setting
         # ADZUNA_APP_ID and ADZUNA_APP_KEY environment variables.
         # Register at https://developer.adzuna.com
@@ -367,14 +339,51 @@ JOB_AGGREGATION = {
             'APP_KEY': env('ADZUNA_APP_KEY', default=''),
             'COUNTRIES': env('ADZUNA_COUNTRIES', default='us,gb').split(','),
         },
+        'greenhouse': {
+            'ENABLED': True,
+            'TIMEOUT': 5,
+            'BOARD_TOKENS': [
+                {'token': 'canonical', 'company': 'Canonical'},
+                {'token': 'elastic', 'company': 'Elastic'},
+                {'token': 'gitlab', 'company': 'GitLab'},
+                {'token': 'cloudflare', 'company': 'Cloudflare'},
+                {'token': 'stripe', 'company': 'Stripe'},
+                {'token': 'hashicorp', 'company': 'HashiCorp'},
+                {'token': 'automattic', 'company': 'Automattic'},
+            ],
+        },
+        'lever': {
+            'ENABLED': True,
+            'TIMEOUT': 5,
+            'SITES': [
+                {'site': 'bighealth', 'company': 'Big Health'},
+                {'site': 'dnb', 'company': 'Dun & Bradstreet'},
+                {'site': 'remote', 'company': 'Remote'},
+                {'site': 'miro', 'company': 'Miro'},
+                {'site': 'netlify', 'company': 'Netlify'},
+                {'site': 'webflow', 'company': 'Webflow'},
+            ],
+        },
+        # Paused in beta: only 2 boards, insufficient coverage for slot cost.
+        # Reactivate when expanded to >= 8 boards.
+        'ashby': {
+            'ENABLED': False,
+            'TIMEOUT': 5,
+            'JOB_BOARDS': [
+                {'board': 'openai', 'company': 'OpenAI'},
+                {'board': 'vercel', 'company': 'Vercel'},
+            ],
+        },
         'remoteok': {
             'ENABLED': True,
             'MAX_PAGES': 1,
             'MIN_DELAY': 0.5,
             'MAX_DELAY': 1.5,
         },
+        # Paused in beta: HTML scraping behind Cloudflare, high block risk.
+        # Reactivate only after confirmed stability in production.
         'weworkremotely': {
-            'ENABLED': True,
+            'ENABLED': False,
             'MAX_PAGES': 1,
             'MIN_DELAY': 1.0,
             'MAX_DELAY': 2.0,

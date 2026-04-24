@@ -430,15 +430,15 @@ class ProviderRegistryTests(SimpleTestCase):
     def test_default_provider_order_prioritizes_reliable_sources(self) -> None:
         self.assertEqual(
             get_configured_provider_names(),
-            ["remotive", "greenhouse", "lever", "ashby", "adzuna", "remoteok", "weworkremotely", "indeed"],
+            ["remotive", "adzuna", "greenhouse", "lever", "remoteok", "ashby", "weworkremotely", "indeed"],
         )
 
     def test_disabled_providers_are_skipped(self) -> None:
         # adzuna is disabled when ADZUNA_APP_ID env var is not set (default in CI/local).
-        # indeed stays disabled. remoteok and weworkremotely are now enabled.
+        # ashby and weworkremotely are paused in beta. indeed stays disabled.
         providers = build_enabled_providers()
 
         self.assertEqual(
             [provider.name for provider in providers],
-            ["remotive", "greenhouse", "lever", "ashby", "remoteok", "weworkremotely"],
+            ["remotive", "greenhouse", "lever", "remoteok"],
         )
