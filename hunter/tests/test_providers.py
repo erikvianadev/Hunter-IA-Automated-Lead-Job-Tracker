@@ -15,7 +15,7 @@ from hunter.providers.base import (
     ProviderInvalidResponseError,
     ProviderParseError,
 )
-from hunter.providers.adzuna import AdzunaProvider
+from hunter.providers.adzuna import AdzunaProvider, _resolve_countries
 from hunter.providers.ashby import AshbyProvider
 from hunter.providers.greenhouse import GreenhouseProvider
 from hunter.providers.indeed import IndeedProvider
@@ -465,6 +465,113 @@ class AdzunaProviderTests(SimpleTestCase):
         self.assertEqual(len(jobs), 1)
         self.assertEqual(jobs[0].title, "Backend Engineer")
         self.assertEqual(jobs[0].location, "London, Greater London")
+        self.assertEqual(jobs[0].source, "adzuna")
+
+    # --- Brazil location support ---
+
+    def test_resolve_countries_brasil_returns_br(self) -> None:
+        self.assertEqual(_resolve_countries("brasil", ["us", "gb"]), ["br"])
+
+    def test_resolve_countries_brazil_returns_br(self) -> None:
+        self.assertEqual(_resolve_countries("brazil", ["us", "gb"]), ["br"])
+
+    def test_resolve_countries_br_returns_br(self) -> None:
+        self.assertEqual(_resolve_countries("br", ["us", "gb"]), ["br"])
+
+    def test_resolve_countries_remote_keeps_default(self) -> None:
+        self.assertEqual(_resolve_countries("remote", ["us", "gb"]), ["us", "gb"])
+
+    def test_resolve_countries_sao_paulo_keeps_default(self) -> None:
+        # "São Paulo" alone does not trigger BR routing — only explicit country markers do.
+        self.assertEqual(_resolve_countries("são paulo", ["us", "gb"]), ["us", "gb"])
+
+    def test_adzuna_brasil_location_queries_br_endpoint(self) -> None:
+        payload = (FIXTURES_DIR / "adzuna.json").read_text(encoding="utf-8")
+        session = Mock()
+        session.get.return_value = build_json_response(payload)
+
+        provider = AdzunaProvider(
+            session=session,
+            config=ProviderConfig(options={"app_id": "x", "app_key": "y"}),
+        )
+        provider.fetch_jobs(query="backend engineer", location="Brasil")
+
+        called_url = session.get.call_args[0][0]
+        self.assertIn("/br/", called_url)
+        self.assertNotIn("/us/", called_url)
+        self.assertNotIn("/gb/", called_url)
+
+    def test_adzuna_brazil_location_queries_br_endpoint(self) -> None:
+        payload = (FIXTURES_DIR / "adzuna.json").read_text(encoding="utf-8")
+        session = Mock()
+        session.get.return_value = build_json_response(payload)
+
+        provider = AdzunaProvider(
+            session=session,
+            config=ProviderConfig(options={"app_id": "x", "app_key": "y"}),
+        )
+        provider.fetch_jobs(query="backend engineer", location="Brazil")
+
+        called_url = session.get.call_args[0][0]
+        self.assertIn("/br/", called_url)
+
+    def test_adzuna_br_location_queries_br_endpoint(self) -> None:
+        payload = (FIXTURES_DIR / "adzuna.json").read_text(encoding="utf-8")
+        session = Mock()
+        session.get.return_value = build_json_response(payload)
+
+        provider = AdzunaProvider(
+            session=session,
+            config=ProviderConfig(options={"app_id": "x", "app_key": "y"}),
+        )
+        provider.fetch_jobs(query="backend engineer", location="BR")
+
+        called_url = session.get.call_args[0][0]
+        self.assertIn("/br/", called_url)
+
+    def test_adzuna_remote_search_does_not_route_to_br(self) -> None:
+        payload = (FIXTURES_DIR / "adzuna.json").read_text(encoding="utf-8")
+        session = Mock()
+        session.get.return_value = build_json_response(payload)
+
+        provider = AdzunaProvider(
+            session=session,
+            config=ProviderConfig(options={"app_id": "x", "app_key": "y"}),
+        )
+        provider.fetch_jobs(query="backend engineer", location="Remote")
+
+        for call in session.get.call_args_list:
+            called_url = call[0][0]
+            self.assertNotIn("/br/", called_url)
+
+    def test_adzuna_ptbr_job_title_not_discarded_on_brazil_search(self) -> None:
+        # A job titled "Líder Técnico" must not be discarded when the user
+        # searches for "tech lead" on the Brazil endpoint.
+        ptbr_payload = json.dumps({
+            "results": [
+                {
+                    "id": "99001",
+                    "title": "Líder Técnico",
+                    "company": {"display_name": "Empresa BR"},
+                    "location": {"display_name": "São Paulo, SP"},
+                    "description": "Buscamos um líder técnico para nosso time.",
+                    "redirect_url": "https://www.adzuna.com.br/jobs/99001",
+                }
+            ],
+            "count": 1,
+        })
+        session = Mock()
+        session.get.return_value = build_json_response(ptbr_payload)
+
+        provider = AdzunaProvider(
+            session=session,
+            config=ProviderConfig(options={"app_id": "x", "app_key": "y"}),
+        )
+        jobs = provider.fetch_jobs(query="tech lead", location="Brasil")
+
+        self.assertEqual(len(jobs), 1)
+        self.assertEqual(jobs[0].title, "Líder Técnico")
+        self.assertEqual(jobs[0].company, "Empresa BR")
         self.assertEqual(jobs[0].source, "adzuna")
 
 

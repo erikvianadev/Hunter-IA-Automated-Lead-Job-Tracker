@@ -12,6 +12,54 @@ logger = logging.getLogger(__name__)
 _DEFAULT_COUNTRIES = ["us", "gb"]
 _RESULTS_PER_PAGE = 20
 
+# Location tokens that indicate a Brazil-scoped search.
+_BRAZIL_LOCATION_MARKERS = frozenset({"brasil", "brazil", "br"})
+
+# PT-BR synonyms sent as extra terms in the `what=` parameter for Brazil searches.
+# Keeps the English term first so Adzuna's relevance ranking stays intact.
+_PTBR_SYNONYMS: dict[str, list[str]] = {
+    "tech lead": ["líder técnico", "lider tecnico", "technical lead", "lead developer"],
+    "backend engineer": ["desenvolvedor backend", "engenheiro backend", "backend developer"],
+    "frontend engineer": ["desenvolvedor frontend", "frontend developer"],
+    "python developer": ["desenvolvedor python"],
+    "data engineer": ["engenheiro de dados"],
+    "data scientist": ["cientista de dados"],
+    "software engineer": ["engenheiro de software"],
+    "full stack": ["fullstack", "full-stack"],
+}
+
+
+def _resolve_countries(location_normalized: str, default: list[str]) -> list[str]:
+    """Return Adzuna country codes for a normalized location string.
+
+    Returns ["br"] when the location is a Brazil marker (brasil / brazil / br).
+    Falls back to *default* for every other location value.
+    """
+    if not location_normalized:
+        return default
+    tokens = set(location_normalized.split())
+    if tokens & _BRAZIL_LOCATION_MARKERS:
+        return ["br"]
+    return default
+
+
+def _expand_query_ptbr(query: str) -> str:
+    """Append PT-BR synonym terms to *query* for the Brazil endpoint.
+
+    Only expands when the normalized query has a known mapping; otherwise
+    returns the query unchanged so existing behavior is preserved.
+    """
+    synonyms = _PTBR_SYNONYMS.get(query.strip().lower(), [])
+    if not synonyms:
+        return query
+    return " OR ".join([query] + synonyms)
+
+
+def _ptbr_matches(query_normalized: str, searchable: str) -> bool:
+    """True if any PT-BR synonym for *query_normalized* appears in *searchable*."""
+    synonyms = _PTBR_SYNONYMS.get(query_normalized, [])
+    return any(syn in searchable for syn in synonyms)
+
 
 class AdzunaProvider(BaseJobProvider):
     """
@@ -43,8 +91,17 @@ class AdzunaProvider(BaseJobProvider):
             )
             return []
 
-        countries: list[str] = list(self._get_option("countries") or _DEFAULT_COUNTRIES)
+        default_countries: list[str] = list(self._get_option("countries") or _DEFAULT_COUNTRIES)
         criteria = SearchCriteria(query=query, location=location)
+
+        # For non-remote searches, detect Brazilian location and override country list.
+        if criteria.remote_location:
+            countries = default_countries
+        else:
+            countries = _resolve_countries(criteria.location, default_countries)
+
+        brazil_search = countries == ["br"]
+
         results: list[JobResult] = []
         country_errors: list[Exception] = []
         any_fetch_succeeded = False
@@ -58,6 +115,7 @@ class AdzunaProvider(BaseJobProvider):
                     query=query,
                     location=location,
                     criteria=criteria,
+                    brazil_search=brazil_search,
                 )
                 results.extend(country_jobs)
                 any_fetch_succeeded = True
@@ -88,15 +146,26 @@ class AdzunaProvider(BaseJobProvider):
         query: str,
         location: str,
         criteria: SearchCriteria,
+        brazil_search: bool = False,
     ) -> list[JobResult]:
         url = f"{self.base_url}/v1/api/jobs/{country}/search/1"
+
+        # For Brazil searches expand the query with PT-BR synonyms so Adzuna
+        # returns jobs whose titles are in Portuguese.
+        what_param = _expand_query_ptbr(query.strip()) if brazil_search else query.strip()
+
         params: dict[str, object] = {
             "app_id": app_id,
             "app_key": app_key,
-            "what": query.strip(),
+            "what": what_param,
             "results_per_page": _RESULTS_PER_PAGE,
         }
-        if location.strip() and not criteria.remote_location:
+
+        # Omit `where` for:
+        #   • remote searches (trust Adzuna's own remote filtering)
+        #   • Brazil country-level markers (the `br` endpoint already scopes to Brazil)
+        location_is_country_marker = criteria.location in _BRAZIL_LOCATION_MARKERS
+        if location.strip() and not criteria.remote_location and not location_is_country_marker:
             params["where"] = location.strip()
 
         payload = self._get_json(url, params=params, headers={"Accept": "application/json"})
@@ -131,18 +200,20 @@ class AdzunaProvider(BaseJobProvider):
             ).lower()
 
             if not criteria.matches_query(searchable):
-                logger.debug(
-                    "adzuna_discard_query country=%s title=%r",
-                    country,
-                    title[:80],
-                )
-                continue
+                # For Brazil searches also accept jobs whose titles use PT-BR
+                # synonyms (e.g. "Líder Técnico" for query "tech lead").
+                if not (brazil_search and _ptbr_matches(criteria.query, searchable)):
+                    logger.debug(
+                        "adzuna_discard_query country=%s title=%r",
+                        country,
+                        title[:80],
+                    )
+                    continue
 
-            # When searching for remote jobs we omit `where` from the API call
-            # and trust Adzuna's own filtering — Adzuna labels jobs with city
-            # names, not "Remote", so a local remote-location check would
-            # discard every result.
-            if not criteria.remote_location and not criteria.matches_location(
+            # Location filter is skipped for:
+            #   • remote searches — Adzuna labels jobs with city names, not "Remote"
+            #   • Brazil searches — the `br` endpoint + optional `where=` already filtered
+            if not criteria.remote_location and not brazil_search and not criteria.matches_location(
                 candidate_location,
                 is_remote="remote" in candidate_location.lower(),
             ):
