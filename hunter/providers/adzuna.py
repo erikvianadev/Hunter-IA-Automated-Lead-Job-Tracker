@@ -129,12 +129,29 @@ class AdzunaProvider(BaseJobProvider):
             searchable = " ".join(
                 [title, company, description, candidate_location]
             ).lower()
+
             if not criteria.matches_query(searchable):
+                logger.debug(
+                    "adzuna_discard_query country=%s title=%r",
+                    country,
+                    title[:80],
+                )
                 continue
-            if not criteria.matches_location(
+
+            # When searching for remote jobs we omit `where` from the API call
+            # and trust Adzuna's own filtering — Adzuna labels jobs with city
+            # names, not "Remote", so a local remote-location check would
+            # discard every result.
+            if not criteria.remote_location and not criteria.matches_location(
                 candidate_location,
                 is_remote="remote" in candidate_location.lower(),
             ):
+                logger.debug(
+                    "adzuna_discard_location country=%s title=%r candidate_location=%r",
+                    country,
+                    title[:80],
+                    candidate_location[:60],
+                )
                 continue
 
             results.append(

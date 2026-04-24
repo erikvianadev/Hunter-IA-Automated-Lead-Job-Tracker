@@ -442,6 +442,31 @@ class AdzunaProviderTests(SimpleTestCase):
         self.assertFalse(result.success)
         self.assertEqual(result.failure_type, FAILURE_INVALID_RESPONSE)
 
+    def test_adzuna_city_location_jobs_pass_for_remote_search(self) -> None:
+        # Adzuna labels jobs with real city names, not "Remote".
+        # When location="remote" the local location filter is skipped so
+        # results already filtered by the Adzuna API are not discarded.
+        payload = (FIXTURES_DIR / "adzuna.json").read_text(encoding="utf-8")
+        session = Mock()
+        session.get.return_value = build_json_response(payload)
+
+        provider = AdzunaProvider(
+            session=session,
+            config=ProviderConfig(
+                options={
+                    "app_id": "test_app_id",
+                    "app_key": "test_app_key",
+                    "countries": ["us"],
+                }
+            ),
+        )
+        jobs = provider.fetch_jobs(query="backend engineer", location="remote")
+
+        self.assertEqual(len(jobs), 1)
+        self.assertEqual(jobs[0].title, "Backend Engineer")
+        self.assertEqual(jobs[0].location, "London, Greater London")
+        self.assertEqual(jobs[0].source, "adzuna")
+
 
 class ProviderRegistryTests(SimpleTestCase):
     def test_default_provider_order_prioritizes_reliable_sources(self) -> None:
