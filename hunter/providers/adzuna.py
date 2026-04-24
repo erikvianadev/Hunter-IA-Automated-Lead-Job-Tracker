@@ -99,7 +99,7 @@ class AdzunaProvider(BaseJobProvider):
         if location.strip() and not criteria.remote_location:
             params["where"] = location.strip()
 
-        payload = self._get_json(url, params=params)
+        payload = self._get_json(url, params=params, headers={"Accept": "application/json"})
         raw_jobs = self._normalize_jobs_payload(payload, keys=("results",))
 
         results: list[JobResult] = []

@@ -308,10 +308,10 @@ JOB_AGGREGATION = {
     'PROVIDER_ORDER': [
         'remotive',
         'adzuna',
-        'greenhouse',
         'lever',
         'remoteok',
-        'ashby',         # paused in beta
+        'greenhouse',      # last: serial boards saturate budget; run after fast providers
+        'ashby',           # paused in beta
         'weworkremotely',  # paused in beta
         'indeed',          # permanently disabled
     ],
@@ -347,9 +347,9 @@ JOB_AGGREGATION = {
                 {'token': 'elastic', 'company': 'Elastic'},
                 {'token': 'gitlab', 'company': 'GitLab'},
                 {'token': 'cloudflare', 'company': 'Cloudflare'},
-                {'token': 'stripe', 'company': 'Stripe'},
-                {'token': 'hashicorp', 'company': 'HashiCorp'},
-                {'token': 'automattic', 'company': 'Automattic'},
+                # hashicorp: removed — confirmed 404 in production
+                # automattic: removed — confirmed 404 in production
+                # stripe: removed — not in original design; restore after verification
             ],
         },
         'lever': {

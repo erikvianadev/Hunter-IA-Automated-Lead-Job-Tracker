@@ -399,6 +399,23 @@ class AdzunaProviderTests(SimpleTestCase):
         self.assertEqual(len(jobs), 1)
         self.assertEqual(jobs[0].title, "Frontend Engineer")
 
+    def test_adzuna_request_sends_json_accept_header(self) -> None:
+        payload = (FIXTURES_DIR / "adzuna.json").read_text(encoding="utf-8")
+        session = Mock()
+        session.get.return_value = build_json_response(payload)
+
+        provider = AdzunaProvider(
+            session=session,
+            config=ProviderConfig(options={"app_id": "x", "app_key": "y", "countries": ["us"]}),
+        )
+        provider.fetch_jobs(query="data scientist", location="remote")
+
+        _, call_kwargs = session.get.call_args
+        self.assertEqual(
+            call_kwargs.get("headers", {}).get("Accept"),
+            "application/json",
+        )
+
     def test_adzuna_run_classifies_failure_cleanly(self) -> None:
         session = Mock()
         response = Mock()
@@ -430,15 +447,20 @@ class ProviderRegistryTests(SimpleTestCase):
     def test_default_provider_order_prioritizes_reliable_sources(self) -> None:
         self.assertEqual(
             get_configured_provider_names(),
-            ["remotive", "adzuna", "greenhouse", "lever", "remoteok", "ashby", "weworkremotely", "indeed"],
+            ["remotive", "adzuna", "lever", "remoteok", "greenhouse", "ashby", "weworkremotely", "indeed"],
         )
 
     def test_disabled_providers_are_skipped(self) -> None:
-        # adzuna is disabled when ADZUNA_APP_ID env var is not set (default in CI/local).
-        # ashby and weworkremotely are paused in beta. indeed stays disabled.
+        # ashby, weworkremotely and indeed are always disabled in beta.
+        # adzuna is conditionally enabled when ADZUNA_APP_ID env var is set.
+        # greenhouse must be last among enabled providers (budget protection).
         providers = build_enabled_providers()
+        names = [p.name for p in providers]
 
-        self.assertEqual(
-            [provider.name for provider in providers],
-            ["remotive", "greenhouse", "lever", "remoteok"],
-        )
+        for always_on in ("remotive", "lever", "remoteok", "greenhouse"):
+            self.assertIn(always_on, names)
+
+        for always_off in ("ashby", "weworkremotely", "indeed"):
+            self.assertNotIn(always_off, names)
+
+        self.assertEqual(names[-1], "greenhouse")
